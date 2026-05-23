@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./BE
+      dockerfile: Dockerfile
+    container_name: fast_api_backend
+    restart: always
+    ports:
+      - "8000:8000"
+      - "6379:6379" # Port redis chạy ngầm bên trong container backend
+    env_file:
+      - ./BE/.env
+    environment:
+      # Kết nối tới container dwh-postgres của data_pipeline
+      - DATABASE_URL=postgresql+psycopg2://admin:123456@dwh-postgres:5432/postgres
+      - DATABASE_URL_SYNC=postgresql://admin:123456@dwh-postgres:5432/postgres
+      - REDIS_URL=redis://localhost:6379/0
+      - HOST=0.0.0.0
+      - PORT=8000
+    networks:
+      - etl-network
+
+  frontend:
+    build:
+      context: ./FE
+      dockerfile: Dockerfile
+    container_name: nextjs_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    networks:
+      - etl-network
+    depends_on:
+      - backend
+
+networks:
+  etl-network:
+    name: vietnam_stock_network
+    driver: bridge

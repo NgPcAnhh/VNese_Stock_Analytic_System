@@ -1,0 +1,9 @@
+components/stock/OrgChart.tsx(174,32): error TS1005: '}' expected.
+components/stock/OrgChart.tsx(174,34): error TS1005: '...' expected.
+components/stock/OrgChart.tsx(174,106): error TS1003: Identifier expected.
+components/stock/OrgChart.tsx(174,109): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+components/stock/OrgChart.tsx(174,110): error TS1382: Unexpected token. Did you mean `{'>'}` or `&gt;`?
+components/stock/OrgChart.tsx(174,126): error TS17002: Expected corresponding JSX closing tag for 'div'.
+components/stock/QuantAnalysisTab.tsx(730,42): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+components/stock/QuantAnalysisTab.tsx(747,44): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+components/stock/QuantAnalysisTab.tsx(758,46): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?

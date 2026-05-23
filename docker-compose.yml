@@ -1,0 +1,3 @@
+include:
+  - path: data_pipeline/etl/docker-compose.yaml
+  - path: web_ptich_ck/docker-compose.yml

@@ -1,0 +1,3 @@
+﻿components/stock/StockComparisonTab.tsx(469,46): error TS2304: Cannot find name 'excludedPeers'.
+components/stock/StockComparisonTab.tsx(536,42): error TS2304: Cannot find name 'excludedPeers'.
+components/stock/StockComparisonTab.tsx(577,49): error TS2304: Cannot find name 'excludedPeers'.
