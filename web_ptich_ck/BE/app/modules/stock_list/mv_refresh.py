@@ -25,9 +25,8 @@ async def refresh_stock_screener_mv_once() -> None:
     """Refresh stock screener materialized view once."""
     settings = get_settings()
     dsn = _normalize_dsn(settings.DATABASE_URL)
-    host = (urlparse(dsn).hostname or "").lower()
-    use_ssl = host not in {"localhost", "127.0.0.1"}
-
+    # Avoid forcing SSL on local dev (localhost, 127.0.0.1) or dwh-postgres
+    use_ssl = False if any(host in dsn for host in ["localhost", "127.0.0.1", "dwh-postgres"]) else True
     conn = await asyncpg.connect(dsn=dsn, command_timeout=3600, ssl=use_ssl)
     try:
         await conn.execute(_REFRESH_SQL)

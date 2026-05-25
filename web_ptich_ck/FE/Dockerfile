@@ -2,6 +2,8 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+RUN apk add --no-cache libc6-compat
+
 # Cài đặt package.json
 COPY package*.json ./
 RUN npm ci || npm install

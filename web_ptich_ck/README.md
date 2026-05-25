@@ -8,7 +8,7 @@ Dự án phát triển nền tảng web cung cấp giải pháp toàn diện cho
 
 Hệ thống được thiết kế theo mô hình **Client-Server** kết hợp **Microservices-oriented** cho các dịch vụ AI và Data Pipeline.
 
-*   **Frontend (FE):** Next.js (React), TypeScript, TailwindCSS, thư viện Chart (TradingView/Recharts) để vẽ biểu đồ kỹ thuật và trực quan hóa dữ liệu.
+*   **Frontend (FE):** Next.js (React), TypeScript, TailwindCSS, thư viện Chart (Echarts/Recharts) để vẽ biểu đồ kỹ thuật và trực quan hóa dữ liệu.
 *   **Backend (BE):** FastAPI (Python) - xử lý API nhanh, hỗ trợ xử lý bất đồng bộ (async) lý tưởng cho I/O bound và AI stream.
 *   **Database:**
     *   **PostgreSQL (DWH):** Lưu trữ toàn bộ dữ liệu tài chính doanh nghiệp, biến động giá, thông tin người dùng.

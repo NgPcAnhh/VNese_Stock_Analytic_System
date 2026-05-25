@@ -48,7 +48,7 @@ def get_dowjones_index(start_date: str | None = None, end_date: str | None = Non
         df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
         
         # Add asset type identifier
-        df["asset_type"] = "DOWJONES"
+        df["asset_type"] = "DJI"
         
         # Select only required columns
         df = df[["date", "open", "high", "low", "close", "volume", "asset_type"]]

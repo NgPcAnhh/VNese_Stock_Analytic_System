@@ -69,7 +69,7 @@ services:
       POSTGRES_PASSWORD: 123456
       POSTGRES_DB: postgres
     ports:
-      - "5433:5432"
+      - "5432:5432"
     volumes:
       - dwh-postgres-data:/var/lib/postgresql/data
     healthcheck:

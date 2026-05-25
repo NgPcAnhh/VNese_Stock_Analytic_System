@@ -29,7 +29,7 @@ elif "postgresql://" in _db_url and "+asyncpg" not in _db_url:
 # ── Async engine ──
 # Local Postgres often runs without SSL; forcing SSL handshake can fail on dev machines.
 _db_host = (urlparse(_db_url).hostname or "").lower()
-_is_local_db = _db_host in {"localhost", "127.0.0.1"}
+_is_local_db = _db_host in {"localhost", "127.0.0.1", "dwh-postgres"}
 
 _connect_args = {
     "statement_cache_size": 100,  # cache 100 prepared statements / conn

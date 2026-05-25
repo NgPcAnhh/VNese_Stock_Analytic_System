@@ -314,8 +314,21 @@ async def get_market_chart(
 
     if cached is None:
         # ── Query DB ──────────────────────────────────────────────
+        # Get the latest date with data for this ticker in market_index table
+        max_date_sql = text("""
+            SELECT MAX(trading_date)
+            FROM hethong_phantich_chungkhoan.market_index
+            WHERE ticker = :ticker
+        """)
+        max_date_res = await db.execute(max_date_sql, {"ticker": ticker})
+        latest_date = max_date_res.scalar()
+        if not latest_date:
+            latest_date = date.today()
+        elif isinstance(latest_date, str):
+            latest_date = date.fromisoformat(latest_date)
+
         days = PERIOD_DAYS.get(period, 365)
-        cutoff = (date.today() - timedelta(days=days)).isoformat()
+        cutoff = (latest_date - timedelta(days=days)).isoformat()
 
         interval = RESAMPLE_MAP.get(period)
         sql = text(_build_market_chart_sql(interval))
@@ -448,12 +461,12 @@ async def get_market_comparison(db: AsyncSession) -> List[Dict[str, Any]]:
                 ELSE 0
             END AS change
         FROM (
-            SELECT DISTINCT asset_type FROM macro_economy
+            SELECT DISTINCT asset_type FROM hethong_phantich_chungkhoan.macro_economy
         ) a
         CROSS JOIN LATERAL (
             SELECT ARRAY(
                 SELECT close
-                FROM macro_economy me
+                FROM hethong_phantich_chungkhoan.macro_economy me
                 WHERE me.asset_type = a.asset_type
                 ORDER BY date DESC
                 LIMIT 2
@@ -919,7 +932,7 @@ async def get_macro_data(db: AsyncSession) -> List[Dict[str, Any]]:
     Giờ chỉ 1 query duy nhất lấy toàn bộ dữ liệu, xử lý Python-side.
     Redis cache 5 phút.
     """
-    cache_key = "macro_data"
+    cache_key = "macro_data_v2"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached
@@ -936,15 +949,31 @@ async def get_macro_data(db: AsyncSession) -> List[Dict[str, Any]]:
 
     # Group by asset_type
     from collections import defaultdict
+    import math
+
     grouped: Dict[str, List[Dict]] = defaultdict(list)
     for r in rows:
+        try:
+            val = float(r["close"]) if r["close"] is not None else 0.0
+            if math.isnan(val) or math.isinf(val):
+                val = 0.0
+        except (ValueError, TypeError):
+            val = 0.0
+
         grouped[r["asset_type"]].append({
-            "close": float(r["close"]),
+            "close": val,
             "date": r["date"].isoformat() if hasattr(r["date"], "isoformat") else str(r["date"]),
         })
 
+    if rows:
+        latest_date = max(r["date"] for r in rows)
+        if isinstance(latest_date, str):
+            latest_date = date.fromisoformat(latest_date)
+    else:
+        latest_date = date.today()
+
     cutoffs = {
-        k: (date.today() - timedelta(days=d)).isoformat()
+        k: (latest_date - timedelta(days=d)).isoformat()
         for k, d in SPARKLINE_PERIOD_DAYS.items()
     }
 

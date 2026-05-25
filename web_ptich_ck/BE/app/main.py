@@ -53,11 +53,14 @@ async def lifespan(app: FastAPI):
     await close_redis()
 
 
+from app.core.responses import SafeJSONResponse
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
     lifespan=lifespan,
+    default_response_class=SafeJSONResponse,
 )
 
 # ── GZip middleware — nén response > 500 bytes (giảm ~70% cho JSON lớn) ──

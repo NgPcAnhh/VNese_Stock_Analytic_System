@@ -26,7 +26,6 @@ _ASSET_META: Dict[str, Dict[str, str]] = {
     "USD_CNY": {"name": "USD/CNY", "flag": "🇨🇳"},
     "US_BOND_10Y": {"name": "US Bond 10Y", "flag": "🏦"},
     "DJI": {"name": "Dow Jones (DJI)", "flag": "🇺🇸"},
-    "DOWJONES": {"name": "Dow Jones Industrial", "flag": "🇺🇸"},
 }
 
 # ────────────────────────────────────────────────────────────────────
@@ -145,7 +144,7 @@ async def get_market_indices(db: AsyncSession) -> List[Dict[str, Any]]:
 
     sql = text("""
         SELECT asset_type, date, close
-        FROM macro_economy
+        FROM hethong_phantich_chungkhoan.macro_economy
         WHERE close IS NOT NULL
         ORDER BY asset_type, date DESC
     """)
@@ -160,12 +159,18 @@ async def get_market_indices(db: AsyncSession) -> List[Dict[str, Any]]:
             "date": r["date"].isoformat() if hasattr(r["date"], "isoformat") else str(r["date"]),
         })
 
-    today = date.today()
+    if rows:
+        latest_date = max(r["date"] for r in rows)
+        if isinstance(latest_date, str):
+            latest_date = date.fromisoformat(latest_date)
+    else:
+        latest_date = date.today()
+
     cutoffs = {
-        "week1": (today - timedelta(days=7)).isoformat(),
-        "ytd": f"{today.year}-01-01",
-        "year1": (today - timedelta(days=365)).isoformat(),
-        "year3": (today - timedelta(days=365 * 3)).isoformat(),
+        "week1": (latest_date - timedelta(days=7)).isoformat(),
+        "ytd": f"{latest_date.year}-01-01",
+        "year1": (latest_date - timedelta(days=365)).isoformat(),
+        "year3": (latest_date - timedelta(days=365 * 3)).isoformat(),
     }
 
     results: List[Dict[str, Any]] = []

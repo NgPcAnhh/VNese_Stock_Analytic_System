@@ -7,9 +7,9 @@ from function.datalake_df2csv import DfToCsvOperator
 
 default_args = {
     "owner": "airflow",
-    "retries": 2,
+    "retries": 4,
     "retry_delay": timedelta(minutes=3),
-    "execution_timeout": timedelta(minutes=60),
+    "execution_timeout": timedelta(minutes=90),
 }
 
 MINIO_BUCKET = "thongtin-congty-va-bctc"
@@ -66,7 +66,7 @@ def daily_price_minio_dag():
         bucket_name=MINIO_BUCKET,
         object_path="daily_price/{{ ds }}/batch_{{ ti.map_index }}.csv",  # Lưu vào folder daily_price
         conn_id=MINIO_CONN_ID,
-        max_active_tis_per_dagrun=3,  # Chạy 4 batch đồng thời
+        max_active_tis_per_dagrun=4,  # Chạy 4 batch đồng thời
     ).expand(op_kwargs=batches)
 
     chain(batches, ingest_daily_price)

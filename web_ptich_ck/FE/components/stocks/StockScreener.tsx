@@ -88,6 +88,24 @@ const fmtCap = (v: number) => {
 const fmtPct = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
 const fmtPrice = (v: number) => `${fmt(v)}đ`;
 
+function removeVietnameseTones(str: string) {
+  str = str.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, "a");
+  str = str.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, "e");
+  str = str.replace(/ì|í|ị|ỉ|ĩ/g, "i");
+  str = str.replace(/ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, "o");
+  str = str.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, "u");
+  str = str.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, "y");
+  str = str.replace(/đ/g, "d");
+  str = str.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, "A");
+  str = str.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, "E");
+  str = str.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, "I");
+  str = str.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, "O");
+  str = str.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, "U");
+  str = str.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, "Y");
+  str = str.replace(/Đ/g, "D");
+  return str;
+}
+
 // icon map for presets
 const presetIconMap: Record<string, React.ReactNode> = {
   gem: <Gem className="w-4 h-4" />,
@@ -362,10 +380,12 @@ export default function StockScreener() {
 
     // Search
     if (deferredSearch) {
-      const q = deferredSearch.toLowerCase();
-      list = list.filter(
-        (s) => s.ticker.toLowerCase().includes(q) || s.companyName.toLowerCase().includes(q)
-      );
+      const q = removeVietnameseTones(deferredSearch.toLowerCase());
+      list = list.filter((s) => {
+        const t = removeVietnameseTones(s.ticker.toLowerCase());
+        const n = removeVietnameseTones(s.companyName.toLowerCase());
+        return t.includes(q) || n.includes(q);
+      });
     }
 
     // Exchange
@@ -377,30 +397,32 @@ export default function StockScreener() {
       list = list.filter((s) => filters.sectors.includes(s.sector));
 
     // Range filters
-    const rangeCheck = (val: number | null, range: FilterRange): boolean => {
+    const rangeCheck = (val: number | null, range: FilterRange, def: FilterRange): boolean => {
       if (val === null) return true;
-      return val >= range.min && val <= range.max;
+      const passMin = range.min <= def.min || val >= range.min;
+      const passMax = range.max >= def.max || val <= range.max;
+      return passMin && passMax;
     };
 
     list = list.filter(
       (s) =>
-        rangeCheck(s.currentPrice, filters.priceRange) &&
-        rangeCheck(s.volume, filters.volumeRange) &&
-        rangeCheck(s.marketCap, filters.marketCapRange) &&
-        rangeCheck(s.pe, filters.peRange) &&
-        rangeCheck(s.pb, filters.pbRange) &&
-        rangeCheck(s.eps, filters.epsRange) &&
-        rangeCheck(s.dividendYield, filters.dividendYieldRange) &&
-        rangeCheck(s.roe, filters.roeRange) &&
-        rangeCheck(s.roa, filters.roaRange) &&
-        rangeCheck(s.revenueGrowth, filters.revenueGrowthRange) &&
-        rangeCheck(s.profitGrowth, filters.profitGrowthRange) &&
-        rangeCheck(s.debtToEquity, filters.debtToEquityRange) &&
-        rangeCheck(s.beta, filters.betaRange) &&
-        rangeCheck(s.rsi14, filters.rsiRange) &&
-        rangeCheck(s.foreignOwnership, filters.foreignOwnershipRange) &&
-        rangeCheck(s.foreignNetBuy, filters.foreignNetBuyRange) &&
-        rangeCheck(s.weekChange52, filters.weekChange52Range)
+        rangeCheck(s.currentPrice, filters.priceRange, DEFAULT_FILTERS.priceRange) &&
+        rangeCheck(s.volume, filters.volumeRange, DEFAULT_FILTERS.volumeRange) &&
+        rangeCheck(s.marketCap, filters.marketCapRange, DEFAULT_FILTERS.marketCapRange) &&
+        rangeCheck(s.pe, filters.peRange, DEFAULT_FILTERS.peRange) &&
+        rangeCheck(s.pb, filters.pbRange, DEFAULT_FILTERS.pbRange) &&
+        rangeCheck(s.eps, filters.epsRange, DEFAULT_FILTERS.epsRange) &&
+        rangeCheck(s.dividendYield, filters.dividendYieldRange, DEFAULT_FILTERS.dividendYieldRange) &&
+        rangeCheck(s.roe, filters.roeRange, DEFAULT_FILTERS.roeRange) &&
+        rangeCheck(s.roa, filters.roaRange, DEFAULT_FILTERS.roaRange) &&
+        rangeCheck(s.revenueGrowth, filters.revenueGrowthRange, DEFAULT_FILTERS.revenueGrowthRange) &&
+        rangeCheck(s.profitGrowth, filters.profitGrowthRange, DEFAULT_FILTERS.profitGrowthRange) &&
+        rangeCheck(s.debtToEquity, filters.debtToEquityRange, DEFAULT_FILTERS.debtToEquityRange) &&
+        rangeCheck(s.beta, filters.betaRange, DEFAULT_FILTERS.betaRange) &&
+        rangeCheck(s.rsi14, filters.rsiRange, DEFAULT_FILTERS.rsiRange) &&
+        rangeCheck(s.foreignOwnership, filters.foreignOwnershipRange, DEFAULT_FILTERS.foreignOwnershipRange) &&
+        rangeCheck(s.foreignNetBuy, filters.foreignNetBuyRange, DEFAULT_FILTERS.foreignNetBuyRange) &&
+        rangeCheck(s.weekChange52, filters.weekChange52Range, DEFAULT_FILTERS.weekChange52Range)
     );
 
     // MACD signal
