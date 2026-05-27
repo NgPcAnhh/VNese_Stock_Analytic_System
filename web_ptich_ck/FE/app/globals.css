@@ -45,6 +45,34 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  /* Indigo overrides mapping to brand orange */
+  --color-indigo-50: var(--indigo-50);
+  --color-indigo-100: var(--indigo-100);
+  --color-indigo-200: var(--indigo-200);
+  --color-indigo-300: var(--indigo-300);
+  --color-indigo-400: var(--indigo-400);
+  --color-indigo-500: var(--indigo-500);
+  --color-indigo-600: var(--indigo-600);
+  --color-indigo-700: var(--indigo-700);
+  --color-indigo-800: var(--indigo-800);
+  --color-indigo-900: var(--indigo-900);
+  --color-indigo-950: var(--indigo-950);
+
+  /* Neutral overrides for BI components theme adaptation */
+  --color-neutral-50: var(--neutral-50);
+  --color-neutral-100: var(--neutral-100);
+  --color-neutral-200: var(--neutral-200);
+  --color-neutral-250: var(--neutral-250);
+  --color-neutral-300: var(--neutral-300);
+  --color-neutral-400: var(--neutral-400);
+  --color-neutral-500: var(--neutral-500);
+  --color-neutral-600: var(--neutral-600);
+  --color-neutral-700: var(--neutral-700);
+  --color-neutral-800: var(--neutral-800);
+  --color-neutral-850: var(--neutral-850);
+  --color-neutral-900: var(--neutral-900);
+  --color-neutral-950: var(--neutral-950);
 }
 
 :root {
@@ -83,6 +111,34 @@
   --sidebar-accent-foreground: oklch(0.7 0.15 45);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Brand Orange color overrides for indigo classes in BI tools */
+  --indigo-50: oklch(0.97 0.015 45);
+  --indigo-100: oklch(0.93 0.035 45);
+  --indigo-200: oklch(0.87 0.07 45);
+  --indigo-300: oklch(0.8 0.11 45);
+  --indigo-400: oklch(0.74 0.14 45);
+  --indigo-500: oklch(0.7 0.15 45);
+  --indigo-600: oklch(0.62 0.17 45);
+  --indigo-700: oklch(0.53 0.16 45);
+  --indigo-800: oklch(0.44 0.15 45);
+  --indigo-900: oklch(0.36 0.13 45);
+  --indigo-950: oklch(0.24 0.09 45);
+
+  /* Inverted neutral colors for light mode adaptation */
+  --neutral-950: #f8fafc;
+  --neutral-900: #ffffff;
+  --neutral-850: #f1f5f9;
+  --neutral-800: #e2e8f0;
+  --neutral-250: #e2e8f0;
+  --neutral-700: #334155;
+  --neutral-600: #0f172a;
+  --neutral-500: #000000;
+  --neutral-400: #000000;
+  --neutral-300: #000000;
+  --neutral-200: #000000;
+  --neutral-100: #000000;
+  --neutral-50: #000000;
 }
 
 .dark {
@@ -118,6 +174,34 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Keep brand color orange in dark mode */
+  --indigo-50: oklch(0.97 0.015 45);
+  --indigo-100: oklch(0.93 0.035 45);
+  --indigo-200: oklch(0.87 0.07 45);
+  --indigo-300: oklch(0.8 0.11 45);
+  --indigo-400: oklch(0.74 0.14 45);
+  --indigo-500: oklch(0.7 0.15 45);
+  --indigo-600: oklch(0.62 0.17 45);
+  --indigo-700: oklch(0.53 0.16 45);
+  --indigo-800: oklch(0.44 0.15 45);
+  --indigo-900: oklch(0.36 0.13 45);
+  --indigo-950: oklch(0.24 0.09 45);
+
+  /* Standard neutral colors for dark mode */
+  --neutral-950: #0a0a0a;
+  --neutral-900: #171717;
+  --neutral-850: #202020;
+  --neutral-800: #262626;
+  --neutral-250: #202020;
+  --neutral-700: #404040;
+  --neutral-600: #525252;
+  --neutral-500: #737373;
+  --neutral-400: #a3a3a3;
+  --neutral-300: #d4d4d4;
+  --neutral-200: #262626;
+  --neutral-100: #171717;
+  --neutral-50: #fafafa;
 }
 
 @layer base {

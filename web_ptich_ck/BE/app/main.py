@@ -11,7 +11,7 @@ from app.core.middleware import (
     RateLimitMiddleware,
     TimeoutMiddleware,
 )
-from app.database.database import close_db
+from app.database.database import close_db, init_bi_db
 from app.modules.chatbot.db.pool import close_pool as close_chatbot_pool
 from app.core.cache import close_redis
 from app.modules.tong_quan.router import router as tong_quan_router
@@ -39,6 +39,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup — các connection pool đã lazy-init, không cần gì thêm
+    await init_bi_db()
     mv_refresh_task = None
     if settings.STOCK_MV_REFRESH_ENABLED:
         mv_refresh_task = start_stock_mv_refresh_task(
@@ -87,6 +88,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include BI routers
+from app.modules.bi.data_sources.router import router as data_sources_router
+from app.modules.bi.queries.router import router as queries_router
+from app.modules.bi.datasets.router import router as datasets_router
+from app.modules.bi.charts.router import router as charts_router
+from app.modules.bi.dashboards.router import router as dashboards_router
+
 # Include routers
 app.include_router(tong_quan_router, prefix="/api/v1")
 app.include_router(news_router, prefix="/api/v1")
@@ -101,6 +109,11 @@ app.include_router(admin_router, prefix="/api/v1")
 app.include_router(alerts_router, prefix="/api/v1")
 app.include_router(portfolio_router, prefix="/api/v1")
 app.include_router(chatbot_router, prefix="/api/v1")
+app.include_router(data_sources_router, prefix="/api/v1/data-sources", tags=["data-sources"])
+app.include_router(queries_router, prefix="/api/v1/queries", tags=["queries"])
+app.include_router(datasets_router, prefix="/api/v1/datasets", tags=["datasets"])
+app.include_router(charts_router, prefix="/api/v1/charts", tags=["charts"])
+app.include_router(dashboards_router, prefix="/api/v1/dashboards", tags=["dashboards"])
 
 @app.get("/")
 async def read_root():

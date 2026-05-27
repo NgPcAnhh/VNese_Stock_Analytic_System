@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/AuthContext";
 import { useSessionTracking, usePageViewTracking, useErrorTracking } from "@/hooks/useTracking";
 import { PriceBoardPopup } from "@/components/dashboard/PriceBoardPopup";
+import { Menu } from "lucide-react";
 
 const JUST_LOGGED_IN_KEY = "stockpro:auth:just-logged-in";
 
@@ -77,6 +78,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const hideSidebarFromUrl = searchParams.get("hideSidebar") === "true";
     const isPriceBoardIframe = pathname === "/price-board" && hideSidebarFromUrl;
     const isPriceBoardMain = pathname === "/price-board" && !hideSidebarFromUrl;
+    const isBIHub = pathname === "/data-sources" || pathname === "/hub";
     // Reset timeout khi thao tác với sidebar hover
     const handleSidebarHoverActivity = () => {
         if (hoverTimeout) {
@@ -152,10 +154,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </div>
 
             <div className="flex flex-col flex-1 overflow-hidden w-full transition-all duration-300">
-                <Header onMenuClick={() => setIsMobileMenuOpen(true)} />
+                {!isBIHub && <Header onMenuClick={() => setIsMobileMenuOpen(true)} />}
                 {pathname === "/" && <StockTicker />}
                 <main data-scroll-root="app" className="flex-1 overflow-y-auto scroll-smooth bg-muted/20">
-                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+                        {isBIHub && (
+                            <button
+                                className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-background/80 backdrop-blur border border-border rounded-full shadow-lg text-foreground hover:bg-muted"
+                                onClick={() => setIsMobileMenuOpen(true)}
+                            >
+                                <Menu className="h-5 w-5" />
+                            </button>
+                        )}
                         {children}
                     </div>
                 </main>

@@ -25,12 +25,15 @@ EXPOSE 6379
 
 # Tạo một script để chạy cả Redis và Uvicorn
 RUN echo '#!/bin/bash\n\
-# Khởi động Redis chạy ngầm\n\
 redis-server --daemonize yes\n\
 \n\
 # Khởi động Backend\n\
-uvicorn app.main:app --host 0.0.0.0 --port 8000\n\
-' > /app/start_services.sh && chmod +x /app/start_services.sh
+if [ "$DEBUG" = "true" ]; then\n\
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload\n\
+else\n\
+    uvicorn app.main:app --host 0.0.0.0 --port 8000\n\
+fi\n\
+' > /start_services.sh && chmod +x /start_services.sh
 
 # Chạy script khởi động
-CMD ["/app/start_services.sh"]
+CMD ["/start_services.sh"]

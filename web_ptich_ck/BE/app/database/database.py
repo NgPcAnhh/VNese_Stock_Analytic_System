@@ -79,6 +79,40 @@ async def init_db() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
+from sqlalchemy import text
+
+async def init_bi_db() -> None:
+    """Khởi tạo schema bi_hub, các bảng của BI, và seed workspace mặc định."""
+    async with engine.begin() as conn:
+        # 1. Tạo schema bi_hub
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS bi_hub;"))
+        
+        # Import toàn bộ model của BI để đăng ký vào Base.metadata
+        import app.modules.bi.models.workspace
+        import app.modules.bi.models.data_source
+        import app.modules.bi.models.query
+        import app.modules.bi.models.dataset
+        import app.modules.bi.models.chart
+        import app.modules.bi.models.dashboard
+        
+        # 2. Tạo bảng
+        await conn.run_sync(Base.metadata.create_all)
+        
+        # 3. Seed default workspace '00000000-0000-0000-0000-000000000000' nếu chưa có
+        default_ws_id = "00000000-0000-0000-0000-000000000000"
+        check_query = text("SELECT id FROM bi_hub.workspaces WHERE id = :id")
+        result = await conn.execute(check_query, {"id": default_ws_id})
+        if not result.fetchone():
+            insert_query = text(
+                "INSERT INTO bi_hub.workspaces (id, name, slug) VALUES (:id, :name, :slug)"
+            )
+            await conn.execute(insert_query, {
+                "id": default_ws_id,
+                "name": "Default Workspace",
+                "slug": "default"
+            })
+
+
 async def close_db() -> None:
     """Đóng engine khi shutdown."""
     await engine.dispose()

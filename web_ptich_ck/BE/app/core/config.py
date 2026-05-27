@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = "gemini-2.5-flash"
 
+    # Encryption key for BI tools data sources
+    ENCRYPTION_KEY: str = "FW9yUp0yRl1lVuUv6ZuWbXX4SMWcheXrysMpQ_o8xxM="
+
     model_config = SettingsConfigDict(
         env_file=".env" if os.path.exists(".env") else ".env.example",
         env_file_encoding="utf-8",
