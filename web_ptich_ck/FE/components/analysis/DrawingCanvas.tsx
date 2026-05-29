@@ -38,6 +38,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
   ({ activeTool, color, lineWidth, drawings, onDrawingsChange, width, height, chartInst }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [currentDrawing, setCurrentDrawing] = useState<DrawingItem | null>(null);
+    const [selectionBox, setSelectionBox] = useState<{ x1: number, y1: number, x2: number, y2: number } | null>(null);
     const [mousePos, setMousePos] = useState<DrawingPoint | null>(null);
     const [textInput, setTextInput] = useState<{ x: number; y: number; visible: boolean }>({
       x: 0, y: 0, visible: false,
@@ -102,7 +103,23 @@ const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         };
         drawShape(ctx, preview, true);
       }
-    }, [drawings, currentDrawing, mousePos, width, height, mapToPixel]);
+
+      // Draw marquee selection box
+      if (selectionBox) {
+        ctx.save();
+        ctx.strokeStyle = "rgba(249, 115, 22, 0.8)"; // Orange to match theme
+        ctx.fillStyle = "rgba(249, 115, 22, 0.1)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 2]);
+        const x = Math.min(selectionBox.x1, selectionBox.x2);
+        const y = Math.min(selectionBox.y1, selectionBox.y2);
+        const w = Math.abs(selectionBox.x2 - selectionBox.x1);
+        const h = Math.abs(selectionBox.y2 - selectionBox.y1);
+        ctx.strokeRect(x, y, w, h);
+        ctx.fillRect(x, y, w, h);
+        ctx.restore();
+      }
+    }, [drawings, currentDrawing, mousePos, selectionBox, width, height, mapToPixel]);
 
     useEffect(() => {
       drawAll();
@@ -464,12 +481,56 @@ const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       const pos = getCanvasPos(e);
 
       if (activeTool === "cursor") {
-        // Select / deselect drawings
-        const updated = drawings.map((d) => ({
-          ...d,
-          selected: isNearDrawing(mapToPixel(d), pos.x, pos.y),
-        }));
-        onDrawingsChange(updated);
+        // Check if we clicked on or near an existing drawing
+        const clickedDrawing = drawings.find(d => isNearDrawing(mapToPixel(d), pos.x, pos.y));
+        
+        if (clickedDrawing) {
+          // Select single drawing
+          const updated = drawings.map((d) => ({
+            ...d,
+            selected: d.id === clickedDrawing.id,
+          }));
+          onDrawingsChange(updated);
+          return;
+        }
+
+        // Start marquee selection
+        setSelectionBox({ x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y });
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+          const canvas = canvasRef.current;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          const mx = moveEvent.clientX - rect.left;
+          const my = moveEvent.clientY - rect.top;
+          
+          setSelectionBox(prev => prev ? { ...prev, x2: mx, y2: my } : null);
+
+          // Update selection real-time
+          const xMin = Math.min(pos.x, mx);
+          const yMin = Math.min(pos.y, my);
+          const xMax = Math.max(pos.x, mx);
+          const yMax = Math.max(pos.y, my);
+
+          const updated = drawings.map(d => {
+            const mapped = mapToPixel(d);
+            // Consider selected if any point is inside the box OR if it's a shape and its bounds overlap
+            const isInside = mapped.points.some(p => 
+              p.x >= xMin && p.x <= xMax && p.y >= yMin && p.y <= yMax
+            );
+            return { ...d, selected: isInside };
+          });
+          onDrawingsChange(updated);
+        };
+
+        const onMouseUp = () => {
+          setSelectionBox(null);
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
         return;
       }
 

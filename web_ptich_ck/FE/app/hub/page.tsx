@@ -45,7 +45,10 @@ import {
   Forward,
   Sparkles,
   Copy,
-  Play
+  Play,
+  MousePointer2,
+  Hand,
+  GripVertical
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 
@@ -59,6 +62,22 @@ interface GlobalFilter {
   column: string;
   operator: "equals" | "contains" | "greater_than" | "less_than";
   defaultValue?: string;
+}
+
+interface DashboardFrame {
+  id: string;
+  name: string;
+  pos: { x: number; y: number; w: number; h: number };
+  tabId: string;
+  isMain?: boolean;
+  bgColor?: string;
+  borderColor?: string;
+  borderRadius?: number;
+  borderStyle?: 'solid' | 'dashed' | 'dotted' | 'none';
+  borderWidth?: number;
+  boxShadow?: string;
+  bgImage?: string;
+  opacity?: number;
 }
 
 // Dashboard widget types (non-chart)
@@ -160,6 +179,85 @@ export default function BIHubPage() {
   const searchParams = useSearchParams();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isHeaderDisabled, setIsHeaderDisabled] = useState(false);
+  const [mainFrameId, setMainFrameId] = useState<string | null>(null);
+  const [tabFrameId, setTabFrameId] = useState<string | null>(null);
+  const [tabFramePosition, setTabFramePosition] = useState<'top' | 'bottom' | 'left' | 'right'>('top');
+  const [dashboardFrames, setDashboardFrames] = useState<DashboardFrame[]>([]);
+  const [showAddFrameDropdown, setShowAddFrameDropdown] = useState(false);
+  const addFrameDropdownRef = useRef<HTMLDivElement>(null);
+  const [tabBorderRadius, setTabBorderRadius] = useState<number>(12);
+  const [tabOpacity, setTabOpacity] = useState<number>(1);
+  const [tabBarStyle, setTabBarStyle] = useState<"pills" | "underline" | "flat">("pills");
+  const [tabFontSize, setTabFontSize] = useState<number>(12);
+  const [tabFontWeight, setTabFontWeight] = useState<"normal" | "bold" | "semibold">("semibold");
+  const [tabPaddingX, setTabPaddingX] = useState<number>(18);
+  const [tabPaddingY, setTabPaddingY] = useState<number>(8);
+  const [tabGap, setTabGap] = useState<number>(8);
+  const [tabActiveColor, setTabActiveColor] = useState<string>("var(--color-orange-500)");
+  const [alignmentGuides, setAlignmentGuides] = useState<{ x?: number, y?: number, type: 'h' | 'v' }[]>([]);
+  const SNAP_THRESHOLD = 8;
+
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [selectedWidgetIds, setSelectedWidgetIds] = useState<string[]>([]);
+  const [selectionBox, setSelectionBox] = useState<{ x1: number, y1: number, x2: number, y2: number } | null>(null);
+  const [interactionMode, setInteractionMode] = useState<"select" | "pan">("select");
+
+  // History for Undo
+  const [history, setHistory] = useState<{ items: any[], widgets: any[], frames: any[] }[]>([]);
+  const [toolbarPos, setToolbarPos] = useState({ x: 16, y: 16 }); // Distance from bottom-right
+
+  const startToolbarDrag = (e: React.MouseEvent) => {
+    if (!isEditMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = toolbarPos.x;
+    const startY = toolbarPos.y;
+    const startMouseX = e.clientX;
+    const startMouseY = e.clientY;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const dx = moveEvent.clientX - startMouseX;
+      const dy = moveEvent.clientY - startMouseY;
+      // We use bottom/right positioning, so subtract movement
+      setToolbarPos({
+        x: Math.max(8, startX - dx),
+        y: Math.max(8, startY - dy)
+      });
+    };
+
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const saveToHistory = () => {
+    setHistory(prev => {
+      const newState = {
+        items: JSON.parse(JSON.stringify(dashboardItems)),
+        widgets: JSON.parse(JSON.stringify(dashboardWidgets)),
+        frames: JSON.parse(JSON.stringify(dashboardFrames))
+      };
+      // Limit history to 30 steps
+      const newHistory = [...prev, newState];
+      if (newHistory.length > 30) return newHistory.slice(newHistory.length - 30);
+      return newHistory;
+    });
+  };
+
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const prevState = history[history.length - 1];
+    setDashboardItems(prevState.items);
+    setDashboardWidgets(prevState.widgets);
+    setDashboardFrames(prevState.frames || []);
+    setHistory(prev => prev.slice(0, prev.length - 1));
+  };
 
   // Code editor scroll refs
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -235,21 +333,38 @@ export default function BIHubPage() {
     startY: number;
     startW: number;
     startH: number;
+    initialPositions: { id: string, x: number, y: number, type: 'item' | 'widget' | 'frame' }[];
   }>({
     type: null, itemId: null, handle: 'se',
     startMouseX: 0, startMouseY: 0,
     startX: 0, startY: 0, startW: 0, startH: 0,
+    initialPositions: []
   });
   const [showAddChart, setShowAddChart] = useState(false);
   const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
   const [showTemplateSettings, setShowTemplateSettings] = useState(false);
   const addElementDropdownRef = useRef<HTMLDivElement>(null);
   const widgetImageInputRef = useRef<HTMLInputElement>(null);
+  const frameImageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFrameImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && stylingFrameId) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        setDashboardFrames(prev => prev.map(f => f.id === stylingFrameId ? { ...f, bgImage: base64 } : f));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
   // dashboard widgets (non-chart elements)
   const [dashboardWidgets, setDashboardWidgets] = useState<DashboardWidget[]>([]);
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
   const [showWidgetStyleModal, setShowWidgetStyleModal] = useState(false);
   const [stylingWidgetId, setStylingWidgetId] = useState<string | null>(null);
+  const [showFrameStyleModal, setShowFrameStyleModal] = useState(false);
+  const [stylingFrameId, setStylingFrameId] = useState<string | null>(null);
   const [editingWidgetText, setEditingWidgetText] = useState('');
   const [globalFilters, setGlobalFilters] = useState<GlobalFilter[]>([]);
   const [activeFilterValues, setActiveFilterValues] = useState<Record<string, string>>({});
@@ -359,14 +474,56 @@ export default function BIHubPage() {
     const isActive = activeTabId === tab.id;
     const isEditing = editingTabId === tab.id;
 
+    // Apply styles based on tabBarStyle
+    let styleClasses = "";
+    let inlineStyles: React.CSSProperties = { 
+      borderRadius: `${tabBorderRadius}px`, 
+      opacity: tabOpacity,
+      fontSize: `${tabFontSize}px`,
+      fontWeight: tabFontWeight,
+      paddingLeft: `${tabPaddingX}px`,
+      paddingRight: `${tabPaddingX}px`,
+      paddingTop: `${tabPaddingY}px`,
+      paddingBottom: `${tabPaddingY}px`,
+    };
+
+    if (tabBarStyle === 'pills') {
+      styleClasses = isActive
+        ? "text-white shadow-lg shadow-orange-600/20"
+        : "border-neutral-800 bg-neutral-900/40 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800";
+      
+      if (isActive) {
+        inlineStyles.backgroundColor = tabActiveColor.startsWith('var') ? tabActiveColor : tabActiveColor;
+        inlineStyles.borderColor = tabActiveColor.startsWith('var') ? tabActiveColor : tabActiveColor;
+      }
+    } else if (tabBarStyle === 'underline') {
+      styleClasses = isActive
+        ? "border-b-2 rounded-none bg-transparent"
+        : "border-transparent text-neutral-400 hover:text-neutral-200 rounded-none bg-transparent";
+      
+      if (isActive) {
+        inlineStyles.borderColor = tabActiveColor;
+        inlineStyles.color = tabActiveColor;
+      }
+    } else { // flat
+      styleClasses = isActive
+        ? "bg-neutral-800 border-neutral-700 text-white"
+        : "border-transparent text-neutral-500 hover:text-neutral-300 bg-transparent";
+    }
+
     return (
       <div
         key={tab.id}
-        onClick={() => !isEditing && setActiveTabId(tab.id)}
-        className={`flex items-center gap-2 px-4.5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all border shrink-0 ${isActive
-            ? "bg-orange-600/10 border-orange-500/40 text-orange-500 font-bold"
-            : "border-transparent text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/40"
-          } ${!horizontal ? 'w-full justify-between' : ''}`}
+        onClick={() => !isEditing && handleSelectTab(tab.id)}
+        onDoubleClick={() => {
+          if (isEditMode && !isEditing) {
+            setEditingTabId(tab.id);
+            setEditingTabName(tab.name);
+          }
+        }}
+        style={inlineStyles}
+        title={isEditMode ? "Double-click to rename" : undefined}
+        className={`flex items-center gap-2 text-xs cursor-pointer transition-all border shrink-0 ${styleClasses} ${!horizontal ? 'w-full justify-between' : ''}`}
       >
         {isEditing ? (
           <input
@@ -389,20 +546,12 @@ export default function BIHubPage() {
               }
             }}
             onClick={e => e.stopPropagation()}
+            onDoubleClick={e => e.stopPropagation()}
             className="bg-neutral-900 text-neutral-50 border border-orange-500/50 rounded px-1.5 py-0.5 text-xs font-semibold focus:outline-none w-28"
             autoFocus
           />
         ) : (
-          <span
-            onDoubleClick={() => {
-              if (isEditMode) {
-                setEditingTabId(tab.id);
-                setEditingTabName(tab.name);
-              }
-            }}
-            title={isEditMode ? "Double-click to rename" : undefined}
-            className="truncate"
-          >
+          <span className="truncate">
             {tab.name}
           </span>
         )}
@@ -424,9 +573,9 @@ export default function BIHubPage() {
     <button
       onClick={handleAddTab}
       className="flex items-center gap-1.5 text-xs text-orange-500 hover:text-orange-400 font-bold bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/20 hover:border-orange-500/30 rounded-xl px-3 py-2 transition-colors cursor-pointer shrink-0"
-      title="Add New Tab"
+      title={dashboardTabs.length > 1 ? "Custom Tab Bar" : "Add New Tab"}
     >
-      <Plus className="w-3.5 h-3.5" /> New Tab
+      <Plus className="w-3.5 h-3.5" /> {dashboardTabs.length > 1 ? "Custom Tab Bar" : "New Tab"}
     </button>
   );
 
@@ -498,14 +647,114 @@ export default function BIHubPage() {
   // ==========================================
   // DASHBOARD LAYOUT & VIEW LOGIC
   // ==========================================
+  const [clipboard, setClipboard] = useState<{ type: 'item' | 'widget', data: any } | null>(null);
+
+  const handleCopy = () => {
+    if (selectedItemId) {
+      const item = dashboardItems.find(i => i.id === selectedItemId);
+      if (item) setClipboard({ type: 'item', data: { ...JSON.parse(JSON.stringify(item)), sourceTabId: activeTabId } });
+    } else if (selectedWidgetId) {
+      const widget = dashboardWidgets.find(w => w.id === selectedWidgetId);
+      if (widget) setClipboard({ type: 'widget', data: { ...JSON.parse(JSON.stringify(widget)), sourceTabId: activeTabId } });
+    }
+  };
+
+  const handlePaste = async () => {
+    if (!clipboard) return;
+    saveToHistory(); // Save current state before modifying
+    const isSameTab = clipboard.data.sourceTabId === activeTabId;
+    const offset = isSameTab ? 20 : 0;
+    const newId = Math.random().toString(36).substr(2, 9);
+
+    if (clipboard.type === 'item') {
+      try {
+        const originalChart = clipboard.data.chart;
+        // Create an independent copy of the chart in the database
+        const newChart = await api.charts.create({
+          workspace_id: WORKSPACE_ID,
+          dataset_id: originalChart.dataset_id,
+          name: `${originalChart.name} (Copy)`,
+          description: originalChart.description,
+          chart_type: originalChart.chart_type,
+          encodings: originalChart.encodings,
+          echarts_option: originalChart.echarts_option,
+          transform_config: originalChart.transform_config
+        });
+
+        const newItem = {
+          ...clipboard.data,
+          id: newId,
+          chart: newChart,
+          tabId: activeTabId,
+          pos: { ...clipboard.data.pos, x: clipboard.data.pos.x + offset, y: clipboard.data.pos.y + offset }
+        };
+        setDashboardItems(prev => [...prev, newItem]);
+        setSelectedItemId(newId);
+        setSelectedWidgetId(null);
+      } catch (err) {
+        console.error("Failed to clone chart during paste", err);
+      }
+    } else {
+      const newWidget = {
+        ...clipboard.data,
+        id: newId,
+        tabId: activeTabId,
+        pos: { ...clipboard.data.pos, x: clipboard.data.pos.x + offset, y: clipboard.data.pos.y + offset }
+      };
+      setDashboardWidgets(prev => [...prev, newWidget]);
+      setSelectedWidgetId(newId);
+      setSelectedItemId(null);
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedItemIds.length > 0 || selectedWidgetIds.length > 0) {
+      saveToHistory();
+      selectedItemIds.forEach(id => handleRemoveChartFromDashboard(id));
+      selectedWidgetIds.forEach(id => handleRemoveWidget(id));
+      setSelectedItemIds([]);
+      setSelectedWidgetIds([]);
+      setSelectedItemId(null);
+      setSelectedWidgetId(null);
+      return;
+    }
+    if (selectedItemId) {
+      saveToHistory();
+      handleRemoveChartFromDashboard(selectedItemId);
+      setSelectedItemId(null);
+      setSelectedItemIds([]);
+    } else if (selectedWidgetId) {
+      saveToHistory();
+      handleRemoveWidget(selectedWidgetId);
+      setSelectedWidgetId(null);
+      setSelectedWidgetIds([]);
+    }
+  };
+
   const tabBoundingBox = useMemo(() => {
     const tabItems = dashboardItems.filter(i => (i.tabId || 'default') === activeTabId);
     const tabWidgets = dashboardWidgets.filter(w => (w.tabId || 'default') === activeTabId);
-    if (tabItems.length === 0 && tabWidgets.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    const tabFrames = dashboardFrames.filter(f => (f.tabId || 'default') === activeTabId);
+
+    // If a main frame is specified, use its dimensions as the tab's bounding box
+    if (mainFrameId) {
+      const mainFrame = tabFrames.find(f => f.id === mainFrameId);
+      if (mainFrame) {
+        return {
+          minX: mainFrame.pos.x,
+          minY: mainFrame.pos.y,
+          maxX: mainFrame.pos.x + mainFrame.pos.w,
+          maxY: mainFrame.pos.y + mainFrame.pos.h
+        };
+      }
+    }
+
+    if (tabItems.length === 0 && tabWidgets.length === 0 && tabFrames.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
 
     const allRects = [
       ...tabItems.map(i => i.pos),
-      ...tabWidgets.map(w => w.pos)
+      ...tabWidgets.map(w => w.pos),
+      ...tabFrames.map(f => f.pos)
     ].filter(p => p && typeof p.x === 'number' && typeof p.y === 'number');
 
     if (allRects.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
@@ -516,9 +765,9 @@ export default function BIHubPage() {
       maxX: Math.max(...allRects.map(r => r.x + r.w)),
       maxY: Math.max(...allRects.map(r => r.y + r.h))
     };
-  }, [dashboardItems, dashboardWidgets, activeTabId]);
+  }, [dashboardItems, dashboardWidgets, dashboardFrames, activeTabId, mainFrameId]);
 
-  const fitToContent = () => {
+  const fitToContent = (padding = 80) => {
     if (!gridContainerRef.current) return;
     const { minX, minY, maxX, maxY } = tabBoundingBox;
     if (maxX === 0 && maxY === 0) {
@@ -527,27 +776,28 @@ export default function BIHubPage() {
       return;
     }
 
-    const bw = maxX - minX + 80;
-    const bh = maxY - minY + 80;
+    const bw = maxX - minX + padding;
+    const bh = maxY - minY + padding;
     const rect = gridContainerRef.current.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    const fitZoom = Math.min(Math.max(0.1, rect.width / bw), Math.max(0.1, rect.height / bh), 2);
-    const fitPanX = (rect.width - bw * fitZoom) / 2 - minX * fitZoom + 40 * fitZoom;
-    const fitPanY = (rect.height - bh * fitZoom) / 2 - minY * fitZoom + 40 * fitZoom;
+    // Increased max zoom to 4x
+    const fitZoom = Math.min(Math.max(0.1, rect.width / bw), Math.max(0.1, rect.height / bh), 4);
+    const fitPanX = (rect.width - bw * fitZoom) / 2 - minX * fitZoom + (padding / 2) * fitZoom;
+    const fitPanY = (rect.height - bh * fitZoom) / 2 - minY * fitZoom + (padding / 2) * fitZoom;
 
     setZoom(fitZoom);
     setPan({ x: fitPanX, y: fitPanY });
   };
 
   useEffect(() => {
-    if (isPreviewMode && layoutMode === 'whiteboard' && gridContainerRef.current && dashboardItems.length + dashboardWidgets.length > 0) {
+    if (isPreviewMode && layoutMode === 'whiteboard' && gridContainerRef.current && (dashboardItems.length + dashboardWidgets.length + dashboardFrames.length) > 0) {
       const timer = setTimeout(() => {
-        fitToContent();
+        fitToContent(0); // 0px padding for full frame preview
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [isPreviewMode, layoutMode, dashboardItems.length, dashboardWidgets.length, activeTabId]);
+  }, [isPreviewMode, layoutMode, dashboardItems.length, dashboardWidgets.length, dashboardFrames.length, activeTabId]);
 
   // Outside click listener to close custom dropdowns
   useEffect(() => {
@@ -561,13 +811,38 @@ export default function BIHubPage() {
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Whiteboard keyboard listeners (Spacebar for panning)
+  // Whiteboard keyboard listeners (Spacebar for panning + Ctrl+C/V)
   useEffect(() => {
     if (view !== 'edit-dashboard' || layoutMode !== 'whiteboard') return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space' && !e.repeat && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) {
+      // Avoid conflicts with Monaco or inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement).closest('.monaco-editor')) {
+        return;
+      }
+
+      if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         setSpacePressed(true);
+      }
+
+      // Clipboard logic
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'c' || e.key === 'C') {
+          handleCopy();
+        } else if (e.key === 'v' || e.key === 'V') {
+          handlePaste();
+        } else if (e.key === 'z' || e.key === 'Z') {
+          e.preventDefault();
+          handleUndo();
+        }
+      }
+
+      // Delete logic
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Only if not editing text
+        if (editingWidgetId === null && editingTabId === null && !isEditingDashName) {
+          handleDeleteSelected();
+        }
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -583,18 +858,20 @@ export default function BIHubPage() {
       window.removeEventListener('keyup', handleKeyUp);
       setSpacePressed(false);
     };
-  }, [view, layoutMode]);
+  }, [view, layoutMode, selectedItemId, selectedWidgetId, dashboardItems, dashboardWidgets, clipboard]);
 
   // Whiteboard wheel zoom handler
   const handleWheel = (e: React.WheelEvent) => {
-    if (layoutMode !== 'whiteboard') return;
+    if (layoutMode !== 'whiteboard' || (isPreviewMode && mainFrameId)) return;
     e.preventDefault();
     const rect = gridContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    const newZoom = Math.min(3, Math.max(0.15, zoom * zoomFactor));
+
+    // Faster zoom speed (increased factor)
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+    const newZoom = Math.min(4, Math.max(0.15, zoom * zoomFactor));
     // Adjust pan so the point under the cursor stays fixed
     const newPanX = mouseX - (mouseX - pan.x) * (newZoom / zoom);
     const newPanY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
@@ -604,9 +881,23 @@ export default function BIHubPage() {
 
   // Whiteboard background panning (click-drag on empty space, or spacebar+drag)
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (layoutMode !== 'whiteboard') return;
-    // Only start panning if spacebar is held OR clicking directly on the canvas background (not on a chart/widget)
-    if (spacePressed || e.target === e.currentTarget) {
+    if (layoutMode !== 'whiteboard' || (isPreviewMode && mainFrameId)) return;
+
+    const rect = gridContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = (e.clientX - rect.left - pan.x) / zoom;
+    const y = (e.clientY - rect.top - pan.y) / zoom;
+
+    // Deselect if clicking directly on canvas background
+    if (e.target === e.currentTarget) {
+      setSelectedItemId(null);
+      setSelectedWidgetId(null);
+      setSelectedItemIds([]);
+      setSelectedWidgetIds([]);
+    }
+
+    // Only start panning if spacebar is held OR interactionMode is 'pan'
+    if (spacePressed || interactionMode === 'pan') {
       e.preventDefault();
       isPanningRef.current = { active: true, startX: e.clientX, startY: e.clientY, startPanX: pan.x, startPanY: pan.y };
       const onMove = (ev: MouseEvent) => {
@@ -620,6 +911,56 @@ export default function BIHubPage() {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
       };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    } else if (interactionMode === 'select' && e.target === e.currentTarget) {
+      // Marquee Selection Box
+      e.preventDefault();
+      setSelectionBox({ x1: x, y1: y, x2: x, y2: y });
+
+      const onMove = (moveEvent: MouseEvent) => {
+        const mx = (moveEvent.clientX - rect.left - pan.x) / zoom;
+        const my = (moveEvent.clientY - rect.top - pan.y) / zoom;
+        setSelectionBox(prev => prev ? { ...prev, x2: mx, y2: my } : null);
+
+        // Find items in box
+        const xMin = Math.min(x, mx);
+        const yMin = Math.min(y, my);
+        const xMax = Math.max(x, mx);
+        const yMax = Math.max(y, my);
+
+        const tabItems = dashboardItems.filter(i => (i.tabId || 'default') === activeTabId);
+        const tabWidgets = dashboardWidgets.filter(w => (w.tabId || 'default') === activeTabId);
+
+        const inBoxItems = tabItems.filter(i => 
+          i.pos.x + i.pos.w >= xMin && i.pos.x <= xMax &&
+          i.pos.y + i.pos.h >= yMin && i.pos.y <= yMax
+        ).map(i => i.id);
+
+        const inBoxWidgets = tabWidgets.filter(w => 
+          w.pos.x + w.pos.w >= xMin && w.pos.x <= xMax &&
+          w.pos.y + w.pos.h >= yMin && w.pos.y <= yMax
+        ).map(w => w.id);
+
+        setSelectedItemIds(inBoxItems);
+        setSelectedWidgetIds(inBoxWidgets);
+
+        // For properties panel
+        if (inBoxItems.length > 0) {
+          setSelectedItemId(inBoxItems[0]);
+          setSelectedWidgetId(null);
+        } else if (inBoxWidgets.length > 0) {
+          setSelectedWidgetId(inBoxWidgets[0]);
+          setSelectedItemId(null);
+        }
+      };
+
+      const onUp = () => {
+        setSelectionBox(null);
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+
       document.addEventListener('mousemove', onMove);
       document.addEventListener('mouseup', onUp);
     }
@@ -698,13 +1039,26 @@ export default function BIHubPage() {
     const loadedTabs = dashboard.theme_config?.tabs || [{ id: 'default', name: 'Tab 1' }];
     setDashboardTabs(loadedTabs);
     const fallbackTabId = loadedTabs[0]?.id || 'default';
-    setActiveTabId(fallbackTabId);
+    handleSelectTab(fallbackTabId);
     setTabPosition(dashboard.theme_config?.tabPosition || "top");
     setTabBarSize(dashboard.theme_config?.tabBarSize || (dashboard.theme_config?.tabPosition === 'left' || dashboard.theme_config?.tabPosition === 'right' ? 200 : 64));
     setCustomTabRect(dashboard.theme_config?.customTabRect || { x: 40, y: 40, w: 400, h: 60 });
     setLayoutMode(dashboard.theme_config?.layoutMode || 'slide');
     setZoom(dashboard.theme_config?.zoom || 1);
     setPan(dashboard.theme_config?.pan || { x: 0, y: 0 });
+    setDashboardFrames(dashboard.theme_config?.frames || []);
+    setMainFrameId(dashboard.theme_config?.mainFrameId || null);
+    setTabFrameId(dashboard.theme_config?.tabFrameId || null);
+    setTabFramePosition(dashboard.theme_config?.tabFramePosition || 'top');
+    setTabBorderRadius(dashboard.theme_config?.tabBorderRadius ?? 12);
+    setTabOpacity(dashboard.theme_config?.tabOpacity ?? 1);
+    setTabBarStyle(dashboard.theme_config?.tabBarStyle ?? "pills");
+    setTabFontSize(dashboard.theme_config?.tabFontSize ?? 12);
+    setTabFontWeight(dashboard.theme_config?.tabFontWeight ?? "semibold");
+    setTabPaddingX(dashboard.theme_config?.tabPaddingX ?? 18);
+    setTabPaddingY(dashboard.theme_config?.tabPaddingY ?? 8);
+    setTabGap(dashboard.theme_config?.tabGap ?? 8);
+    setTabActiveColor(dashboard.theme_config?.tabActiveColor ?? "var(--color-orange-500)");
 
     const newItems: any[] = [];
 
@@ -844,7 +1198,20 @@ export default function BIHubPage() {
           customTabRect: customTabRect,
           layoutMode: layoutMode,
           zoom: zoom,
-          pan: pan
+          pan: pan,
+          frames: dashboardFrames,
+          mainFrameId: mainFrameId,
+          tabFrameId: tabFrameId,
+          tabFramePosition: tabFramePosition,
+          tabBorderRadius: tabBorderRadius,
+          tabOpacity: tabOpacity,
+          tabBarStyle: tabBarStyle,
+          tabFontSize: tabFontSize,
+          tabFontWeight: tabFontWeight,
+          tabPaddingX: tabPaddingX,
+          tabPaddingY: tabPaddingY,
+          tabGap: tabGap,
+          tabActiveColor: tabActiveColor
         }
       });
       setSelectedDashboard(updated);
@@ -861,15 +1228,38 @@ export default function BIHubPage() {
   // ============================================================
   const startDrag = (e: React.MouseEvent, itemId: string) => {
     if (!isEditMode) return;
+    saveToHistory();
+
+    // If item is not in selection, select only it. Otherwise, move the whole selection.
+    let currentItemIds = selectedItemIds;
+    let currentWidgetIds = selectedWidgetIds;
+
+    if (!selectedItemIds.includes(itemId)) {
+      setSelectedItemId(itemId);
+      setSelectedItemIds([itemId]);
+      setSelectedWidgetId(null);
+      setSelectedWidgetIds([]);
+      currentItemIds = [itemId];
+      currentWidgetIds = [];
+    }
+
     e.preventDefault();
     e.stopPropagation();
     const item = dashboardItems.find(i => i.id === itemId);
     if (!item) return;
+
+    // Capture initial positions of all selected items
+    const initialPositions: { id: string, x: number, y: number, type: 'item' | 'widget' | 'frame' }[] = [
+      ...dashboardItems.filter(i => currentItemIds.includes(i.id)).map(i => ({ id: i.id, x: i.pos.x, y: i.pos.y, type: 'item' as const })),
+      ...dashboardWidgets.filter(w => currentWidgetIds.includes(w.id)).map(w => ({ id: w.id, x: w.pos.x, y: w.pos.y, type: 'widget' as const }))
+    ];
+
     interactionRef.current = {
       type: 'drag', itemId, handle: '',
       startMouseX: e.clientX, startMouseY: e.clientY,
       startX: item.pos.x, startY: item.pos.y,
       startW: item.pos.w, startH: item.pos.h,
+      initialPositions
     };
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
@@ -877,6 +1267,11 @@ export default function BIHubPage() {
 
   const startResize = (e: React.MouseEvent, itemId: string, handle: string) => {
     if (!isEditMode) return;
+    saveToHistory();
+    setSelectedItemId(itemId);
+    setSelectedItemIds([itemId]);
+    setSelectedWidgetId(null);
+    setSelectedWidgetIds([]);
     e.preventDefault();
     e.stopPropagation();
     const item = dashboardItems.find(i => i.id === itemId);
@@ -886,48 +1281,175 @@ export default function BIHubPage() {
       startMouseX: e.clientX, startMouseY: e.clientY,
       startX: item.pos.x, startY: item.pos.y,
       startW: item.pos.w, startH: item.pos.h,
+      initialPositions: []
     };
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
+  };
+
+  const calculateSnapping = (currentPos: { x: number, y: number, w: number, h: number }, excludeIds: string[]) => {
+    const guides: { x?: number, y?: number, type: 'h' | 'v' }[] = [];
+    let snappedX = currentPos.x;
+    let snappedY = currentPos.y;
+
+    const others = [
+      ...dashboardItems.filter(i => !excludeIds.includes(i.id) && (i.tabId || 'default') === activeTabId).map(i => i.pos),
+      ...dashboardWidgets.filter(w => !excludeIds.includes(w.id) && (w.tabId || 'default') === activeTabId).map(w => w.pos),
+      ...dashboardFrames.filter(f => !excludeIds.includes(f.id)).map(f => ({ ...f.pos }))
+    ];
+
+    const currentRight = currentPos.x + currentPos.w;
+    const currentBottom = currentPos.y + currentPos.h;
+    const currentCenterX = currentPos.x + currentPos.w / 2;
+    const currentCenterY = currentPos.y + currentPos.h / 2;
+
+    let foundX = false;
+    let foundY = false;
+
+    for (const other of others) {
+      const otherRight = other.x + other.w;
+      const otherBottom = other.y + other.h;
+      const otherCenterX = other.x + other.w / 2;
+      const otherCenterY = other.y + other.h / 2;
+
+      // X-axis (Vertical guides)
+      const xTargets = [other.x, otherRight, otherCenterX];
+      for (const targetVal of xTargets) {
+        if (!foundX) {
+          if (Math.abs(currentPos.x - targetVal) < SNAP_THRESHOLD) {
+            snappedX = targetVal;
+            guides.push({ x: targetVal, type: 'v' });
+            foundX = true;
+          } else if (Math.abs(currentRight - targetVal) < SNAP_THRESHOLD) {
+            snappedX = targetVal - currentPos.w;
+            guides.push({ x: targetVal, type: 'v' });
+            foundX = true;
+          } else if (Math.abs(currentCenterX - targetVal) < SNAP_THRESHOLD) {
+            snappedX = targetVal - currentPos.w / 2;
+            guides.push({ x: targetVal, type: 'v' });
+            foundX = true;
+          }
+        }
+      }
+
+      // Y-axis (Horizontal guides)
+      const yTargets = [other.y, otherBottom, otherCenterY];
+      for (const targetVal of yTargets) {
+        if (!foundY) {
+          if (Math.abs(currentPos.y - targetVal) < SNAP_THRESHOLD) {
+            snappedY = targetVal;
+            guides.push({ y: targetVal, type: 'h' });
+            foundY = true;
+          } else if (Math.abs(currentBottom - targetVal) < SNAP_THRESHOLD) {
+            snappedY = targetVal - currentPos.h;
+            guides.push({ y: targetVal, type: 'h' });
+            foundY = true;
+          } else if (Math.abs(currentCenterY - targetVal) < SNAP_THRESHOLD) {
+            snappedY = targetVal - currentPos.h / 2;
+            guides.push({ y: targetVal, type: 'h' });
+            foundY = true;
+          }
+        }
+      }
+    }
+
+    return { snappedX, snappedY, guides };
   };
 
   const onMouseMove = (e: MouseEvent) => {
     const s = interactionRef.current;
     if (!s.type || !s.itemId) return;
     const z = zoomRef.current;
-    const dx = (e.clientX - s.startMouseX) / z;
-    const dy = (e.clientY - s.startMouseY) / z;
-    setDashboardItems(prev => prev.map(item => {
-      if (item.id !== s.itemId) return item;
-      if (s.type === 'drag') {
-        return { ...item, pos: { ...item.pos, x: Math.max(0, s.startX + dx), y: Math.max(0, s.startY + dy) } };
+    const dx = ((e.clientX - s.startMouseX) / z) * 1.15;
+    const dy = ((e.clientY - s.startMouseY) / z) * 1.15;
+
+    if (s.type === 'drag') {
+      if (s.initialPositions.length > 0) {
+        const primaryInit = s.initialPositions.find(p => p.id === s.itemId);
+        if (!primaryInit) return;
+
+        const rawX = primaryInit.x + dx;
+        const rawY = primaryInit.y + dy;
+
+        const { snappedX, snappedY, guides } = calculateSnapping(
+          { x: rawX, y: rawY, w: s.startW, h: s.startH },
+          s.initialPositions.map(p => p.id)
+        );
+
+        setAlignmentGuides(guides);
+        const finalDx = snappedX - primaryInit.x;
+        const finalDy = snappedY - primaryInit.y;
+
+        setDashboardItems(prev => prev.map(item => {
+          const init = s.initialPositions.find(p => p.id === item.id && p.type === 'item');
+          if (!init) return item;
+          return { ...item, pos: { ...item.pos, x: Math.max(0, init.x + finalDx), y: Math.max(0, init.y + finalDy) } };
+        }));
+        setDashboardWidgets(prev => prev.map(w => {
+          const init = s.initialPositions.find(p => p.id === w.id && p.type === 'widget');
+          if (!init) return w;
+          return { ...w, pos: { ...w.pos, x: Math.max(0, init.x + finalDx), y: Math.max(0, init.y + finalDy) } };
+        }));
+        setDashboardFrames(prev => prev.map(f => {
+          const init = s.initialPositions.find(p => p.id === f.id && p.type === 'frame');
+          if (!init) return f;
+          return { ...f, pos: { ...f.pos, x: Math.max(0, init.x + finalDx), y: Math.max(0, init.y + finalDy) } };
+        }));
+      } else {
+        const rawX = s.startX + dx;
+        const rawY = s.startY + dy;
+        const { snappedX, snappedY, guides } = calculateSnapping({ x: rawX, y: rawY, w: s.startW, h: s.startH }, [s.itemId as string]);
+        setAlignmentGuides(guides);
+
+        setDashboardItems(prev => prev.map(item => {
+          if (item.id !== s.itemId) return item;
+          return { ...item, pos: { ...item.pos, x: Math.max(0, snappedX), y: Math.max(0, snappedY) } };
+        }));
       }
-      // resize — handle determines which edges move
-      let { x, y, w, h } = { x: s.startX, y: s.startY, w: s.startW, h: s.startH };
-      const MIN_W = 220, MIN_H = 160;
-      if (s.handle.includes('e')) w = Math.max(MIN_W, s.startW + dx);
-      if (s.handle.includes('s')) h = Math.max(MIN_H, s.startH + dy);
-      if (s.handle.includes('w')) {
-        const newW = Math.max(MIN_W, s.startW - dx);
-        x = s.startX + (s.startW - newW);
-        w = newW;
-      }
-      if (s.handle.includes('n')) {
-        const newH = Math.max(MIN_H, s.startH - dy);
-        y = s.startY + (s.startH - newH);
-        h = newH;
-      }
-      return { ...item, pos: { x, y, w, h } };
-    }));
+      return;
+    }
+
+    // resize — handle determines which edges move
+    if (s.type === 'resize') {
+      setDashboardItems(prev => prev.map(item => {
+        if (item.id !== s.itemId) return item;
+        let { x, y, w, h } = { x: s.startX, y: s.startY, w: s.startW, h: s.startH };
+        const MIN_W = 220, MIN_H = 160;
+        if (s.handle.includes('e')) w = Math.max(MIN_W, s.startW + dx);
+        if (s.handle.includes('s')) h = Math.max(MIN_H, s.startH + dy);
+        if (s.handle.includes('w')) {
+          const newW = Math.max(MIN_W, s.startW - dx);
+          x = s.startX + (s.startW - newW);
+          w = newW;
+        }
+        if (s.handle.includes('n')) {
+          const newH = Math.max(MIN_H, s.startH - dy);
+          y = s.startY + (s.startH - newH);
+          h = newH;
+        }
+
+        const { snappedX, snappedY, guides } = calculateSnapping({ x, y, w, h }, [s.itemId as string]);
+        setAlignmentGuides(guides);
+
+        if (s.handle.includes('e')) w = snappedX + w - x;
+        if (s.handle.includes('s')) h = snappedY + h - y;
+        if (s.handle.includes('w')) { w = w + (x - snappedX); x = snappedX; }
+        if (s.handle.includes('n')) { h = h + (y - snappedY); y = snappedY; }
+
+        return { ...item, pos: { x, y, w, h } };
+      }));
+    }
   };
 
   const onMouseUp = () => {
     interactionRef.current.type = null;
+    setAlignmentGuides([]);
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mouseup', onMouseUp);
   };
 
   const handleAddChartToDashboard = async (chart: any, dropX?: number, dropY?: number) => {
+    saveToHistory();
     const newId = Math.random().toString(36).substr(2, 9);
 
     // Calculate pixel position
@@ -977,6 +1499,136 @@ export default function BIHubPage() {
     }
   };
 
+  const FRAME_SIZES = [
+    { name: 'Custom', w: 800, h: 600 },
+    { name: 'A4 Portrait', w: 794, h: 1123 },
+    { name: 'A4 Landscape', w: 1123, h: 794 },
+    { name: 'Mobile (iPhone 14)', w: 390, h: 844 },
+    { name: 'iPad Air', w: 820, h: 1180 },
+    { name: 'Desktop HD', w: 1280, h: 720 },
+    { name: 'Desktop Full HD', w: 1920, h: 1080 },
+  ];
+
+  const handleAddFrame = (size: { name: string, w: number, h: number }) => {
+    saveToHistory();
+    const id = Math.random().toString(36).substr(2, 9);
+    const rect = gridContainerRef.current?.getBoundingClientRect();
+    let x = 100, y = 100;
+    if (rect) {
+      x = (rect.width / 2 - pan.x) / zoom - size.w / 2;
+      y = (rect.height / 2 - pan.y) / zoom - size.h / 2;
+    }
+
+    const newFrame: DashboardFrame = {
+      id,
+      name: size.name,
+      pos: { x, y, w: size.w, h: size.h },
+      tabId: activeTabId,
+    };
+
+    setDashboardFrames(prev => [...prev, newFrame]);
+    setShowAddFrameDropdown(false);
+  };
+
+  const startFrameResize = (e: React.MouseEvent, frameId: string) => {
+    if (!isEditMode) return;
+    saveToHistory();
+    e.preventDefault();
+    e.stopPropagation();
+    const frame = dashboardFrames.find(f => f.id === frameId);
+    if (!frame) return;
+    
+    const isCustom = frame.name === 'Custom';
+    const aspectRatio = frame.pos.w / frame.pos.h;
+
+    interactionRef.current = {
+      type: 'resize', itemId: `frame:${frameId}`, handle: 'se',
+      startMouseX: e.clientX, startMouseY: e.clientY,
+      startX: frame.pos.x, startY: frame.pos.y,
+      startW: frame.pos.w, startH: frame.pos.h,
+      initialPositions: []
+    };
+    const onMove = (ev: MouseEvent) => {
+      const s = interactionRef.current;
+      if (s.type !== 'resize' || !s.itemId?.startsWith('frame:')) return;
+      const fId = s.itemId.replace('frame:', '');
+      const z = zoomRef.current;
+      const dx = (ev.clientX - s.startMouseX) / z;
+      const dy = (ev.clientY - s.startMouseY) / z;
+      
+      setDashboardFrames(prev => prev.map(f => {
+        if (f.id !== fId) return f;
+        
+        let newW, newH;
+        if (isCustom) {
+          newW = Math.max(100, s.startW + dx);
+          newH = Math.max(100, s.startH + dy);
+        } else {
+          // Lock aspect ratio: use the larger relative delta
+          const deltaW = dx;
+          const deltaH = dy * aspectRatio;
+          const delta = Math.abs(deltaW) > Math.abs(deltaH) ? deltaW : deltaH;
+          
+          newW = Math.max(100, s.startW + delta);
+          newH = newW / aspectRatio;
+        }
+        
+        return { ...f, pos: { ...f.pos, w: newW, h: newH } };
+      }));
+    };
+    const onUp = () => {
+      interactionRef.current.type = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const startFrameDrag = (e: React.MouseEvent, frameId: string) => {
+    if (!isEditMode) return;
+    saveToHistory();
+    setSelectedItemId(null);
+    setSelectedWidgetId(null);
+    setSelectedItemIds([]);
+    setSelectedWidgetIds([]);
+    e.preventDefault();
+    e.stopPropagation();
+    const frame = dashboardFrames.find(f => f.id === frameId);
+    if (!frame) return;
+    interactionRef.current = {
+      type: 'drag', itemId: `frame:${frameId}`, handle: '',
+      startMouseX: e.clientX, startMouseY: e.clientY,
+      startX: frame.pos.x, startY: frame.pos.y,
+      startW: frame.pos.w, startH: frame.pos.h,
+      initialPositions: []
+    };
+    const onMove = (ev: MouseEvent) => {
+      const s = interactionRef.current;
+      if (!s.type || !s.itemId?.startsWith('frame:')) return;
+      const fId = s.itemId.replace('frame:', '');
+      const z = zoomRef.current;
+      const dx = (ev.clientX - s.startMouseX) / z;
+      const dy = (ev.clientY - s.startMouseY) / z;
+      setDashboardFrames(prev => prev.map(f => f.id !== fId ? f : {
+        ...f, pos: { ...f.pos, x: s.startX + dx, y: s.startY + dy }
+      }));
+    };
+    const onUp = () => {
+      interactionRef.current.type = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  const handleDeleteFrame = (id: string) => {
+    saveToHistory();
+    setDashboardFrames(prev => prev.filter(f => f.id !== id));
+    if (mainFrameId === id) setMainFrameId(null);
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1023,6 +1675,7 @@ export default function BIHubPage() {
       widgetImageInputRef.current?.click();
       return;
     }
+    saveToHistory();
 
     const id = Math.random().toString(36).substr(2, 9);
     const offset = (dashboardWidgets.length % 5) * 20;
@@ -1125,26 +1778,63 @@ export default function BIHubPage() {
 
   const startWidgetDrag = (e: React.MouseEvent, widgetId: string) => {
     if (!isEditMode) return;
+    saveToHistory();
+
+    // If widget is not in selection, select only it. Otherwise, move the whole selection.
+    let currentItemIds = selectedItemIds;
+    let currentWidgetIds = selectedWidgetIds;
+
+    if (!selectedWidgetIds.includes(widgetId)) {
+      setSelectedWidgetId(widgetId);
+      setSelectedWidgetIds([widgetId]);
+      setSelectedItemId(null);
+      setSelectedItemIds([]);
+      currentItemIds = [];
+      currentWidgetIds = [widgetId];
+    }
+
     e.preventDefault();
     e.stopPropagation();
     const widget = dashboardWidgets.find(w => w.id === widgetId);
     if (!widget) return;
+
+    // Capture initial positions of all selected items
+    const initialPositions: { id: string, x: number, y: number, type: 'item' | 'widget' | 'frame' }[] = [
+      ...dashboardItems.filter(i => currentItemIds.includes(i.id)).map(i => ({ id: i.id, x: i.pos.x, y: i.pos.y, type: 'item' as const })),
+      ...dashboardWidgets.filter(w => currentWidgetIds.includes(w.id)).map(w => ({ id: w.id, x: w.pos.x, y: w.pos.y, type: 'widget' as const }))
+    ];
+
     interactionRef.current = {
       type: 'drag', itemId: `widget:${widgetId}`, handle: '',
       startMouseX: e.clientX, startMouseY: e.clientY,
       startX: widget.pos.x, startY: widget.pos.y,
       startW: widget.pos.w, startH: widget.pos.h,
+      initialPositions
     };
     const onMove = (ev: MouseEvent) => {
       const s = interactionRef.current;
       if (!s.type || !s.itemId?.startsWith('widget:')) return;
       const wId = s.itemId.replace('widget:', '');
       const z = zoomRef.current;
-      const dx = (ev.clientX - s.startMouseX) / z;
-      const dy = (ev.clientY - s.startMouseY) / z;
-      setDashboardWidgets(prev => prev.map(w => w.id !== wId ? w : {
-        ...w, pos: { ...w.pos, x: Math.max(0, s.startX + dx), y: Math.max(0, s.startY + dy) }
-      }));
+      const dx = ((ev.clientX - s.startMouseX) / z) * 1.15;
+      const dy = ((ev.clientY - s.startMouseY) / z) * 1.15;
+
+      if (s.initialPositions.length > 0) {
+        setDashboardItems(prev => prev.map(item => {
+          const init = s.initialPositions.find(p => p.id === item.id && p.type === 'item');
+          if (!init) return item;
+          return { ...item, pos: { ...item.pos, x: Math.max(0, init.x + dx), y: Math.max(0, init.y + dy) } };
+        }));
+        setDashboardWidgets(prev => prev.map(w => {
+          const init = s.initialPositions.find(p => p.id === w.id && p.type === 'widget');
+          if (!init) return w;
+          return { ...w, pos: { ...w.pos, x: Math.max(0, init.x + dx), y: Math.max(0, init.y + dy) } };
+        }));
+      } else {
+        setDashboardWidgets(prev => prev.map(w => w.id !== wId ? w : {
+          ...w, pos: { ...w.pos, x: Math.max(0, s.startX + dx), y: Math.max(0, s.startY + dy) }
+        }));
+      }
     };
     const onUp = () => {
       interactionRef.current.type = null;
@@ -1157,6 +1847,11 @@ export default function BIHubPage() {
 
   const startWidgetResize = (e: React.MouseEvent, widgetId: string, handle: string) => {
     if (!isEditMode) return;
+    saveToHistory();
+    setSelectedWidgetId(widgetId);
+    setSelectedWidgetIds([widgetId]);
+    setSelectedItemId(null);
+    setSelectedItemIds([]);
     e.preventDefault();
     e.stopPropagation();
     const widget = dashboardWidgets.find(w => w.id === widgetId);
@@ -1166,14 +1861,15 @@ export default function BIHubPage() {
       startMouseX: e.clientX, startMouseY: e.clientY,
       startX: widget.pos.x, startY: widget.pos.y,
       startW: widget.pos.w, startH: widget.pos.h,
+      initialPositions: []
     };
     const onMove = (ev: MouseEvent) => {
       const s = interactionRef.current;
       if (s.type !== 'resize' || !s.itemId?.startsWith('widget:')) return;
       const wId = s.itemId.replace('widget:', '');
       const z = zoomRef.current;
-      const dx = (ev.clientX - s.startMouseX) / z;
-      const dy = (ev.clientY - s.startMouseY) / z;
+      const dx = ((ev.clientX - s.startMouseX) / z) * 1.15;
+      const dy = ((ev.clientY - s.startMouseY) / z) * 1.15;
       setDashboardWidgets(prev => prev.map(w => {
         if (w.id !== wId) return w;
         let { x, y, w: ww, h } = { x: s.startX, y: s.startY, w: s.startW, h: s.startH };
@@ -1478,15 +2174,37 @@ export default function BIHubPage() {
   };
 
   // Dashboard Tabs Logic
+  const handleSelectTab = (tabId: string) => {
+    setActiveTabId(tabId);
+    
+    // Auto-pan to frame if switching tabs in whiteboard mode
+    if (layoutMode === 'whiteboard') {
+      const frame = dashboardFrames.find(f => f.tabId === tabId || (tabId === 'default' && !f.tabId));
+      if (frame) {
+        // Center the frame in view
+        if (gridContainerRef.current) {
+          const rect = gridContainerRef.current.getBoundingClientRect();
+          const targetZoom = Math.min(1.5, Math.min(rect.width / (frame.pos.w + 100), rect.height / (frame.pos.h + 100)));
+          setZoom(targetZoom);
+          setPan({
+            x: (rect.width / 2) - (frame.pos.x + frame.pos.w / 2) * targetZoom,
+            y: (rect.height / 2) - (frame.pos.y + frame.pos.h / 2) * targetZoom
+          });
+        }
+      }
+    }
+  };
+
   const handleAddTab = () => {
+    saveToHistory();
     const newId = Math.random().toString(36).substr(2, 9);
     const newTab = { id: newId, name: `Tab ${dashboardTabs.length + 1}` };
     setDashboardTabs(prev => [...prev, newTab]);
-    setActiveTabId(newId);
+    // Keep activeTabId unchanged to stay on the current screen
+    setShowTabSettings(true);
     if (tabPosition === 'none') {
       setTabPosition('top');
     }
-    setShowTabSettings(true);
   };
 
   const handleDeleteTab = (tabId: string, e: React.MouseEvent) => {
@@ -1498,6 +2216,7 @@ export default function BIHubPage() {
     if (!confirm("Deleting this tab will also delete all charts and widgets inside it. Are you sure?")) {
       return;
     }
+    saveToHistory();
     setDashboardItems(prev => prev.filter(item => item.tabId !== tabId));
     setDashboardWidgets(prev => prev.filter(w => w.tabId !== tabId));
 
@@ -1511,7 +2230,7 @@ export default function BIHubPage() {
     setDashboardTabs(updatedTabs);
 
     if (activeTabId === tabId) {
-      setActiveTabId(updatedTabs[0].id);
+      handleSelectTab(updatedTabs[0].id);
     }
   };
 
@@ -1745,8 +2464,8 @@ export default function BIHubPage() {
             <button
               onClick={() => setActiveTab("dashboards")}
               className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${activeTab === "dashboards"
-                  ? "bg-orange-600 text-white shadow"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50"
+                ? "bg-orange-600 text-white shadow"
+                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50"
                 }`}
             >
               <LayoutDashboard className="w-4 h-4" />
@@ -1758,8 +2477,8 @@ export default function BIHubPage() {
             <button
               onClick={() => setActiveTab("charts")}
               className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${activeTab === "charts"
-                  ? "bg-orange-600 text-white shadow"
-                  : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50"
+                ? "bg-orange-600 text-white shadow"
+                : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-900/50"
                 }`}
             >
               <BarChart3 className="w-4 h-4" />
@@ -1901,9 +2620,14 @@ export default function BIHubPage() {
           DASHBOARD BUILDER SUB-VIEW
           ========================================== */}
       {view === "edit-dashboard" && selectedDashboard && (
-        <div className="flex-1 flex flex-col">
+        <div className={`flex-1 flex flex-col ${isPreviewMode ? 'fixed inset-0 z-[100] bg-neutral-950' : ''}`}>
+          {/* Hide the global scroll-to-top button which overlaps with dashboard controls */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            .scroll-to-top-button { display: none !important; }
+            ${isPreviewMode ? 'body { overflow: hidden !important; }' : ''}
+          ` }} />
           {/* Dashboard Header */}
-          {!isHeaderDisabled && (
+          {!isHeaderDisabled && !isPreviewMode && (
             <div className="h-20 border-b border-neutral-800 bg-neutral-900/60 flex items-center justify-between px-8 backdrop-blur-md sticky top-0 z-20 shrink-0">
               <div className="flex items-center gap-4">
                 <button
@@ -2033,7 +2757,12 @@ export default function BIHubPage() {
                             <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Dashboard Actions</span>
                           </div>
                           {([
-                            { type: 'action_tab', icon: <LayoutDashboard className="w-4 h-4" />, label: 'New Tab', desc: 'Create a new dashboard tab' },
+                            { 
+                              type: 'action_tab', 
+                              icon: <LayoutDashboard className="w-4 h-4" />, 
+                              label: dashboardTabs.length > 1 ? 'Custom Tab Bar' : 'New Tab', 
+                              desc: dashboardTabs.length > 1 ? 'Manage and add dashboard tabs' : 'Create a new dashboard tab' 
+                            },
                             { type: 'action_filter', icon: <Filter className="w-4 h-4" />, label: 'Filter', desc: 'Add filter widget to canvas' },
                             { type: 'action_toggle_header', icon: <LayoutDashboard className="w-4 h-4" />, label: 'Toggle Headers', desc: 'Show/hide all chart headers' },
                           ]).map(item => (
@@ -2098,15 +2827,15 @@ export default function BIHubPage() {
           )}
 
           {/* Dashboard Body Area - Outer Flex container */}
-          <div className={`flex-1 flex min-h-0 ${isHeaderDisabled ? '' : 'mt-4'} ${tabPosition === 'left' || tabPosition === 'right' ? 'flex-row' : 'flex-col'}`}>
+          <div className={`flex-1 flex min-h-0 ${(isHeaderDisabled || isPreviewMode) ? '' : 'mt-4'} ${tabPosition === 'left' || tabPosition === 'right' ? 'flex-row' : 'flex-col'}`}>
 
             {/* Left Tab Bar */}
-            {tabPosition === 'left' && (
+            {tabPosition === 'left' && !isPreviewMode && !mainFrameId && (
               <div
                 className="bg-neutral-950 border-r border-neutral-900/60 shrink-0 p-4 pt-6 flex flex-col gap-6 overflow-y-auto"
                 style={{ width: tabBarSize }}
               >
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col" style={{ gap: `${tabGap}px` }}>
                   {dashboardTabs.map(tab => renderTabItem(tab, false))}
                   {isEditMode && renderAddTabButton()}
                 </div>
@@ -2117,12 +2846,12 @@ export default function BIHubPage() {
             <div className={`flex-1 flex flex-col min-h-0 ${tabPosition === 'right' ? 'order-first' : ''}`}>
 
               {/* Top Tab Bar */}
-              {tabPosition === 'top' && (
+              {tabPosition === 'top' && !isPreviewMode && !mainFrameId && (
                 <div
                   className="bg-neutral-950 border-b border-neutral-900/60 p-3 px-8 flex items-center justify-between gap-4 shrink-0"
                   style={{ height: tabBarSize }}
                 >
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center" style={{ gap: `${tabGap}px` }}>
                     {dashboardTabs.map(tab => renderTabItem(tab, true))}
                     {isEditMode && renderAddTabButton()}
                   </div>
@@ -2156,7 +2885,7 @@ export default function BIHubPage() {
                 onMouseDown={layoutMode === 'whiteboard' ? handleCanvasMouseDown : undefined}
               >
                 {/* Whiteboard dot-grid background */}
-                {layoutMode === 'whiteboard' && (
+                {layoutMode === 'whiteboard' && !isPreviewMode && (
                   <div
                     className="absolute inset-0 pointer-events-none"
                     style={{
@@ -2167,27 +2896,90 @@ export default function BIHubPage() {
                   />
                 )}
 
+                {/* Alignment Guides */}
+                {isEditMode && alignmentGuides.map((guide, idx) => (
+                  <div
+                    key={idx}
+                    className="absolute pointer-events-none z-[2000] border-orange-500/60"
+                    style={{
+                      left: layoutMode === 'whiteboard' ? (guide.x !== undefined ? guide.x * zoom + pan.x : 0) : (guide.x !== undefined ? guide.x : 0),
+                      top: layoutMode === 'whiteboard' ? (guide.y !== undefined ? guide.y * zoom + pan.y : 0) : (guide.y !== undefined ? guide.y : 0),
+                      width: guide.type === 'v' ? '1px' : '4000px',
+                      height: guide.type === 'h' ? '1px' : '4000px',
+                      marginLeft: guide.type === 'h' ? '-2000px' : '0',
+                      marginTop: guide.type === 'v' ? '-2000px' : '0',
+                      borderStyle: 'dashed',
+                      borderWidth: guide.type === 'v' ? '0 0 0 1px' : '1px 0 0 0',
+                    }}
+                  />
+                ))}
+
                 {/* Zoom Controls Toolbar (Whiteboard only) */}
-                {layoutMode === 'whiteboard' && (
-                  <div className="absolute bottom-4 right-4 z-50 flex items-center gap-1 bg-neutral-900/90 border border-neutral-800 rounded-xl px-2 py-1.5 shadow-xl backdrop-blur-md">
+                {layoutMode === 'whiteboard' && !isPreviewMode && (
+                  <div
+                    className="absolute z-50 flex items-center gap-1 bg-neutral-900/90 border border-neutral-800 rounded-xl px-1.5 py-1.5 shadow-xl backdrop-blur-md group/toolbar bottom-6 left-1/2 -translate-x-1/2"
+                  >
                     <button
                       onClick={() => { const nz = Math.max(0.15, zoom * 0.85); const rect = gridContainerRef.current?.getBoundingClientRect(); if (rect) { const cx = rect.width / 2; const cy = rect.height / 2; setPan({ x: cx - (cx - pan.x) * (nz / zoom), y: cy - (cy - pan.y) * (nz / zoom) }); } setZoom(nz); }}
                       className="w-7 h-7 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors text-sm font-bold"
                     >−</button>
-                    <span className="text-[11px] font-mono text-neutral-300 w-12 text-center select-none">{Math.round(zoom * 100)}%</span>
+                    <span className="text-[10px] font-mono text-neutral-300 w-10 text-center select-none">{Math.round(zoom * 100)}%</span>
                     <button
-                      onClick={() => { const nz = Math.min(3, zoom * 1.15); const rect = gridContainerRef.current?.getBoundingClientRect(); if (rect) { const cx = rect.width / 2; const cy = rect.height / 2; setPan({ x: cx - (cx - pan.x) * (nz / zoom), y: cy - (cy - pan.y) * (nz / zoom) }); } setZoom(nz); }}
+                      onClick={() => { const nz = Math.min(4, zoom * 1.15); const rect = gridContainerRef.current?.getBoundingClientRect(); if (rect) { const cx = rect.width / 2; const cy = rect.height / 2; setPan({ x: cx - (cx - pan.x) * (nz / zoom), y: cy - (cy - pan.y) * (nz / zoom) }); } setZoom(nz); }}
                       className="w-7 h-7 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors text-sm font-bold"
                     >+</button>
-                    <div className="w-px h-5 bg-neutral-700 mx-1" />
+                    <div className="w-px h-5 bg-neutral-700 mx-0.5" />
                     <button
-                      onClick={fitToContent}
-                      className="px-2 h-7 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors text-[10px] font-bold uppercase tracking-wider"
+                      onClick={() => setInteractionMode('select')}
+                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${interactionMode === 'select' ? 'bg-orange-600 text-white' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
+                      title="Selection Mode"
+                    >
+                      <MousePointer2 className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => setInteractionMode('pan')}
+                      className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${interactionMode === 'pan' ? 'bg-orange-600 text-white' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
+                      title="Pan Mode"
+                    >
+                      <Hand className="w-3 h-3" />
+                    </button>
+                    <div className="w-px h-5 bg-neutral-700 mx-0.5" />
+                    <button
+                      onClick={() => fitToContent(isPreviewMode ? 0 : 80)}
+                      className="px-1.5 h-7 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors text-[9px] font-bold uppercase tracking-wider"
                     >Fit</button>
                     <button
                       onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-                      className="px-2 h-7 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors text-[10px] font-bold"
+                      className="px-1.5 h-7 flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors text-[9px] font-bold"
                     >100%</button>
+                    <div className="w-px h-5 bg-neutral-700 mx-0.5" />
+                    <div className="relative" ref={addFrameDropdownRef}>
+                      <button
+                        onClick={() => setShowAddFrameDropdown(!showAddFrameDropdown)}
+                        className={`px-2 h-7 flex items-center gap-1.5 rounded-lg transition-colors text-[9px] font-bold uppercase tracking-wider ${showAddFrameDropdown ? 'bg-orange-600 text-white' : 'text-neutral-400 hover:text-white hover:bg-neutral-800'}`}
+                      >
+                        <Columns2 className="w-3 h-3" />
+                        Add Frame
+                      </button>
+
+                      {showAddFrameDropdown && (
+                        <div className="absolute bottom-full mb-2 left-0 w-48 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl overflow-hidden py-1 z-[10001]">
+                          <div className="px-3 py-1.5 border-b border-neutral-800 mb-1">
+                            <span className="text-[10px] font-bold text-neutral-500 uppercase">Screen Sizes</span>
+                          </div>
+                          {FRAME_SIZES.map(size => (
+                            <button
+                              key={size.name}
+                              onClick={() => handleAddFrame(size)}
+                              className="w-full px-3 py-2 text-left hover:bg-neutral-800 flex flex-col gap-0.5 transition-colors"
+                            >
+                              <span className="text-[11px] font-bold text-neutral-200">{size.name}</span>
+                              <span className="text-[9px] text-neutral-500 font-mono">{size.w} x {size.h} px</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -2231,24 +3023,133 @@ export default function BIHubPage() {
                     }}
                     onMouseDown={layoutMode === 'whiteboard' ? handleCanvasMouseDown : undefined}
                   >
-                    {/* Whiteboard bounding box rectangle — removed: was incorrectly wrapping elements */}
-
-                    {/* Floating Custom Tab Bar */}
-                    {tabPosition === 'custom' && (
+                    {/* Marquee Selection Box */}
+                    {selectionBox && !isPreviewMode && (
                       <div
                         style={{
                           position: 'absolute',
-                          left: customTabRect.x,
-                          top: customTabRect.y,
-                          width: customTabRect.w,
-                          height: customTabRect.h,
-                          zIndex: 1000,
+                          left: Math.min(selectionBox.x1, selectionBox.x2),
+                          top: Math.min(selectionBox.y1, selectionBox.y2),
+                          width: Math.abs(selectionBox.x2 - selectionBox.x1),
+                          height: Math.abs(selectionBox.y2 - selectionBox.y1),
+                          backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                          border: '1px solid var(--color-orange-500)',
+                          zIndex: 9999,
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
+
+                    {/* Whiteboard bounding box rectangle — removed: was incorrectly wrapping elements */}
+
+                    {dashboardFrames.filter(f => (f.tabId || 'default') === activeTabId).map(frame => (
+                      <div
+                        key={frame.id}
+                        style={{
+                          position: 'absolute',
+                          left: frame.pos.x,
+                          top: frame.pos.y,
+                          width: frame.pos.w,
+                          height: frame.pos.h,
+                          border: frame.borderColor ? `${frame.borderWidth || 2}px ${frame.borderStyle || 'solid'} ${frame.borderColor}` : (isEditMode ? (mainFrameId === frame.id ? '4px solid #f97316' : '2px dashed #404040') : (mainFrameId === frame.id ? '2px solid transparent' : 'none')),
+                          zIndex: 0, // Frames stay in background
+                          pointerEvents: isEditMode ? 'auto' : 'none',
+                          backgroundColor: frame.bgColor || (isEditMode ? 'rgba(255, 255, 255, 0.02)' : 'transparent'),
+                          borderRadius: frame.borderRadius ? `${frame.borderRadius}px` : 0,
+                          boxShadow: frame.boxShadow || 'none',
+                          opacity: frame.opacity !== undefined ? frame.opacity : 1,
+                          backgroundImage: frame.bgImage ? `url(${frame.bgImage})` : 'none',
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                        }}
+                        className={`group ${isEditMode ? 'cursor-move' : ''}`}
+                        onMouseDown={isEditMode ? (e) => startFrameDrag(e, frame.id) : undefined}
+                      >
+                        {/* Frame Label */}
+                        {isEditMode && (
+                          <div className="absolute -top-7 left-0 flex items-center gap-2 bg-neutral-900 px-2 py-1 rounded-t-lg border border-b-0 border-neutral-800">
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${mainFrameId === frame.id ? 'text-orange-500' : 'text-neutral-500'}`}>
+                            {frame.name} {mainFrameId === frame.id ? '(Main Screen)' : ''}
+                          </span>
+                          <span className="text-[9px] text-neutral-600 font-mono">{frame.pos.w}x{frame.pos.h}</span>
+                          
+                          <div className="flex items-center gap-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setMainFrameId(frame.id === mainFrameId ? null : frame.id); }}
+                                className={`p-1 rounded hover:bg-neutral-800 transition-colors ${mainFrameId === frame.id ? 'text-orange-500' : 'text-neutral-500'}`}
+                                title="Set as Main Screen"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setStylingFrameId(frame.id); setShowFrameStyleModal(true); setShowWidgetStyleModal(false); setShowTabSettings(false); }}
+                                className="p-1 rounded hover:bg-neutral-800 text-neutral-500 hover:text-orange-500 transition-colors"
+                                title="Frame Settings"
+                              >
+                                <Settings2 className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteFrame(frame.id); }}
+                                className="p-1 rounded hover:bg-neutral-800 text-neutral-500 hover:text-red-400 transition-colors"
+                                title="Delete Frame"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Resize Handle */}
+                        {isEditMode && (
+                          <div
+                            onMouseDown={(e) => startFrameResize(e, frame.id)}
+                            className="absolute bottom-0 right-0 w-6 h-6 cursor-se-resize flex items-end justify-end p-1 text-neutral-500 hover:text-orange-500 transition-colors z-10"
+                            title="Resize Frame"
+                          >
+                            <svg viewBox="0 0 10 10" className="w-3 h-3" fill="currentColor">
+                              <path d="M0 10 L10 10 L10 0 Z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Floating / Frame-Attached Tab Bar */}
+                    {(tabPosition === 'custom' || (mainFrameId && ['top', 'bottom', 'left', 'right'].includes(tabPosition))) && !isPreviewMode && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          ...( ( (tabPosition === 'custom' && tabFrameId) || (tabPosition !== 'custom' && mainFrameId) ) ? (() => {
+                            const targetId = tabPosition === 'custom' ? tabFrameId : mainFrameId;
+                            const targetPos = tabPosition === 'custom' ? tabFramePosition : tabPosition;
+                            const f = dashboardFrames.find(f => f.id === targetId);
+                            if (!f) return { left: customTabRect.x, top: customTabRect.y, width: customTabRect.w, height: customTabRect.h, zIndex: 1000 };
+                            
+                            const barSize = tabBarSize;
+                            const spacing = 10;
+                            
+                            if (targetPos === 'top') {
+                              return { left: f.pos.x, top: f.pos.y - barSize - spacing, width: f.pos.w, height: barSize, zIndex: 1000 };
+                            } else if (targetPos === 'bottom') {
+                              return { left: f.pos.x, top: f.pos.y + f.pos.h + spacing, width: f.pos.w, height: barSize, zIndex: 1000 };
+                            } else if (targetPos === 'left') {
+                              return { left: f.pos.x - barSize - spacing, top: f.pos.y, width: barSize, height: f.pos.h, zIndex: 1000 };
+                            } else { // right
+                              return { left: f.pos.x + f.pos.w + spacing, top: f.pos.y, width: barSize, height: f.pos.h, zIndex: 1000 };
+                            }
+                          })() : {
+                            left: customTabRect.x,
+                            top: customTabRect.y,
+                            width: customTabRect.w,
+                            height: customTabRect.h,
+                            zIndex: 1000,
+                          }),
                           backgroundColor: 'var(--color-neutral-900)',
                           border: isEditMode ? '2px solid var(--color-orange-500)' : '1px solid var(--color-neutral-800)',
                         }}
                         className="rounded-2xl shadow-2xl flex flex-col overflow-hidden group"
                       >
-                        {isEditMode && (
+                        {isEditMode && !tabFrameId && tabPosition === 'custom' && (
                           <div
                             className="bg-orange-500/10 border-b border-orange-500/20 px-3 py-1 flex items-center justify-between cursor-move"
                             onMouseDown={startCustomTabDrag}
@@ -2259,13 +3160,24 @@ export default function BIHubPage() {
                             </div>
                           </div>
                         )}
-                        <div className={`flex-1 p-2 overflow-auto flex ${customTabRect.w >= customTabRect.h ? 'flex-row items-center gap-2' : 'flex-col gap-2'}`}>
-                          {dashboardTabs.map(tab => renderTabItem(tab, customTabRect.w >= customTabRect.h))}
+                        <div 
+                          className={`flex-1 p-2 overflow-auto flex ${(() => {
+                            const targetId = tabPosition === 'custom' ? tabFrameId : mainFrameId;
+                            const targetPos = tabPosition === 'custom' ? tabFramePosition : tabPosition;
+                            return (targetId && (targetPos === 'top' || targetPos === 'bottom')) || (!targetId && customTabRect.w >= customTabRect.h);
+                          })() ? 'flex-row items-center' : 'flex-col'}`}
+                          style={{ gap: `${tabGap}px` }}
+                        >
+                          {dashboardTabs.map(tab => renderTabItem(tab, (() => {
+                            const targetId = tabPosition === 'custom' ? tabFrameId : mainFrameId;
+                            const targetPos = tabPosition === 'custom' ? tabFramePosition : tabPosition;
+                            return (targetId && (targetPos === 'top' || targetPos === 'bottom')) || (!targetId && customTabRect.w >= customTabRect.h);
+                          })()))}
                           {isEditMode && renderAddTabButton()}
                         </div>
 
-                        {/* Resize Handles */}
-                        {isEditMode && (
+                        {/* Resize Handles - only for floating */}
+                        {isEditMode && !tabFrameId && tabPosition === 'custom' && (
                           <>
                             <div onMouseDown={e => startCustomTabResize(e, 'e')} className="absolute top-6 right-0 w-1.5 h-[calc(100%-24px)] cursor-ew-resize" />
                             <div onMouseDown={e => startCustomTabResize(e, 's')} className="absolute bottom-0 left-0 w-full h-1.5 cursor-ns-resize" />
@@ -2304,14 +3216,21 @@ export default function BIHubPage() {
                             height: item.pos.h,
                             zIndex: item.zIndex || 1,
                             backgroundColor: selectedDashboard?.theme_config?.chartBg || undefined,
-                            borderColor: selectedDashboard?.theme_config?.chartBorderColor || undefined,
+                            borderColor: (selectedItemId === item.id || selectedItemIds.includes(item.id)) ? 'var(--color-orange-500)' : (selectedDashboard?.theme_config?.chartBorderColor || undefined),
+                            borderWidth: (selectedItemId === item.id || selectedItemIds.includes(item.id)) ? '2px' : undefined,
                             borderRadius: selectedDashboard?.theme_config?.chartBorderRadius ? `${selectedDashboard.theme_config.chartBorderRadius}px` : undefined,
                             boxShadow: selectedDashboard?.theme_config?.chartShadow || undefined
-                          }}
-                          className="bg-neutral-900 border border-neutral-800/80 rounded-2xl flex flex-col overflow-hidden shadow-lg group
-                        hover:border-neutral-700/60 hover:shadow-2xl transition-[border-color,box-shadow]"
-                          onMouseDown={isEditMode && item.hideHeader ? (e) => startDrag(e, item.id) : undefined}
-                        >
+                            }}
+                            className={`bg-neutral-900 border flex flex-col overflow-hidden shadow-lg group
+                            hover:border-neutral-700/60 hover:shadow-2xl transition-[border-color,box-shadow] ${(selectedItemId === item.id || selectedItemIds.includes(item.id)) ? 'border-orange-500 ring-2 ring-orange-500/20' : 'border-neutral-800/80'}`}
+                            onMouseDown={isEditMode ? (e) => {
+                            setSelectedItemId(item.id);
+                            setSelectedItemIds([item.id]);
+                            setSelectedWidgetId(null);
+                            setSelectedWidgetIds([]);
+                            if (item.hideHeader) startDrag(e, item.id);
+                            } : undefined}
+                            >
                           {/* Title bar — drag handle */}
                           {!item.hideHeader && (
                             <div
@@ -2421,6 +3340,7 @@ export default function BIHubPage() {
                       const isDivider = widget.itemType === 'divider';
                       const isImage = widget.itemType === 'image';
                       const isFilter = widget.itemType === 'filter';
+                      const isShape = widget.itemType === 'rectangle' || widget.itemType === 'circle';
                       const isEditing = editingWidgetId === widget.id;
 
                       return (
@@ -2433,27 +3353,84 @@ export default function BIHubPage() {
                             width: widget.pos.w,
                             height: widget.pos.h,
                             background: widget.bgGradient || (widget.bgColor === 'rgba(30,30,40,0.6)' ? 'var(--color-neutral-900)' : (widget.bgColor === 'rgba(255,255,255,0.1)' ? 'var(--color-neutral-800)' : widget.bgColor)),
-                            border: widget.borderStyle && widget.borderStyle !== 'none'
-                              ? `${widget.borderWidth || 2}px ${widget.borderStyle} ${widget.borderColor === 'rgba(255,255,255,0.1)' ? 'var(--color-neutral-800)' : (widget.borderColor || 'transparent')}`
-                              : (widget.borderColor && widget.borderColor !== 'transparent'
-                                ? `2px solid ${widget.borderColor === 'rgba(255,255,255,0.1)' ? 'var(--color-neutral-800)' : widget.borderColor}`
-                                : undefined),
+                            border: (selectedWidgetId === widget.id || selectedWidgetIds.includes(widget.id))
+                              ? '2px solid var(--color-orange-500)'
+                              : (widget.borderStyle && widget.borderStyle !== 'none'
+                                ? `${widget.borderWidth || 2}px ${widget.borderStyle} ${widget.borderColor === 'rgba(255,255,255,0.1)' ? 'var(--color-neutral-800)' : (widget.borderColor || 'transparent')}`
+                                : (widget.borderColor && widget.borderColor !== 'transparent'
+                                  ? `2px solid ${widget.borderColor === 'rgba(255,255,255,0.1)' ? 'var(--color-neutral-800)' : widget.borderColor}`
+                                  : undefined)),
                             borderRadius: widget.borderRadius,
                             opacity: widget.opacity !== undefined ? widget.opacity : 1,
                             zIndex: widget.zIndex || 1,
-                            boxShadow: widget.boxShadow === 'sm' ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                            boxShadow: (selectedWidgetId === widget.id || selectedWidgetIds.includes(widget.id)) ? '0 0 0 4px rgba(249, 115, 22, 0.2)' : (widget.boxShadow === 'sm' ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
                               : widget.boxShadow === 'md' ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                                 : widget.boxShadow === 'lg' ? '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
                                   : widget.boxShadow === 'xl' ? '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-                                    : undefined,
+                                    : undefined),
                             backdropFilter: widget.backdropBlur === 'sm' ? 'blur(4px)'
                               : widget.backdropBlur === 'md' ? 'blur(8px)'
                                 : widget.backdropBlur === 'lg' ? 'blur(16px)'
                                   : undefined,
-                          }}
-                          className={`group ${isEditMode ? 'cursor-move' : ''} ${(isHeading || isText) ? 'overflow-hidden' : ''}`}
-                          onMouseDown={isEditMode && !isEditing ? (e) => startWidgetDrag(e, widget.id) : undefined}
-                        >
+                            }}
+                            className={`group ${isEditMode ? 'cursor-move' : ''} ${(isHeading || isText || isShape) ? 'overflow-hidden' : ''} ${(selectedWidgetId === widget.id || selectedWidgetIds.includes(widget.id)) ? 'ring-2 ring-orange-500/50' : ''}`}
+                            onMouseDown={isEditMode && !isEditing ? (e) => {
+                            setSelectedWidgetId(widget.id);
+                            setSelectedWidgetIds([widget.id]);
+                            setSelectedItemId(null);
+                            setSelectedItemIds([]);
+                            startWidgetDrag(e, widget.id);
+                            } : undefined}
+                            >
+                          {/* Shape Widget (Rectangle/Circle) Text Rendering */}
+                          {isShape && widget.text && (
+                            <div
+                              className={`w-full h-full flex items-center justify-center select-none overflow-hidden`}
+                              style={{
+                                padding: widget.padding !== undefined ? `${widget.padding}px` : '12px',
+                                textAlign: widget.textAlign || 'center'
+                              }}
+                            >
+                              {isEditing ? (
+                                <textarea
+                                  autoFocus
+                                  value={editingWidgetText}
+                                  onChange={e => setEditingWidgetText(e.target.value)}
+                                  onBlur={() => {
+                                    setDashboardWidgets(prev => prev.map(w => w.id === widget.id ? { ...w, text: editingWidgetText } : w));
+                                    setEditingWidgetId(null);
+                                  }}
+                                  className="bg-transparent w-full h-full outline-none resize-none"
+                                  style={{
+                                    cursor: 'text',
+                                    fontSize: widget.fontSize ? `${widget.fontSize}px` : '1rem',
+                                    color: widget.color || 'var(--color-neutral-50)',
+                                    textAlign: widget.textAlign || 'center',
+                                    fontWeight: widget.fontWeight || '600',
+                                    fontStyle: widget.fontStyle || 'normal',
+                                    textDecoration: widget.textDecoration || 'none',
+                                    fontFamily: widget.fontFamily || 'inherit'
+                                  }}
+                                  onMouseDown={e => e.stopPropagation()}
+                                />
+                              ) : (
+                                <span
+                                  className="whitespace-pre-wrap break-words"
+                                  style={{
+                                    fontSize: widget.fontSize ? `${widget.fontSize}px` : '1rem',
+                                    fontWeight: widget.fontWeight || '600',
+                                    color: widget.color || 'var(--color-neutral-50)',
+                                    textAlign: widget.textAlign || 'center',
+                                    fontStyle: widget.fontStyle || 'normal',
+                                    textDecoration: widget.textDecoration || 'none',
+                                    fontFamily: widget.fontFamily || 'inherit'
+                                  }}
+                                  onDoubleClick={isEditMode ? () => { setEditingWidgetId(widget.id); setEditingWidgetText(widget.text || ''); } : undefined}
+                                >{widget.text}</span>
+                              )}
+                            </div>
+                          )}
+
                           {/* Image Widget */}
                           {isImage && widget.src && (
                             <div className="w-full h-full p-1">
@@ -2823,7 +3800,7 @@ export default function BIHubPage() {
                               >
                                 <Settings2 className="w-3 h-3" />
                               </button>
-                              {(isHeading || isText) && (
+                              {(isHeading || isText || isShape) && (
                                 <button
                                   onMouseDown={e => e.stopPropagation()}
                                   onClick={() => { setEditingWidgetId(widget.id); setEditingWidgetText(widget.text || ''); }}
@@ -2869,12 +3846,12 @@ export default function BIHubPage() {
               </div>
 
               {/* Bottom Tab Bar */}
-              {tabPosition === 'bottom' && (
+              {tabPosition === 'bottom' && !isPreviewMode && !mainFrameId && (
                 <div
                   className="bg-neutral-950 border-t border-neutral-900/60 p-3 px-8 flex items-center justify-between gap-4 shrink-0"
                   style={{ height: tabBarSize }}
                 >
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center" style={{ gap: `${tabGap}px` }}>
                     {dashboardTabs.map(tab => renderTabItem(tab, true))}
                     {isEditMode && renderAddTabButton()}
                   </div>
@@ -2888,12 +3865,12 @@ export default function BIHubPage() {
             </div>
 
             {/* Right Tab Bar */}
-            {tabPosition === 'right' && (
+            {tabPosition === 'right' && !isPreviewMode && !mainFrameId && (
               <div
                 className="bg-neutral-950 border-l border-neutral-900/60 shrink-0 p-4 pt-6 flex flex-col gap-6 overflow-y-auto"
                 style={{ width: tabBarSize }}
               >
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col" style={{ gap: `${tabGap}px` }}>
                   {dashboardTabs.map(tab => renderTabItem(tab, false))}
                   {isEditMode && renderAddTabButton()}
                 </div>
@@ -2914,16 +3891,32 @@ export default function BIHubPage() {
               </div>
 
               <div className="flex-1 overflow-auto space-y-6">
+                {/* Master Toggle */}
+                <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-neutral-200">Display Tab Bar</span>
+                      <span className="text-[10px] text-neutral-500">Enable or disable tab navigation</span>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setTabPosition(tabPosition === 'none' ? 'top' : 'none')}
+                    className={`w-12 h-6 rounded-full relative transition-all duration-200 ${tabPosition !== 'none' ? 'bg-orange-600 shadow-[0_0_10px_rgba(234,88,12,0.4)]' : 'bg-neutral-800'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-200 ${tabPosition !== 'none' ? 'left-7' : 'left-1'}`} />
+                  </button>
+                </div>
+
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Tab Bar Position</label>
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {[
-                      { id: 'none', label: 'None (Hidden)' },
+                      { id: 'none', label: 'Hidden' },
                       { id: 'top', label: 'Top' },
                       { id: 'bottom', label: 'Bottom' },
-                      { id: 'left', label: 'Left Sidebar' },
-                      { id: 'right', label: 'Right Sidebar' },
-                      { id: 'custom', label: 'Custom (Floating)' },
+                      { id: 'left', label: 'Left' },
+                      { id: 'right', label: 'Right' },
+                      { id: 'custom', label: 'Floating' },
                     ].map(pos => (
                       <button
                         key={pos.id}
@@ -2936,13 +3929,13 @@ export default function BIHubPage() {
                             setTabBarSize(200);
                           }
                         }}
-                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left cursor-pointer border ${tabPosition === pos.id
-                            ? 'bg-orange-600/10 border-orange-500/40 text-orange-500 font-bold'
-                            : 'bg-neutral-950 border-neutral-800 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-900'
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-xl transition-all text-left cursor-pointer border ${tabPosition === pos.id
+                          ? 'bg-orange-600/10 border-orange-500/40 text-orange-500 font-bold'
+                          : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700 hover:bg-neutral-900'
                           }`}
                       >
-                        <span className="text-sm">{pos.label}</span>
-                        {tabPosition === pos.id && <Check className="w-4 h-4" />}
+                        <span className="text-xs">{pos.label}</span>
+                        {tabPosition === pos.id && <Check className="w-3 h-3" />}
                       </button>
                     ))}
                   </div>
@@ -2957,18 +3950,210 @@ export default function BIHubPage() {
                     </div>
                     <input
                       type="range"
-                      min="0"
-                      max={tabPosition === 'top' || tabPosition === 'bottom' ? "120" : "400"}
+                      min="30"
+                      max={tabPosition === 'top' || tabPosition === 'bottom' ? "150" : "500"}
                       value={tabBarSize}
                       onChange={(e) => setTabBarSize(parseInt(e.target.value))}
                       className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-orange-500"
                     />
-                    <div className="flex justify-between text-[10px] text-neutral-500 font-mono">
-                      <span>0px</span>
-                      <span>{tabPosition === 'top' || tabPosition === 'bottom' ? "120px" : "400px"}</span>
-                    </div>
                   </div>
                 )}
+
+                {/* Advanced Tab Styling */}
+                <div className="space-y-6 pt-4 border-t border-neutral-800">
+                  <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">Tab Item Styling</label>
+                  
+                  <div className="space-y-3">
+                    <label className="text-[10px] text-neutral-400">Layout & Spacing</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                          <span>Font Size</span>
+                          <span className="text-orange-500">{tabFontSize}px</span>
+                        </div>
+                        <input type="range" min="8" max="24" value={tabFontSize} onChange={e => setTabFontSize(parseInt(e.target.value))} className="w-full h-1 bg-neutral-800 appearance-none accent-orange-500 rounded" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                          <span>Gap</span>
+                          <span className="text-orange-500">{tabGap}px</span>
+                        </div>
+                        <input type="range" min="0" max="32" value={tabGap} onChange={e => setTabGap(parseInt(e.target.value))} className="w-full h-1 bg-neutral-800 appearance-none accent-orange-500 rounded" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                          <span>Padding X</span>
+                          <span className="text-orange-500">{tabPaddingX}px</span>
+                        </div>
+                        <input type="range" min="4" max="40" value={tabPaddingX} onChange={e => setTabPaddingX(parseInt(e.target.value))} className="w-full h-1 bg-neutral-800 appearance-none accent-orange-500 rounded" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                          <span>Padding Y</span>
+                          <span className="text-orange-500">{tabPaddingY}px</span>
+                        </div>
+                        <input type="range" min="2" max="24" value={tabPaddingY} onChange={e => setTabPaddingY(parseInt(e.target.value))} className="w-full h-1 bg-neutral-800 appearance-none accent-orange-500 rounded" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] text-neutral-400">Typography & Color</label>
+                    <div className="flex gap-2 bg-neutral-950 p-1 rounded-xl border border-neutral-800">
+                      {(['normal', 'semibold', 'bold'] as const).map(w => (
+                        <button
+                          key={w}
+                          onClick={() => setTabFontWeight(w)}
+                          className={`flex-1 py-1 text-[10px] font-bold uppercase rounded-lg transition-all ${tabFontWeight === w ? 'bg-neutral-800 text-orange-500' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        >
+                          {w}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                        <span>Active Color</span>
+                        <span className="text-orange-500 font-mono">{tabActiveColor}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="color" 
+                          value={tabActiveColor.startsWith('var') ? '#ea580c' : tabActiveColor} 
+                          onChange={e => setTabActiveColor(e.target.value)}
+                          className="w-10 h-10 bg-transparent border-none cursor-pointer rounded overflow-hidden"
+                        />
+                        <div className="flex flex-wrap gap-1.5 flex-1">
+                          {['#ea580c', '#3b82f6', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899'].map(c => (
+                            <button 
+                              key={c}
+                              onClick={() => setTabActiveColor(c)}
+                              className="w-5 h-5 rounded-full border border-white/10"
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                          <button 
+                            onClick={() => setTabActiveColor('var(--color-orange-500)')}
+                            className="px-2 py-0.5 rounded text-[8px] bg-neutral-800 text-neutral-400 border border-neutral-700"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Attach to Frame (only for custom) */}
+                {tabPosition === 'custom' && (
+                  <div className="space-y-4 pt-4 border-t border-neutral-800">
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">Attach to Frame</label>
+                    <select
+                      value={tabFrameId || ''}
+                      onChange={(e) => setTabFrameId(e.target.value || null)}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-200 outline-none focus:border-orange-500/50 transition-colors"
+                    >
+                      <option value="">Floating (Independent)</option>
+                      {dashboardFrames.map(f => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+
+                    {tabFrameId && (
+                      <div className="mt-3">
+                        <label className="text-[10px] font-bold text-neutral-500 uppercase block mb-2">Attachment Position</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {['top', 'bottom', 'left', 'right'].map(p => (
+                            <button
+                              key={p}
+                              onClick={() => setTabFramePosition(p as any)}
+                              className={`px-3 py-2 rounded-lg border text-xs capitalize transition-all ${tabFramePosition === p ? 'bg-orange-500/20 border-orange-500/50 text-orange-500' : 'bg-neutral-800 border-neutral-700 text-neutral-400'}`}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-[9px] text-neutral-500 italic mt-2">
+                      When attached, the tab bar will stick to the chosen edge of the frame.
+                    </p>
+                  </div>
+                )}
+
+                {/* Style & Radius Settings */}
+                <div className="space-y-6 pt-4 border-t border-neutral-800">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block">Main Export Screen</label>
+                    <select
+                      value={mainFrameId || ''}
+                      onChange={(e) => setMainFrameId(e.target.value || null)}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-200 outline-none focus:border-orange-500/50 transition-colors"
+                    >
+                      <option value="">None (Fit all content)</option>
+                      {dashboardFrames.map(f => (
+                        <option key={f.id} value={f.id}>{f.name} ({f.pos.w}x{f.pos.h})</option>
+                      ))}
+                    </select>
+                    <p className="text-[9px] text-neutral-500 italic">
+                      The selected frame will be used as the primary viewport for public dashboard links.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Tab Bar Style</label>
+                    <div className="flex gap-2 bg-neutral-950 p-1 rounded-xl border border-neutral-800">
+                      {['pills', 'underline', 'flat'].map((s: any) => (
+                        <button
+                          key={s}
+                          onClick={() => setTabBarStyle(s)}
+                          className={`flex-1 py-1.5 text-[10px] font-bold uppercase rounded-lg transition-all ${tabBarStyle === s ? 'bg-orange-600 text-white shadow-lg' : 'text-neutral-500 hover:text-neutral-300'}`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Border Radius</span>
+                      <span className="text-xs font-mono text-orange-500">{tabBorderRadius}px</span>
+                    </div>
+                    <input
+                      type="range" min="0" max="40" value={tabBorderRadius}
+                      onChange={e => setTabBorderRadius(parseInt(e.target.value))}
+                      className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Opacity</span>
+                      <span className="text-xs font-mono text-orange-500">{Math.round(tabOpacity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range" min="0.1" max="1" step="0.1" value={tabOpacity}
+                      onChange={e => setTabOpacity(parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-orange-500"
+                    />
+                  </div>
+
+                  <div className="space-y-3 pt-4 border-t border-neutral-800">
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Main Frame (Focus for Preview)</label>
+                    <select
+                      value={mainFrameId || ""}
+                      onChange={e => setMainFrameId(e.target.value || null)}
+                      className="w-full bg-neutral-950 border border-neutral-800 text-neutral-300 text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500 transition-colors"
+                    >
+                      <option value="">None (Auto-calculate)</option>
+                      {dashboardWidgets.filter(w => (w.tabId || 'default') === activeTabId && w.itemType === 'rectangle').map(w => (
+                        <option key={w.id} value={w.id}>Widget: {w.text || 'Untitled Rectangle'} ({w.id})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -3187,8 +4372,8 @@ export default function BIHubPage() {
                   type="button"
                   onClick={() => setChartConfigTab("schema")}
                   className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${chartConfigTab === "schema"
-                      ? "bg-orange-500/10 border border-orange-500/30 text-orange-400"
-                      : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850/50"
+                    ? "bg-orange-500/10 border border-orange-500/30 text-orange-400"
+                    : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850/50"
                     }`}
                 >
                   Dataset
@@ -3197,8 +4382,8 @@ export default function BIHubPage() {
                   type="button"
                   onClick={() => setChartConfigTab("code")}
                   className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${chartConfigTab === "code"
-                      ? "bg-orange-500/10 border border-orange-500/30 text-orange-400"
-                      : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850/50"
+                    ? "bg-orange-500/10 border border-orange-500/30 text-orange-400"
+                    : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850/50"
                     }`}
                 >
                   Edit Chart
@@ -3530,9 +4715,18 @@ export default function BIHubPage() {
                         <span className="text-pink-400 font-semibold">{aiPromptDesignNote || <span className="italic text-neutral-600">(các thiết kế mà bạn muốn hiển thị)</span>}</span>
                       </p>
 
+                      {/* Fixed prompt requirement */}
+                      <div className="mt-4 pt-3 border-t border-neutral-800/60">
+                        <p className="text-[10px] text-neutral-500 mb-2 italic">Yêu cầu bổ sung:</p>
+                        <p className="text-[11px] text-orange-400/80 font-mono leading-tight">
+                          trong edit chart phần hiển thị các cột của dataset thay vì để là collapse hay expand thay bằng nút copy toàn bộ tên trường đưa vào một list dạng [a,b,c] nhé. và khi ấn vào trường nào thì có thể thực hiện copy name của trường đó
+                        </p>
+                      </div>
+
                       {/* AI Links */}
                       <div className="mt-4 pt-3 border-t border-neutral-800/60 flex items-center gap-3">
-                        <span className="text-[10px] text-neutral-600 font-semibold">Mở với:</span>                        <a
+                        <span className="text-[10px] text-neutral-600 font-semibold">Mở với:</span>
+                        <a
                           href={`https://gemini.google.com/`}
                           target="_blank" rel="noopener noreferrer"
                           className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold rounded-lg transition-colors"
@@ -3818,11 +5012,10 @@ export default function BIHubPage() {
                   ) : (
                     <div className="flex flex-col h-full p-2 overflow-auto">
                       <h4 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-4">AI Instruction Prompt</h4>
-                      <div className="flex-1 bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 font-mono text-sm text-neutral-400 leading-relaxed whitespace-pre-wrap">
-                        {`Use the AI Prompt Generator to create a prompt for your chart, then paste the generated ECharts code into the editor on the left.
-
-                      Once you click "Run Code", the live visualization will be displayed here.`}
-                      </div>                      <div className="mt-4 p-4 bg-orange-500/5 border border-orange-500/10 rounded-xl">
+                      <div className="flex-1 bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 font-mono text-sm text-orange-400 leading-relaxed whitespace-pre-wrap select-all">
+                        {`trong edit chart phần hiển thị các cột của dataset thay vì để là collapse hay expand thay bằng nút copy toàn bộ tên trường đưa vào một list dạng [a,b,c] nhé. và khi ấn vào trường nào thì có thể thực hiện copy name của trường đó`}
+                      </div>
+                      <div className="mt-4 p-4 bg-orange-500/5 border border-orange-500/10 rounded-xl">
                         <p className="text-xs text-neutral-400 italic">
                           Click "Run Code" to compile and see the chart preview.
                         </p>
@@ -3959,11 +5152,10 @@ export default function BIHubPage() {
               ) : (
                 <div className="max-w-3xl mx-auto flex flex-col h-full justify-center overflow-auto">
                   <h4 className="text-[12px] font-bold text-neutral-500 uppercase tracking-wider mb-6 text-center">AI Instruction Prompt</h4>
-                  <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-10 font-mono text-xl text-neutral-400 leading-relaxed whitespace-pre-wrap shadow-2xl">
-                    {`No chart preview available.
-
-                  Please run the code in the editor to visualize the chart.`}
-                  </div>                  <p className="mt-8 text-sm text-neutral-500 text-center italic">
+                  <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-10 font-mono text-xl text-orange-400 leading-relaxed whitespace-pre-wrap select-all shadow-2xl">
+                    {`trong edit chart phần hiển thị các cột của dataset thay vì để là collapse hay expand thay bằng nút copy toàn bộ tên trường đưa vào một list dạng [a,b,c] nhé. và khi ấn vào trường nào thì có thể thực hiện copy name của trường đó`}
+                  </div>
+                  <p className="mt-8 text-sm text-neutral-500 text-center italic">
                     Run the code in the editor to see the chart visualization here.
                   </p>
                 </div>
@@ -4148,8 +5340,8 @@ export default function BIHubPage() {
                   <button
                     onClick={() => { setLayoutMode('slide'); setZoom(1); setPan({ x: 0, y: 0 }); }}
                     className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer ${layoutMode === 'slide'
-                        ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/10'
-                        : 'border-neutral-800 bg-neutral-950 hover:border-neutral-700'
+                      ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/10'
+                      : 'border-neutral-800 bg-neutral-950 hover:border-neutral-700'
                       }`}
                   >
                     <div className="w-10 h-7 border border-neutral-600 rounded-md flex flex-col">
@@ -4162,8 +5354,8 @@ export default function BIHubPage() {
                   <button
                     onClick={() => setLayoutMode('whiteboard')}
                     className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer ${layoutMode === 'whiteboard'
-                        ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/10'
-                        : 'border-neutral-800 bg-neutral-950 hover:border-neutral-700'
+                      ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/10'
+                      : 'border-neutral-800 bg-neutral-950 hover:border-neutral-700'
                       }`}
                   >
                     <div className="w-10 h-7 border border-neutral-600 rounded-md relative overflow-hidden">
@@ -4414,6 +5606,32 @@ export default function BIHubPage() {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Filter Settings */}
+                  {isFilter && (
+                    <div className="space-y-4">
+                      {/* ... existing filter settings ... */}
+                    </div>
+                  )}
+
+                  {/* Shape Text Settings */}
+                  {isShape && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 border-b border-neutral-800 pb-2">
+                        <Type className="w-4 h-4 text-neutral-500" />
+                        <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Shape Label</span>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Label Text</label>
+                        <textarea
+                          placeholder="e.g. Total Revenue"
+                          value={widget.text || ''}
+                          onChange={e => setDashboardWidgets(prev => prev.map(w => w.id === widget.id ? { ...w, text: e.target.value } : w))}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 transition-colors shadow-inner min-h-[60px]"
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -4672,8 +5890,8 @@ export default function BIHubPage() {
                     </div>
                   )}
 
-                  {/* Text Styling (for Heading, Text, and Filter) */}
-                  {(isHeading || isText || isFilter) && (
+                  {/* Text Styling (for Heading, Text, Filter, and Shapes) */}
+                  {(isHeading || isText || isFilter || isShape) && (
                     <div className="space-y-4 pt-2">
                       <div className="flex items-center gap-2 border-b border-neutral-800 pb-2">
                         <Type className="w-4 h-4 text-neutral-500" />
@@ -4799,6 +6017,230 @@ export default function BIHubPage() {
                 <div className="p-4 px-5 border-t border-neutral-800 bg-neutral-900/50 flex justify-end shrink-0">
                   <button
                     onClick={() => setShowWidgetStyleModal(false)}
+                    className="px-8 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-orange-600/20 cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Frame Style Editor Sidebar */}
+      {showFrameStyleModal && stylingFrameId && (
+        <div className="fixed inset-y-0 right-0 w-80 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
+          {(() => {
+            const frame = dashboardFrames.find(f => f.id === stylingFrameId);
+            if (!frame) return null;
+
+            return (
+              <>
+                <div className="flex justify-between items-center p-4 px-5 border-b border-neutral-800 bg-neutral-900/50 flex-shrink-0">
+                  <div>
+                    <h3 className="font-bold text-lg text-neutral-50 flex items-center gap-2">
+                      <Settings2 className="text-orange-500 w-5 h-5" />
+                      Frame Settings
+                    </h3>
+                    <p className="text-xs text-neutral-500 mt-0.5">Customize layout and appearance</p>
+                  </div>
+                  <button
+                    onClick={() => setShowFrameStyleModal(false)}
+                    className="text-neutral-400 hover:text-neutral-200 transition-colors p-1.5 hover:bg-neutral-800 rounded-xl cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex-1 p-5 space-y-6 overflow-y-auto custom-scrollbar">
+                  {/* Basic Info */}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Frame Name</label>
+                      <input
+                        type="text"
+                        value={frame.name}
+                        onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, name: e.target.value } : f))}
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 transition-colors shadow-inner"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Width (px)</label>
+                        <input
+                          type="number"
+                          value={frame.pos.w}
+                          onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, pos: { ...f.pos, w: parseInt(e.target.value) || 0 } } : f))}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 transition-colors shadow-inner font-mono"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Height (px)</label>
+                        <input
+                          type="number"
+                          value={frame.pos.h}
+                          onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, pos: { ...f.pos, h: parseInt(e.target.value) || 0 } } : f))}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 transition-colors shadow-inner font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Appearance */}
+                  <div className="space-y-4 border-t border-neutral-800 pt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Palette className="w-4 h-4 text-neutral-500" />
+                      <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Appearance</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Background Color</label>
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-xl border border-neutral-800 overflow-hidden shrink-0 shadow-inner">
+                          <input
+                            type="color"
+                            value={frame.bgColor?.startsWith('rgba') ? '#171717' : (frame.bgColor || '#171717')}
+                            onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, bgColor: e.target.value } : f))}
+                            className="w-[150%] h-[150%] -translate-x-[15%] -translate-y-[15%] cursor-pointer border-0 p-0"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={frame.bgColor || ''}
+                          onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, bgColor: e.target.value } : f))}
+                          placeholder="Hex or rgba"
+                          className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 font-mono shadow-inner"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block">Background Image</label>
+                      <input
+                        type="file"
+                        ref={frameImageInputRef}
+                        onChange={handleFrameImageUpload}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => frameImageInputRef.current?.click()}
+                          className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-50 py-2 rounded-xl text-xs font-semibold transition-all border border-neutral-700 flex items-center justify-center gap-2"
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" /> Upload Image
+                        </button>
+                        {frame.bgImage && (
+                          <button
+                            onClick={() => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, bgImage: undefined } : f))}
+                            className="p-2 bg-neutral-800 hover:bg-red-900/20 text-red-500 rounded-xl border border-neutral-700 transition-all"
+                            title="Remove Image"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider block">Opacity ({Math.round((frame.opacity !== undefined ? frame.opacity : 1) * 100)}%)</label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={frame.opacity !== undefined ? frame.opacity : 1}
+                        onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, opacity: parseFloat(e.target.value) } : f))}
+                        className="w-full accent-orange-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer mt-1"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Border & Shadow */}
+                  <div className="space-y-4 border-t border-neutral-800 pt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Square className="w-4 h-4 text-neutral-500" />
+                      <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Border & Shadow</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Border Style</label>
+                        <select
+                          value={frame.borderStyle || 'solid'}
+                          onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, borderStyle: e.target.value as any } : f))}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 transition-colors shadow-inner"
+                        >
+                          <option value="solid">Solid</option>
+                          <option value="dashed">Dashed</option>
+                          <option value="dotted">Dotted</option>
+                          <option value="none">None</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Border Width</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          value={frame.borderWidth !== undefined ? frame.borderWidth : 2}
+                          onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, borderWidth: parseInt(e.target.value) || 0 } : f))}
+                          className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 transition-colors shadow-inner"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Border Color</label>
+                      <div className="flex items-center gap-2">
+                        <div className="w-10 h-10 rounded-xl border border-neutral-800 overflow-hidden shrink-0 shadow-inner">
+                          <input
+                            type="color"
+                            value={frame.borderColor || '#404040'}
+                            onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, borderColor: e.target.value } : f))}
+                            className="w-[150%] h-[150%] -translate-x-[15%] -translate-y-[15%] cursor-pointer border-0 p-0"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={frame.borderColor || ''}
+                          onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, borderColor: e.target.value } : f))}
+                          placeholder="#404040"
+                          className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 font-mono shadow-inner"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Corner Radius (px)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="200"
+                        value={frame.borderRadius !== undefined ? frame.borderRadius : 0}
+                        onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, borderRadius: parseInt(e.target.value) || 0 } : f))}
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 transition-colors shadow-inner"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">Box Shadow (CSS)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 0 10px 15px rgba(0,0,0,0.5)"
+                        value={frame.boxShadow || ''}
+                        onChange={e => setDashboardFrames(prev => prev.map(f => f.id === frame.id ? { ...f, boxShadow: e.target.value } : f))}
+                        className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2 text-sm text-neutral-50 focus:outline-none focus:border-orange-500 transition-colors font-mono shadow-inner"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 px-5 border-t border-neutral-800 bg-neutral-900/50 flex justify-end shrink-0">
+                  <button
+                    onClick={() => setShowFrameStyleModal(false)}
                     className="px-8 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-orange-600/20 cursor-pointer"
                   >
                     Done
