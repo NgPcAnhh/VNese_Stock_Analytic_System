@@ -21,6 +21,7 @@ x-airflow-common:
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW_CONN_DWH_POSTGRES: postgresql+psycopg2://admin:123456@dwh-postgres:5432/postgres
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW__WEBSERVER__X_FRAME_ENABLED: 'false'
     # === CONCURRENCY & TIMEOUT (fix tasks stuck in queued) ===
     AIRFLOW__CORE__PARALLELISM: 32
     AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: 16
@@ -332,6 +333,8 @@ services:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9093
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      SPRING_SECURITY_HEADERS_FRAME_OPTIONS_ENABLED: 'false'
+      SPRING_SECURITY_HEADERS_CONTENT_SECURITY_POLICY_ENABLED: 'false'
     networks:
       - etl-network
 

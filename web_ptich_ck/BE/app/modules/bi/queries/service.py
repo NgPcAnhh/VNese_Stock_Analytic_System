@@ -1,4 +1,5 @@
 import uuid
+import re
 import asyncpg
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -8,20 +9,48 @@ from app.modules.bi.queries.schemas import QueryCreate, QueryUpdate, QueryPrevie
 from app.modules.bi.data_sources.service import decrypt_password
 
 async def validate_sql(sql_text: str):
-    # Basic MVP validation
+    # Expanded forbidden keywords to prevent DDL, DML, and various injection techniques
     forbidden_keywords = [
         'insert', 'update', 'delete', 'drop', 'alter', 'truncate', 
-        'create', 'grant', 'revoke', 'call', 'exec', 'merge'
+        'create', 'grant', 'revoke', 'call', 'exec', 'merge',
+        'pg_sleep', 'pg_read_file', 'pg_ls_dir', 'copy'
     ]
-    sql_lower = sql_text.lower()
+    sql_lower = sql_text.lower().strip()
+    
+    # Remove trailing semicolon if it exists at the very end
+    if sql_lower.endswith(';'):
+        sql_lower = sql_lower[:-1].strip()
+        
+    # Check for internal semicolons which could indicate multiple statements
+    if ';' in sql_lower:
+        raise ValueError("Multiple SQL statements are not allowed. Semicolons are only permitted at the end of the query.")
+
+    # 1. Check for forbidden keywords using word boundaries
     for keyword in forbidden_keywords:
-        if keyword in sql_lower:
-            raise ValueError("SQL not allowed. Only SELECT is permitted.")
+        pattern = rf'\b{keyword}\b'
+        if re.search(pattern, sql_lower):
+            raise ValueError(f"SQL not allowed: Potential security risk or unauthorized command detected ('{keyword}'). Only SELECT is permitted.")
             
-    # Block access to the "system" schema
-    import re
-    if re.search(r'\b(system|["\']system["\'])\s*\.', sql_lower):
-        raise ValueError("Access to the 'system' schema is restricted.")
+    # Check for forbidden symbols/patterns
+    forbidden_patterns = ['--', '/\\*', '\\*/']
+    for pattern in forbidden_patterns:
+        if re.search(pattern, sql_lower):
+            raise ValueError(f"SQL not allowed: Potential security risk or unauthorized comment detected ('{pattern}').")
+
+    # 2. Block access to sensitive system schemas
+    # Using more comprehensive regex to catch variations like "system"., information_schema. etc.
+    restricted_schemas = ['system', 'information_schema', 'pg_catalog']
+    for schema in restricted_schemas:
+        # Match schema followed by a dot, handling possible quotes
+        pattern = rf'\b(["\']?{schema}["\']?)\s*\.'
+        if re.search(pattern, sql_lower):
+            raise ValueError(f"Access to the '{schema}' schema is restricted.")
+
+    # 3. Ensure it starts with SELECT (or a comment followed by SELECT)
+    # Strip whitespace and common comment patterns for initial check
+    stripped_sql = re.sub(r'/\*.*?\*/', '', sql_lower, flags=re.DOTALL).strip()
+    if not stripped_sql.startswith('select'):
+         raise ValueError("SQL must be a SELECT statement.")
 
 async def execute_preview(db: AsyncSession, req: QueryPreviewRequest) -> QueryPreviewResponse:
     try:
@@ -56,8 +85,13 @@ async def execute_preview(db: AsyncSession, req: QueryPreviewRequest) -> QueryPr
                 # Force public schema by default to prevent querying system tables implicitly
                 await conn.execute("SET search_path TO public")
             
+            # Clean SQL for wrapping
+            clean_sql = req.sql_text.strip()
+            if clean_sql.endswith(';'):
+                clean_sql = clean_sql[:-1].strip()
+
             limit = min(req.limit or 100, 100000)
-            wrapped_sql = f"SELECT * FROM ({req.sql_text}) AS subquery LIMIT {limit}"
+            wrapped_sql = f"SELECT * FROM ({clean_sql}) AS subquery LIMIT {limit}"
             stmt = await conn.prepare(wrapped_sql)
             records = await stmt.fetch()
             

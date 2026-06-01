@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { fetchWithAuth } from "@/lib/auth";
 import { useAuth } from "@/lib/AuthContext";
-import { Search, Loader2, Eye, Trash2, Key, RefreshCw } from "lucide-react";
+import { Search, Loader2, Eye, Trash2, Key, RefreshCw, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { UserDetailModal } from "./UserDetailModal";
+import { AdminCreateUserModal } from "./AdminCreateUserModal";
 
 interface UserAdminResponse {
     id: number;
@@ -45,6 +46,7 @@ export function AdminUserTable() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalUsers, setTotalUsers] = useState(0);
     const [detailUserId, setDetailUserId] = useState<number | null>(null);
+    const [showCreateUser, setShowCreateUser] = useState(false);
 
     const loadUsers = async () => {
         setLoading(true);
@@ -151,7 +153,10 @@ export function AdminUserTable() {
                     <Button variant="outline" size="sm" onClick={loadUsers}>
                         <RefreshCw className="h-3.5 w-3.5 mr-1" /> Làm mới
                     </Button>
-                    <span className="text-sm text-muted-foreground">Tổng: <strong>{totalUsers}</strong></span>
+                    <Button variant="default" size="sm" onClick={() => setShowCreateUser(true)}>
+                        <UserPlus className="h-3.5 w-3.5 mr-1" /> Tạo Người Dùng
+                    </Button>
+                    <span className="text-sm text-muted-foreground ml-2">Tổng: <strong>{totalUsers}</strong></span>
                 </div>
             </div>
 
@@ -243,6 +248,17 @@ export function AdminUserTable() {
             {/* User Detail Modal */}
             {detailUserId !== null && (
                 <UserDetailModal userId={detailUserId} onClose={() => setDetailUserId(null)} />
+            )}
+
+            {/* Create User Modal */}
+            {showCreateUser && (
+                <AdminCreateUserModal 
+                    onClose={() => setShowCreateUser(false)} 
+                    onSuccess={() => {
+                        setShowCreateUser(false);
+                        loadUsers();
+                    }} 
+                />
             )}
         </div>
     );

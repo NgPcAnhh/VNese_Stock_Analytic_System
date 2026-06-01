@@ -70,10 +70,14 @@ async def chat_completion(
     
     choice = model_choice_ctx.get()
     
-    # Route Choice 2 to Google Gemini SDK
-    if choice == "2" or choice == "secondary":
+    # Route Choice 2 & 3 to Google Gemini SDK
+    if choice in ["2", "3", "secondary"]:
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
+        if choice == "3":
+            model_name = os.getenv("GEMINI_MODEL_3") or "gemini-1.5-pro"
+        else:
+            model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
+            
         model = genai.GenerativeModel(
             model_name=model_name,
             system_instruction=system_prompt if system_prompt else None
@@ -152,10 +156,14 @@ async def chat_completion_structured(
     
     choice = model_choice_ctx.get()
     
-    # Route Choice 2 to Google Gemini SDK (Structured Output)
-    if choice == "2" or choice == "secondary":
+    # Route Choice 2 & 3 to Google Gemini SDK (Structured Output)
+    if choice in ["2", "3", "secondary"]:
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
+        if choice == "3":
+            model_name = os.getenv("GEMINI_MODEL_3") or "gemini-1.5-pro"
+        else:
+            model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
+            
         model = genai.GenerativeModel(
             model_name=model_name,
             system_instruction=system_prompt if system_prompt else None

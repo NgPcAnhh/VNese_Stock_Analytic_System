@@ -20,6 +20,8 @@ from app.modules.admin.schemas import (
     AnalyticsSessionResponse,
     AnalyticsSidebarResponse,
     AnalyticsStockClicksResponse,
+    CreateRoleRequest,
+    DailyCount,
     PaginatedTokensResponse,
     PaginatedUsersResponse,
     RefreshTokenItem,
@@ -441,7 +443,7 @@ async def revoke_token(token_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.get("/analytics/searches", response_model=AnalyticsSearchResponse, summary="Phân tích tìm kiếm")
 async def analytics_searches(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     top: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -488,7 +490,7 @@ async def analytics_searches(
 
 @router.get("/analytics/stock-clicks", response_model=AnalyticsStockClicksResponse, summary="Phân tích click mã CK")
 async def analytics_stock_clicks(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     top: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -519,7 +521,7 @@ async def analytics_stock_clicks(
 
 @router.get("/analytics/logins", response_model=AnalyticsLoginResponse, summary="Phân tích đăng nhập")
 async def analytics_logins(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
     """Thống kê chi tiết đăng nhập: theo ngày, phương thức, tỷ lệ thành công."""
@@ -574,7 +576,7 @@ async def analytics_logins(
 
 @router.get("/analytics/sessions", response_model=AnalyticsSessionResponse, summary="Phân tích phiên làm việc")
 async def analytics_sessions(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
     """Thống kê phiên làm việc: thời gian TB, tỷ lệ anonymous vs authenticated."""
@@ -618,7 +620,7 @@ async def analytics_sessions(
 
 @router.get("/analytics/sidebar", response_model=AnalyticsSidebarResponse, summary="Phân tích sử dụng sidebar")
 async def analytics_sidebar(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
     """Thống kê tần suất click từng mục sidebar, phân biệt user đăng nhập/ẩn danh."""
@@ -659,7 +661,7 @@ async def analytics_sidebar(
 
 @router.get("/analytics/articles", summary="Phân tích click bài báo")
 async def analytics_articles(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     top: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -704,10 +706,39 @@ async def list_roles(db: AsyncSession = Depends(get_db)):
             "id": r.id,
             "name": r.name,
             "description": r.description,
+            "permissions": r.permissions if hasattr(r, 'permissions') and r.permissions is not None else [],
             "user_count": int(count),
             "created_at": r.created_at,
         })
     return result
+
+@router.post("/roles", response_model=RoleResponse, summary="Tạo vai trò mới")
+async def create_role(
+    body: CreateRoleRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Tạo một role mới với các quyền hạn."""
+    existing = (await db.execute(select(Role).where(Role.name == body.name))).scalars().first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Role đã tồn tại")
+    
+    role = Role(
+        name=body.name,
+        description=body.description,
+        permissions=body.permissions,
+    )
+    db.add(role)
+    await db.flush()
+    await db.refresh(role)
+
+    return {
+        "id": role.id,
+        "name": role.name,
+        "description": role.description,
+        "permissions": role.permissions if hasattr(role, 'permissions') and role.permissions is not None else [],
+        "user_count": 0,
+        "created_at": role.created_at
+    }
 
 
 @router.patch("/roles/{role_id}", response_model=RoleResponse, summary="Cập nhật mô tả role")
@@ -722,10 +753,19 @@ async def update_role(
         raise HTTPException(status_code=404, detail="Role not found")
     if body.description is not None:
         role.description = body.description
+    if body.permissions is not None:
+        role.permissions = body.permissions
     await db.flush()
 
     count = (await db.execute(select(func.count(User.id)).where(User.role_id == role.id))).scalar_one()
-    return {"id": role.id, "name": role.name, "description": role.description, "user_count": int(count), "created_at": role.created_at}
+    return {
+        "id": role.id, 
+        "name": role.name, 
+        "description": role.description, 
+        "permissions": role.permissions if hasattr(role, 'permissions') and role.permissions is not None else [],
+        "user_count": int(count), 
+        "created_at": role.created_at
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -839,7 +879,7 @@ async def data_health(db: AsyncSession = Depends(get_db)):
 
 @router.get("/analytics/page-views", summary="Phân tích lượt xem trang")
 async def analytics_page_views(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     top: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -870,7 +910,7 @@ async def analytics_page_views(
 
 @router.get("/analytics/analysis-views", summary="Phân tích lượt phân tích CK")
 async def analytics_analysis_views(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     top: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -901,7 +941,7 @@ async def analytics_analysis_views(
 
 @router.get("/analytics/errors", summary="Phân tích lỗi hệ thống")
 async def analytics_errors(
-    days: int = Query(30, ge=1, le=90),
+    days: int = Query(30, ge=1),
     top: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):

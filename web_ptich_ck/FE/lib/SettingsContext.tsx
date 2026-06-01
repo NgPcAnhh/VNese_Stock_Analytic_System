@@ -32,18 +32,17 @@ export interface SidebarNavItem {
 }
 
 export const DEFAULT_SIDEBAR_ITEMS: SidebarNavItem[] = [
-    { id: "overview",    name: "Tổng quan",  href: "/",            iconName: "LayoutDashboard", enabled: true },
-    { id: "market",      name: "Thị trường", href: "/market",      iconName: "BarChart2",       enabled: true },
-    { id: "indices",     name: "Chỉ số",     href: "/indices",     iconName: "Activity",        enabled: true },
-    { id: "price-board", name: "Bảng điện",  href: "/price-board", iconName: "Monitor",         enabled: true },
-    { id: "stocks",      name: "Cổ phiếu",   href: "/stocks",      iconName: "LineChart",       enabled: true },
-    { id: "analysis",    name: "Phân tích",  href: "/analysis",    iconName: "PieChart",        enabled: true },
+    { id: "overview", name: "Tổng quan", href: "/", iconName: "LayoutDashboard", enabled: true },
+    { id: "market", name: "Chỉ số thị trường", href: "/market", iconName: "BarChart2", enabled: true },
+    { id: "price-board", name: "Bảng giá chứng khoán", href: "/price-board", iconName: "Monitor", enabled: true },
+    { id: "stocks", name: "Bộ lọc cổ phiếu", href: "/stocks", iconName: "LineChart", enabled: true },
+    { id: "analysis", name: "Phân tích kỹ thuật", href: "/analysis", iconName: "PieChart", enabled: true },
     { id: "portfolio", name: "Quản trị danh mục", href: "/portfolio", iconName: "BriefcaseBusiness", enabled: true },
-    { id: "news",        name: "Tin tức",    href: "/news",        iconName: "Newspaper",       enabled: true },
-    { id: "stockpilot",    name: "StockPilot",   href: "/stockpilot",    iconName: "Bot",             enabled: true },
-    { id: "data-sources",  name: "Data Hub",     href: "/data-sources",  iconName: "Database",        enabled: true },
-    { id: "hub",           name: "BI Hub",       href: "/hub",           iconName: "BarChart3",       enabled: true },
-    { id: "settings",    name: "Cài đặt",    href: "/settings",    iconName: "Settings",        enabled: true },
+    { id: "news", name: "Tin tức thị trường", href: "/news", iconName: "Newspaper", enabled: true },
+    { id: "stockpilot", name: "Trợ lý ảo", href: "/stockpilot", iconName: "Bot", enabled: true },
+    { id: "data-sources", name: "Kho truy vấn", href: "/data-sources", iconName: "Database", enabled: true },
+    { id: "hub", name: "Trực quan dữ liệu", href: "/hub", iconName: "BarChart3", enabled: true },
+    { id: "settings", name: "Cài đặt", href: "/settings", iconName: "Settings", enabled: true },
 ];
 
 function reconcileSidebarItems(savedItems: SidebarNavItem[]): SidebarNavItem[] {
@@ -84,6 +83,8 @@ interface SettingsContextType {
     setDarkMode: (v: boolean) => void;
     showPriceBoardPopup: boolean;
     setShowPriceBoardPopup: (v: boolean) => void;
+    autoHideSidebar: boolean;
+    setAutoHideSidebar: (v: boolean) => void;
     sidebarItems: SidebarNavItem[];
     setSidebarItems: (items: SidebarNavItem[]) => void;
     moveSidebarItem: (fromIndex: number, toIndex: number) => void;
@@ -96,6 +97,7 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export function SettingsProvider({ children }: { children: ReactNode }) {
     const [darkMode, setDarkModeState] = useState(false);
     const [showPriceBoardPopup, setShowPriceBoardPopupState] = useState(true);
+    const [autoHideSidebar, setAutoHideSidebarState] = useState(false);
     const [sidebarItems, setSidebarItemsState] = useState<SidebarNavItem[]>(DEFAULT_SIDEBAR_ITEMS);
     const [mounted, setMounted] = useState(false);
 
@@ -107,6 +109,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 const parsed = JSON.parse(saved);
                 if (typeof parsed.darkMode === "boolean") setDarkModeState(parsed.darkMode);
                 if (typeof parsed.showPriceBoardPopup === "boolean") setShowPriceBoardPopupState(parsed.showPriceBoardPopup);
+                if (typeof parsed.autoHideSidebar === "boolean") setAutoHideSidebarState(parsed.autoHideSidebar);
                 if (Array.isArray(parsed.sidebarItems)) {
                     setSidebarItemsState(reconcileSidebarItems(parsed.sidebarItems));
                 }
@@ -130,9 +133,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
     const setDarkMode = (v: boolean) => { setDarkModeState(v); persist({ darkMode: v }); };
 
-    const setShowPriceBoardPopup = (v: boolean) => { 
-        setShowPriceBoardPopupState(v); 
-        persist({ showPriceBoardPopup: v }); 
+    const setShowPriceBoardPopup = (v: boolean) => {
+        setShowPriceBoardPopupState(v);
+        persist({ showPriceBoardPopup: v });
         if (v) {
             try {
                 // Khi bật lại bảng điện, reset các cờ cấu hình tắt của iframe
@@ -141,6 +144,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 sessionStorage.removeItem("stockpro:price-board-popup:session-closed");
             } catch { /* ignore */ }
         }
+    };
+
+    const setAutoHideSidebar = (v: boolean) => {
+        setAutoHideSidebarState(v);
+        persist({ autoHideSidebar: v });
     };
 
     const setSidebarItems = (items: SidebarNavItem[]) => {
@@ -173,6 +181,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 setDarkMode,
                 showPriceBoardPopup,
                 setShowPriceBoardPopup,
+                autoHideSidebar,
+                setAutoHideSidebar,
                 sidebarItems,
                 setSidebarItems,
                 moveSidebarItem,

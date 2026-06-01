@@ -94,6 +94,7 @@ async def init_bi_db() -> None:
         import app.modules.bi.models.dataset
         import app.modules.bi.models.chart
         import app.modules.bi.models.dashboard
+        import app.modules.bi.models.permission
         
         # 2. Tạo bảng
         await conn.run_sync(Base.metadata.create_all)

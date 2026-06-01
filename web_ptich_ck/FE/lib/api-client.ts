@@ -132,5 +132,32 @@ export const api = {
       const response = await apiClient.delete(`/dashboards/${id}`);
       return response.data;
     }
+  },
+  permissions: {
+    // Lấy danh sách tất cả users
+    listUsers: async () => {
+      const response = await apiClient.get('/permissions/users');
+      return response.data;
+    },
+    // Lấy permissions của 1 chart
+    getChartPermissions: async (chartId: string) => {
+      const response = await apiClient.get(`/permissions/charts/${chartId}`);
+      return response.data;
+    },
+    // Ghi đè permissions cho 1 chart
+    setChartPermissions: async (chartId: string, userIds: number[]) => {
+      const response = await apiClient.post(`/permissions/charts/${chartId}`, { user_ids: userIds });
+      return response.data;
+    },
+    // Batch set permissions cho nhiều charts
+    batchSetPermissions: async (chartIds: string[], userIds: number[]) => {
+      const response = await apiClient.post('/permissions/charts/batch', { chart_ids: chartIds, user_ids: userIds });
+      return response.data;
+    },
+    // Lấy permissions của nhiều charts (dashboard load)
+    getDashboardChartPermissions: async (chartIds: string[]) => {
+      const response = await apiClient.post('/permissions/dashboard-charts', chartIds);
+      return response.data; // { chart_id: [user_ids] }
+    },
   }
 };

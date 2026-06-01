@@ -19,7 +19,9 @@ import {
   FileSpreadsheet,
   Upload,
   Search,
-  Copy
+  Copy,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import * as Sonner from "sonner";
 
@@ -94,6 +96,8 @@ export default function DataSourcesPage() {
   const [queryError, setQueryError] = useState("");
   const [limit, setLimit] = useState<number>(100);
   const [previewZoom, setPreviewZoom] = useState(100);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 100;
 
   // Explorer Resizing State
   const [sidebarWidth, setSidebarWidth] = useState(280);
@@ -564,6 +568,7 @@ export default function DataSourcesPage() {
     setQueryLoading(true);
     setQueryError("");
     setPreviewData(null);
+    setCurrentPage(1);
     try {
       const res = await api.queries.preview({
         data_source_id: selectedSourceId,
@@ -862,6 +867,11 @@ export default function DataSourcesPage() {
 
   // Rendering Helper for Query Editor & Database Explorer
   const renderQueryEditor = () => {
+    // Pagination logic
+    const totalRows = previewData?.rows?.length || 0;
+    const totalPages = Math.ceil(totalRows / PAGE_SIZE);
+    const paginatedRows = previewData?.rows?.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) || [];
+
     return (
       <div className="flex-1 flex flex-col min-h-0">
         <div className="flex gap-4 flex-1 min-h-0 select-none relative" style={{ height: "calc(100vh - 240px)" }}>
@@ -986,9 +996,9 @@ export default function DataSourcesPage() {
               <div className="flex justify-between items-center mb-2">
                 <h3 className="font-semibold text-neutral-300">SQL Editor</h3>
                 <div className="flex items-center gap-3">
-                  {/* Limit input next to Run Query */}
-                  <div className="flex items-center gap-1.5 bg-neutral-950 border border-neutral-800 rounded px-2 py-1">
-                    <span className="text-[10px] text-neutral-500 font-medium uppercase tracking-wider">Limit:</span>
+                  {/* Preview Limit input */}
+                  <div className="flex items-center gap-1.5 bg-neutral-950 border border-neutral-800 rounded px-2 py-1 group/limit relative" title="Số lượng bản ghi tối đa để xem trước. Không ảnh hưởng đến dữ liệu khi lưu Dataset.">
+                    <span className="text-[10px] text-neutral-500 font-medium uppercase tracking-wider whitespace-nowrap">Preview Limit:</span>
                     <input 
                       type="number" 
                       min={1}
@@ -1036,25 +1046,51 @@ export default function DataSourcesPage() {
             <div className="flex-1 min-w-0 min-h-0 bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col overflow-hidden">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-neutral-300">Results Preview</h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-neutral-500 font-medium uppercase tracking-wider">Zoom</span>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewZoom((prev) => Math.max(60, prev - 10))}
-                    className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-xs transition-colors"
-                    title="Zoom out"
-                  >
-                    -
-                  </button>
-                  <span className="text-xs text-neutral-300 w-10 text-center font-mono">{previewZoom}%</span>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewZoom((prev) => Math.min(140, prev + 10))}
-                    className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-xs transition-colors"
-                    title="Zoom in"
-                  >
-                    +
-                  </button>
+                <div className="flex items-center gap-6">
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="flex items-center gap-3 bg-neutral-950 border border-neutral-800 rounded-lg px-2 py-1">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="p-1 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent rounded text-neutral-400 hover:text-orange-500 transition-all"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-tighter whitespace-nowrap">
+                        Page <span className="text-orange-500">{currentPage}</span> / {totalPages}
+                        <span className="ml-2 text-neutral-600">({totalRows} rows)</span>
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="p-1 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent rounded text-neutral-400 hover:text-orange-500 transition-all"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-neutral-500 font-medium uppercase tracking-wider">Zoom</span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoom((prev) => Math.max(60, prev - 10))}
+                      className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-xs transition-colors"
+                      title="Zoom out"
+                    >
+                      -
+                    </button>
+                    <span className="text-xs text-neutral-300 w-10 text-center font-mono">{previewZoom}%</span>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewZoom((prev) => Math.min(140, prev + 10))}
+                      className="px-2 py-1 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded text-xs transition-colors"
+                      title="Zoom in"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
               <div className="flex-1 bg-neutral-950 border border-neutral-800 rounded p-4 overflow-x-auto overflow-y-auto">
@@ -1077,7 +1113,7 @@ export default function DataSourcesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {previewData.rows.map((row: any, i: number) => (
+                      {paginatedRows.map((row: any, i: number) => (
                         <tr key={i} className="border-b border-neutral-800/50 hover:bg-neutral-900/50">
                           {previewData.columns.map((c: any) => (
                             <td key={c.name} className="py-2 px-2 text-neutral-300 whitespace-nowrap">{row[c.name]?.toString()}</td>

@@ -63,7 +63,15 @@ export function Sidebar({ className, collapsed, onToggle }: SidebarProps) {
             <div className="flex-1 overflow-y-auto py-4 overflow-x-hidden">
                 <nav className="grid gap-1 px-3">
                     {sidebarItems
-                        .filter((item) => item.enabled)
+                        .filter((item) => {
+                            if (!item.enabled) return false;
+                            // If not authenticated, show all (auth guard handles click)
+                            if (!isAuthenticated) return true;
+                            // Admin bypasses permissions
+                            if (user?.role === "admin") return true;
+                            // Filter by user permissions
+                            return user?.permissions?.includes(item.id);
+                        })
                         .map((item) => {
                             const IconComponent = SIDEBAR_ICON_MAP[item.iconName];
                             const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));

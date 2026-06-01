@@ -374,7 +374,7 @@ export default function StockPilotPage() {
                     ? data.detail.error
                     : typeof data?.detail === "string"
                         ? data.detail
-                        : "Khong the goi StockPilot";
+                        : "Không thể gọi Trợ lý ảo";
                 throw new Error(detail);
             }
 
@@ -429,7 +429,7 @@ export default function StockPilotPage() {
                             </div>
                             <div>
                                 <div className="flex items-center gap-2">
-                                    <p className="text-sm font-semibold text-foreground">StockPilot</p>
+                                    <p className="text-sm font-semibold text-foreground">Trợ lý ảo</p>
                                     <select
                                         value={selectedModel}
                                         onChange={(e) => setSelectedModel(e.target.value)}
@@ -437,8 +437,8 @@ export default function StockPilotPage() {
                                         title="Chuyển đổi model"
                                     >
                                         <option value="1">GPT-5.4 (Mặc định)</option>
-                                        <option value="2">DEEPSEEK-V4-PRO</option>
-                                        <option value="3">DEEPSEEK-V4-FLASH</option>
+                                        <option value="2">Gemini 2.5 Flash</option>
+                                        <option value="3">Gemini 1.5 Pro</option>
                                     </select>
                                 </div>
                                 <p className="text-xs text-muted-foreground">HELLO WORLD</p>
@@ -565,8 +565,8 @@ export default function StockPilotPage() {
 
                                     <div className="min-w-0 flex-1 space-y-3">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm font-semibold text-foreground">
-                                                {msg.role === "assistant" ? "StockPilot" : "Ban"}
+                                            <span className="font-semibold text-xs tracking-wider uppercase">
+                                                {msg.role === "assistant" ? "Trợ lý ảo" : "Ban"}
                                             </span>
                                             {msg.meta?.mode_used && (
                                                 <span className="rounded bg-primary/10 px-2 py-0.5 text-[11px] text-primary">

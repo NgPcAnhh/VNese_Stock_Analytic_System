@@ -75,7 +75,6 @@ export function AdminOverviewPanel({ stats }: AdminOverviewPanelProps) {
     const [searches, setSearches] = useState<any>(null);
     const [stockClicks, setStockClicks] = useState<any>(null);
     const [sidebar, setSidebar] = useState<any>(null);
-    const [pageViews, setPageViews] = useState<any>(null);
     const [errors, setErrors] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
@@ -89,17 +88,15 @@ export function AdminOverviewPanel({ stats }: AdminOverviewPanelProps) {
                     fetchWithAuth(`${API}/admin/analytics/searches?days=30`),
                     fetchWithAuth(`${API}/admin/analytics/stock-clicks?days=30`),
                     fetchWithAuth(`${API}/admin/analytics/sidebar?days=30`),
-                    fetchWithAuth(`${API}/admin/analytics/page-views?days=30`).catch(() => null),
                     fetchWithAuth(`${API}/admin/analytics/errors?days=30`).catch(() => null),
                 ];
-                const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all(fetchers);
+                const [r1, r2, r3, r4, r5, r6] = await Promise.all(fetchers);
                 if (r1 && r1.ok) setLogins(await r1.json());
                 if (r2 && r2.ok) setSessions(await r2.json());
                 if (r3 && r3.ok) setSearches(await r3.json());
                 if (r4 && r4.ok) setStockClicks(await r4.json());
                 if (r5 && r5.ok) setSidebar(await r5.json());
-                if (r6 && r6.ok) setPageViews(await r6.json());
-                if (r7 && r7.ok) setErrors(await r7.json());
+                if (r6 && r6.ok) setErrors(await r6.json());
             } finally {
                 setLoading(false);
             }
@@ -118,25 +115,6 @@ export function AdminOverviewPanel({ stats }: AdminOverviewPanelProps) {
         date: d.date?.slice(5),
         phien: d.session_count,
         tb_s: d.avg_duration_seconds ? Math.round(d.avg_duration_seconds) : 0,
-    }));
-
-    const searchChartData = [...(searches?.search_by_day ?? [])].reverse().map((d: any) => ({
-        date: d.date?.slice(5),
-        "Tin tức": d.count,
-    }));
-    const stockSearchData = [...(searches?.stock_search_by_day ?? [])].reverse().map((d: any) => ({
-        date: d.date?.slice(5),
-        "Mã CK": d.count,
-    }));
-    // Merge search data
-    const mergedSearchData = searchChartData.map((d: any, i: number) => ({
-        ...d,
-        "Mã CK": stockSearchData[i]?.["Mã CK"] ?? 0,
-    }));
-
-    const pvChartData = [...(pageViews?.views_by_day ?? [])].reverse().map((d: any) => ({
-        date: d.date?.slice(5),
-        views: d.count,
     }));
 
     const clickData = [...(stockClicks?.clicks_by_day ?? [])].reverse().map((d: any) => ({
@@ -284,62 +262,7 @@ export function AdminOverviewPanel({ stats }: AdminOverviewPanelProps) {
                 </Card>
             </div>
 
-            {/* ═══════════════════════════════════════════════════ */}
-            {/* ROW 4 — Search Trend + Page Views (2-col)          */}
-            {/* ═══════════════════════════════════════════════════ */}
-            <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
-                {/* Search Trend */}
-                <Card className="border-border/50">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <Search className="h-4 w-4 text-sky-500" /> Xu Hướng Tìm Kiếm (30 ngày)
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="h-[200px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={mergedSearchData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
-                                    <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} />
-                                    <YAxis fontSize={11} tickLine={false} axisLine={false} />
-                                    <Tooltip contentStyle={tooltipStyle} />
-                                    <Legend verticalAlign="top" height={30} />
-                                    <Line type="monotone" dataKey="Tin tức" stroke={C.sky} strokeWidth={2} dot={false} />
-                                    <Line type="monotone" dataKey="Mã CK" stroke={C.indigo} strokeWidth={2} dot={false} />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </CardContent>
-                </Card>
 
-                {/* Page Views */}
-                <Card className="border-border/50">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <Eye className="h-4 w-4 text-emerald-500" /> Lượt Xem Trang (30 ngày)
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="h-[200px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={pvChartData}>
-                                    <defs>
-                                        <linearGradient id="gPV" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor={C.emerald} stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor={C.emerald} stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
-                                    <XAxis dataKey="date" fontSize={11} tickLine={false} axisLine={false} />
-                                    <YAxis fontSize={11} tickLine={false} axisLine={false} />
-                                    <Tooltip contentStyle={tooltipStyle} />
-                                    <Area type="monotone" dataKey="views" name="Lượt xem" stroke={C.emerald} fill="url(#gPV)" strokeWidth={2} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
 
             {/* ═══════════════════════════════════════════════════ */}
             {/* ROW 5 — Top Lists + Pie + Sidebar                 */}

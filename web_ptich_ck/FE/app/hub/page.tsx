@@ -48,9 +48,15 @@ import {
   Play,
   MousePointer2,
   Hand,
-  GripVertical
+  GripVertical,
+  Shield,
+  ShieldCheck,
+  ShieldX,
+  Users,
+  Lock
 } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/lib/AuthContext";
 
 const EChartRenderer = dynamic(() => import("@/components/charts/EChartRenderer"), { ssr: false });
 const WORKSPACE_ID = "00000000-0000-0000-0000-000000000000";
@@ -81,11 +87,11 @@ interface DashboardFrame {
 }
 
 // Dashboard widget types (non-chart)
-type WidgetType = 'heading' | 'text' | 'rectangle' | 'circle' | 'divider' | 'image' | 'filter';
+type WidgetType = 'heading' | 'text' | 'rectangle' | 'circle' | 'divider' | 'image' | 'filter' | 'code';
 interface DashboardWidget {
   id: string;
   itemType: WidgetType;
-  // text / heading
+  // text / heading / code
   text?: string;
   // image
   src?: string;
@@ -120,6 +126,8 @@ interface DashboardWidget {
   controlWidth?: string;
   filterDropdownHeight?: number;
   filterDropdownWidth?: string;
+  // Code settings
+  code?: string;
 }
 
 const formatDate = (value?: string) => {
@@ -129,10 +137,24 @@ const formatDate = (value?: string) => {
 };
 
 const evaluateEChartsCode = (code: string, data: any[]): { option: any; error: string | null } => {
+  if (typeof window === 'undefined') return { option: {}, error: null };
   if (!code) return { option: {}, error: "No code provided." };
   try {
-    const evalFunc = new Function("data", code);
-    const result = evalFunc(data);
+    // Prevent access to dangerous globals during render
+    const evalFunc = new Function("data", "window", "document", "location", `
+      try {
+        ${code}
+      } catch (e) {
+        return { __error: e.message };
+      }
+    `);
+    // Pass null for sensitive objects to prevent side-effects during render
+    const result = evalFunc(data, null, null, null);
+    
+    if (result?.__error) {
+      return { option: {}, error: result.__error };
+    }
+    
     if (!result || typeof result !== "object") {
       return { option: {}, error: "Code must return an option object (e.g., return { ... })." };
     }
@@ -140,6 +162,76 @@ const evaluateEChartsCode = (code: string, data: any[]): { option: any; error: s
   } catch (err: any) {
     return { option: {}, error: err?.message || String(err) };
   }
+};
+
+const CodeWidgetRenderer = ({ 
+  widget, 
+  onSetFilter, 
+  onSwitchTab,
+  allWidgets
+}: { 
+  widget: DashboardWidget, 
+  onSetFilter: (column: string, value: string) => void,
+  onSwitchTab: (tabId: string) => void,
+  allWidgets: DashboardWidget[]
+}) => {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!widget.code) return;
+    
+    // We use a small delay to ensure the DOM is fully ready and to not block the main thread
+    const timer = setTimeout(() => {
+      const element = document.getElementById(`widget-${widget.id}`);
+      if (!element) return;
+
+      // Prepare context for the script
+      const context = {
+        element,
+        id: widget.id,
+        // Bridge API: allow interacting with the dashboard safely
+        setFilter: (column: string, value: string) => onSetFilter(column, value),
+        switchTab: (tabId: string) => onSwitchTab(tabId),
+        // Helper to find other widgets (read-only)
+        getWidget: (id: string) => allWidgets.find(w => w.id === id),
+        // Notification bridge
+        notify: (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+          if (type === 'success') Sonner.toast.success(msg);
+          else if (type === 'error') Sonner.toast.error(msg);
+          else Sonner.toast(msg);
+        }
+      };
+
+      try {
+        // We replace {{id}} but also provide context for better coding
+        const processedCode = (widget.code || '').replace(/{{id}}/g, widget.id);
+        
+        // Wrap in an async-ready function to allow fetch/await if needed
+        const scriptWrapper = new Function('context', `
+          (async function(ctx) {
+            const { element, id, setFilter, switchTab, getWidget, notify } = ctx;
+            try {
+              ${processedCode}
+            } catch (err) {
+              console.error('Runtime error in Custom JS widget ' + id + ':', err);
+            }
+          })(context);
+        `);
+        
+        scriptWrapper(context);
+      } catch (err) {
+        console.error(`Compilation error in Custom JS widget ${widget.id}:`, err);
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [widget.code, widget.id, allWidgets, onSetFilter, onSwitchTab]);
+
+  return (
+    <div 
+      id={`widget-${widget.id}`} 
+      className="w-full h-full overflow-hidden"
+    />
+  );
 };
 
 const getDefaultEChartsCode = (preview: any) => {
@@ -177,6 +269,7 @@ return {
 export default function BIHubPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user: currentUser } = useAuth();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isHeaderDisabled, setIsHeaderDisabled] = useState(false);
   const [mainFrameId, setMainFrameId] = useState<string | null>(null);
@@ -193,6 +286,7 @@ export default function BIHubPage() {
   const [tabPaddingX, setTabPaddingX] = useState<number>(18);
   const [tabPaddingY, setTabPaddingY] = useState<number>(8);
   const [tabGap, setTabGap] = useState<number>(8);
+  const [tabAlign, setTabAlign] = useState<"start" | "center" | "end">("start");
   const [tabActiveColor, setTabActiveColor] = useState<string>("var(--color-orange-500)");
   const [alignmentGuides, setAlignmentGuides] = useState<{ x?: number, y?: number, type: 'h' | 'v' }[]>([]);
   const SNAP_THRESHOLD = 8;
@@ -341,6 +435,19 @@ export default function BIHubPage() {
     initialPositions: []
   });
   const [showAddChart, setShowAddChart] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<'add' | 'manage'>('add');
+
+  // Permission system state
+  const [chartPermissions, setChartPermissions] = useState<Record<string, number[]>>({}); 
+  // chartPermissions[chart_id] = [user_id1, user_id2, ...]  (empty = private, only admin+creator)
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [permissionTargetChartIds, setPermissionTargetChartIds] = useState<string[]>([]);
+  const [selectedManagedCharts, setSelectedManagedCharts] = useState<string[]>([]);
+  const [allSystemUsers, setAllSystemUsers] = useState<any[]>([]);
+  const [permissionUserSearch, setPermissionUserSearch] = useState('');
+  const [savingPermissions, setSavingPermissions] = useState(false);
+  const [showNoPermTabPopup, setShowNoPermTabPopup] = useState(false);
+  const [noPermTabName, setNoPermTabName] = useState('');
   const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
   const [showTemplateSettings, setShowTemplateSettings] = useState(false);
   const addElementDropdownRef = useRef<HTMLDivElement>(null);
@@ -387,6 +494,7 @@ export default function BIHubPage() {
 
   // Whiteboard Layout State
   const [layoutMode, setLayoutMode] = useState<'slide' | 'whiteboard'>('slide');
+  const [showIframePreview, setShowIframePreview] = useState(false);
   const [zoom, setZoom] = useState<number>(1);
   const zoomRef = useRef(1);
   // Keep zoomRef in sync
@@ -637,7 +745,11 @@ export default function BIHubPage() {
         const dashboard = res.dashboardsData.find((d: any) => d.id === dashId);
         if (dashboard) {
           setIsPreviewMode(true);
-          handleOpenDashboard(dashboard);
+          const urlOverrides = {
+            mainFrameId: searchParams.get('mainFrameId'),
+            tabId: searchParams.get('tabId')
+          };
+          handleOpenDashboard(dashboard, urlOverrides);
           setTimeout(() => setIsEditMode(false), 50); // Ensure edit mode is false
         }
       }
@@ -738,7 +850,7 @@ export default function BIHubPage() {
 
     // If a main frame is specified, use its dimensions as the tab's bounding box
     if (mainFrameId) {
-      const mainFrame = tabFrames.find(f => f.id === mainFrameId);
+      const mainFrame = tabFrames.find(f => f.id === mainFrameId) || tabWidgets.find(w => w.id === mainFrameId);
       if (mainFrame) {
         return {
           minX: mainFrame.pos.x,
@@ -781,23 +893,33 @@ export default function BIHubPage() {
     const rect = gridContainerRef.current.getBoundingClientRect();
     if (!rect || rect.width === 0 || rect.height === 0) return;
 
-    // Increased max zoom to 4x
-    const fitZoom = Math.min(Math.max(0.1, rect.width / bw), Math.max(0.1, rect.height / bh), 4);
-    const fitPanX = (rect.width - bw * fitZoom) / 2 - minX * fitZoom + (padding / 2) * fitZoom;
-    const fitPanY = (rect.height - bh * fitZoom) / 2 - minY * fitZoom + (padding / 2) * fitZoom;
+    // For Main Frame preview, we want to perfectly fill the viewport
+    const fitZoom = (isPreviewMode && mainFrameId) 
+      ? Math.min(rect.width / (maxX - minX), rect.height / (maxY - minY))
+      : Math.min(Math.max(0.1, rect.width / bw), Math.max(0.1, rect.height / bh), 4);
+    
+    const fitPanX = (rect.width - (maxX - minX) * fitZoom) / 2 - minX * fitZoom;
+    const fitPanY = (rect.height - (maxY - minY) * fitZoom) / 2 - minY * fitZoom;
 
     setZoom(fitZoom);
     setPan({ x: fitPanX, y: fitPanY });
   };
 
   useEffect(() => {
-    if (isPreviewMode && layoutMode === 'whiteboard' && gridContainerRef.current && (dashboardItems.length + dashboardWidgets.length + dashboardFrames.length) > 0) {
+    if (isPreviewMode && layoutMode === 'whiteboard' && gridContainerRef.current) {
+      const handleResize = () => fitToContent(0);
+      window.addEventListener('resize', handleResize);
+      
       const timer = setTimeout(() => {
         fitToContent(0); // 0px padding for full frame preview
-      }, 500);
-      return () => clearTimeout(timer);
+      }, 100);
+      
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        clearTimeout(timer);
+      };
     }
-  }, [isPreviewMode, layoutMode, dashboardItems.length, dashboardWidgets.length, dashboardFrames.length, activeTabId]);
+  }, [isPreviewMode, layoutMode, dashboardItems.length, dashboardWidgets.length, dashboardFrames.length, activeTabId, mainFrameId]);
 
   // Outside click listener to close custom dropdowns
   useEffect(() => {
@@ -811,16 +933,17 @@ export default function BIHubPage() {
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Whiteboard keyboard listeners (Spacebar for panning + Ctrl+C/V)
+  // Dashboard keyboard listeners (Spacebar for panning + Ctrl+C/V/Z + Delete)
   useEffect(() => {
-    if (view !== 'edit-dashboard' || layoutMode !== 'whiteboard') return;
+    if (view !== 'edit-dashboard') return;
     const handleKeyDown = (e: KeyboardEvent) => {
       // Avoid conflicts with Monaco or inputs
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || (e.target as HTMLElement).closest('.monaco-editor')) {
         return;
       }
 
-      if (e.code === 'Space' && !e.repeat) {
+      // Spacebar panning only for whiteboard mode
+      if (layoutMode === 'whiteboard' && e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         setSpacePressed(true);
       }
@@ -858,30 +981,65 @@ export default function BIHubPage() {
       window.removeEventListener('keyup', handleKeyUp);
       setSpacePressed(false);
     };
-  }, [view, layoutMode, selectedItemId, selectedWidgetId, dashboardItems, dashboardWidgets, clipboard]);
+  }, [view, layoutMode, selectedItemId, selectedWidgetId, selectedItemIds, selectedWidgetIds, dashboardItems, dashboardWidgets, clipboard, editingWidgetId, editingTabId, isEditingDashName]);
 
-  // Whiteboard wheel zoom handler
+  // Wheel handler (Whiteboard or Slide+Ctrl)
+  // In whiteboard + select mode:
+  //   - Normal scroll        → pan up/down
+  //   - Ctrl + scroll        → zoom in/out (anchored to cursor)
+  //   - Shift + scroll       → pan left/right
+  // In whiteboard + pan mode, or slide + Ctrl:
+  //   - Always zooms (existing behaviour)
   const handleWheel = (e: React.WheelEvent) => {
-    if (layoutMode !== 'whiteboard' || (isPreviewMode && mainFrameId)) return;
+    if (isPreviewMode && mainFrameId) return;
+
+    const isWhiteboardSelect = layoutMode === 'whiteboard' && interactionMode === 'select';
+    const isSlideCtrl = layoutMode === 'slide' && e.ctrlKey;
+
+    if (!isWhiteboardSelect && !isSlideCtrl && layoutMode !== 'whiteboard') return;
+
     e.preventDefault();
     const rect = gridContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
+
+    // --- Whiteboard + Select tool: directional scroll ---
+    if (isWhiteboardSelect) {
+      if (e.ctrlKey) {
+        // Ctrl + scroll → zoom (anchored to cursor)
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+        const newZoom = Math.min(4, Math.max(0.15, zoom * zoomFactor));
+        const newPanX = mouseX - (mouseX - pan.x) * (newZoom / zoom);
+        const newPanY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
+        setZoom(newZoom);
+        setPan({ x: newPanX, y: newPanY });
+      } else if (e.shiftKey) {
+        // Shift + scroll → pan left/right
+        const scrollSpeed = 1.5;
+        setPan(prev => ({ ...prev, x: prev.x - e.deltaY * scrollSpeed }));
+      } else {
+        // Normal scroll → pan up/down
+        const scrollSpeed = 1.5;
+        setPan(prev => ({ ...prev, y: prev.y - e.deltaY * scrollSpeed }));
+      }
+      return;
+    }
+
+    // --- Whiteboard + Pan tool or Slide+Ctrl: always zoom ---
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-
-    // Faster zoom speed (increased factor)
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
     const newZoom = Math.min(4, Math.max(0.15, zoom * zoomFactor));
-    // Adjust pan so the point under the cursor stays fixed
     const newPanX = mouseX - (mouseX - pan.x) * (newZoom / zoom);
     const newPanY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
     setZoom(newZoom);
     setPan({ x: newPanX, y: newPanY });
   };
 
-  // Whiteboard background panning (click-drag on empty space, or spacebar+drag)
+  // Background panning & selection (click-drag on empty space, or spacebar+drag)
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (layoutMode !== 'whiteboard' || (isPreviewMode && mainFrameId)) return;
+    if (isPreviewMode && mainFrameId) return;
 
     const rect = gridContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -981,6 +1139,21 @@ export default function BIHubPage() {
         api.charts.list(WORKSPACE_ID),
         api.datasets.list(WORKSPACE_ID)
       ]);
+      
+      // Load ALL chart permissions so we can filter dashboards globally
+      let globalPerms: Record<string, number[]> = {};
+      const allChartIds = chartsData.map((c: any) => c.id);
+      if (allChartIds.length > 0) {
+        try {
+          globalPerms = await api.permissions.getDashboardChartPermissions(allChartIds);
+          setChartPermissions(globalPerms || {});
+        } catch {
+          setChartPermissions({});
+        }
+      } else {
+        setChartPermissions({});
+      }
+
       setDashboards(dashboardsData);
       setCharts(chartsData);
       setDatasets(datasetsData);
@@ -1022,7 +1195,7 @@ export default function BIHubPage() {
   // ==========================================
   // DASHBOARD ACTIONS
   // ==========================================
-  const handleOpenDashboard = async (dashboard: any) => {
+  const handleOpenDashboard = async (dashboard: any, urlOverrides?: { mainFrameId?: string | null, tabId?: string | null }) => {
     setSelectedDashboard(dashboard);
     setIsEditMode(false); // default to view mode for clean look
 
@@ -1035,11 +1208,22 @@ export default function BIHubPage() {
     });
     setActiveFilterValues(initialValues);
 
+    const configuredMainFrameId = urlOverrides?.mainFrameId !== undefined ? urlOverrides.mainFrameId : (dashboard.theme_config?.mainFrameId || null);
+
     // Load tabs
     const loadedTabs = dashboard.theme_config?.tabs || [{ id: 'default', name: 'Tab 1' }];
     setDashboardTabs(loadedTabs);
     const fallbackTabId = loadedTabs[0]?.id || 'default';
-    handleSelectTab(fallbackTabId);
+    
+    let initialTabId = urlOverrides?.tabId || fallbackTabId;
+    if (!urlOverrides?.tabId && isPreviewMode && configuredMainFrameId) {
+      const target = (dashboard.theme_config?.frames || []).find((f: any) => f.id === configuredMainFrameId)
+                  || (dashboard.widgets || []).find((w: any) => w.id === configuredMainFrameId);
+      if (target && target.tabId) {
+        initialTabId = target.tabId;
+      }
+    }
+    handleSelectTab(initialTabId);
     setTabPosition(dashboard.theme_config?.tabPosition || "top");
     setTabBarSize(dashboard.theme_config?.tabBarSize || (dashboard.theme_config?.tabPosition === 'left' || dashboard.theme_config?.tabPosition === 'right' ? 200 : 64));
     setCustomTabRect(dashboard.theme_config?.customTabRect || { x: 40, y: 40, w: 400, h: 60 });
@@ -1047,7 +1231,7 @@ export default function BIHubPage() {
     setZoom(dashboard.theme_config?.zoom || 1);
     setPan(dashboard.theme_config?.pan || { x: 0, y: 0 });
     setDashboardFrames(dashboard.theme_config?.frames || []);
-    setMainFrameId(dashboard.theme_config?.mainFrameId || null);
+    setMainFrameId(configuredMainFrameId);
     setTabFrameId(dashboard.theme_config?.tabFrameId || null);
     setTabFramePosition(dashboard.theme_config?.tabFramePosition || 'top');
     setTabBorderRadius(dashboard.theme_config?.tabBorderRadius ?? 12);
@@ -1058,6 +1242,7 @@ export default function BIHubPage() {
     setTabPaddingX(dashboard.theme_config?.tabPaddingX ?? 18);
     setTabPaddingY(dashboard.theme_config?.tabPaddingY ?? 8);
     setTabGap(dashboard.theme_config?.tabGap ?? 8);
+    setTabAlign(dashboard.theme_config?.tabAlign ?? "start");
     setTabActiveColor(dashboard.theme_config?.tabActiveColor ?? "var(--color-orange-500)");
 
     const newItems: any[] = [];
@@ -1111,6 +1296,21 @@ export default function BIHubPage() {
         tabId: w.tabId || fallbackTabId
       }));
       setDashboardWidgets(loadedWidgets);
+
+      // Load chart permissions for this dashboard
+      const chartIdsToLoad = newItems
+        .filter(i => i.chart?.id)
+        .map(i => i.chart.id);
+      if (chartIdsToLoad.length > 0) {
+        try {
+          const permData = await api.permissions.getDashboardChartPermissions(chartIdsToLoad);
+          setChartPermissions(permData || {});
+        } catch {
+          setChartPermissions({});
+        }
+      } else {
+        setChartPermissions({});
+      }
 
       setView("edit-dashboard");
     } catch (err) {
@@ -1211,6 +1411,7 @@ export default function BIHubPage() {
           tabPaddingX: tabPaddingX,
           tabPaddingY: tabPaddingY,
           tabGap: tabGap,
+          tabAlign: tabAlign,
           tabActiveColor: tabActiveColor
         }
       });
@@ -1507,6 +1708,7 @@ export default function BIHubPage() {
     { name: 'iPad Air', w: 820, h: 1180 },
     { name: 'Desktop HD', w: 1280, h: 720 },
     { name: 'Desktop Full HD', w: 1920, h: 1080 },
+    { name: 'Website Viewport', w: 1440, h: 900 },
   ];
 
   const handleAddFrame = (size: { name: string, w: number, h: number }) => {
@@ -1769,6 +1971,29 @@ export default function BIHubPage() {
         filterOrientation: 'vertical',
         controlWidth: '100%',
         zIndex: 20
+      },
+      code: {
+        pos: isWhiteboard
+          ? { x: baseX - 200 + offset, y: baseY - 100 + offset, w: 400, h: 200 }
+          : { x: 20 + offset, y: 20 + offset, w: 400, h: 200 },
+        bgColor: 'rgba(30,30,40,0.8)',
+        borderColor: 'rgba(249,115,22,0.4)',
+        borderStyle: 'solid',
+        borderWidth: 1,
+        borderRadius: 12,
+        code: `// DOM element of this widget can be accessed via:
+// document.getElementById('widget-{{id}}')
+
+const element = document.getElementById('widget-{{id}}');
+if (element) {
+  element.style.display = 'flex';
+  element.style.alignItems = 'center';
+  element.style.justifyContent = 'center';
+  element.innerHTML = '<div style="color: #f97316; font-weight: bold;">Custom JS Running...</div>';
+  
+  // You can also interact with other elements or add event listeners
+  console.log('Widget {{id}} initialized');
+}`
       }
     };
     const widget: DashboardWidget = { id, itemType: type, ...defaults[type], zIndex: 1, tabId: activeTabId } as DashboardWidget;
@@ -2174,11 +2399,97 @@ export default function BIHubPage() {
   };
 
   // Dashboard Tabs Logic
+  // Helper: check if current user has permission to view a chart
+  const hasChartPermission = (chartId: string): boolean => {
+    if (!chartId) return true;
+    const perms = chartPermissions[chartId];
+    // No permissions set = private: only admin/creator can view
+    if (!perms || perms.length === 0) {
+      // Admin always has permission
+      if ((currentUser as any)?.role === 'admin') return true;
+      // Check if current user is creator (we don't have that info directly in FE, 
+      // so when no permissions set, treat as "private - no access for regular users")
+      return false;
+    }
+    // Has permission list - check if current user is in the list
+    if (!currentUser) return false;
+    return perms.includes((currentUser as any).id);
+  };
+
   const handleSelectTab = (tabId: string) => {
+    // Permission check: if not in edit mode, check if user can access this tab
+    if (!isEditMode && currentUser) {
+      const tabChartItems = dashboardItems.filter(i => (i.tabId || 'default') === tabId && i.chart?.id);
+      if (tabChartItems.length > 0) {
+        const hasAnyAccess = tabChartItems.some(i => hasChartPermission(i.chart.id));
+        if (!hasAnyAccess) {
+          const tabName = dashboardTabs.find(t => t.id === tabId)?.name || 'Tab';
+          setNoPermTabName(tabName);
+          setShowNoPermTabPopup(true);
+          return; // Don't switch tab
+        }
+      }
+    }
+
     setActiveTabId(tabId);
+
+    // If custom/floating tab bar is attached to a frame, jump to the equivalent frame in the new tab
+    if (tabPosition === 'custom' && tabFrameId) {
+      const currentAttachedFrame = dashboardFrames.find(f => f.id === tabFrameId);
+      if (currentAttachedFrame && (currentAttachedFrame.tabId || 'default') !== (tabId || 'default')) {
+        // Look for a frame in the target tab with the same name
+        const targetFrame = dashboardFrames.find(f => 
+          (f.tabId === tabId || (tabId === 'default' && !f.tabId)) && 
+          f.name === currentAttachedFrame.name
+        );
+        if (targetFrame) {
+          setTabFrameId(targetFrame.id);
+        } else {
+          // Fallback: any frame in that tab
+          const firstFrame = dashboardFrames.find(f => (f.tabId === tabId || (tabId === 'default' && !f.tabId)));
+          if (firstFrame) {
+            setTabFrameId(firstFrame.id);
+          }
+        }
+      }
+    }
+
+    // Sync mainFrameId when switching tabs to maintain consistent preview scaling/focus
+    if (mainFrameId) {
+      const currentMainFrame = dashboardFrames.find(f => f.id === mainFrameId) || dashboardWidgets.find(w => w.id === mainFrameId);
+      if (currentMainFrame && (currentMainFrame.tabId || 'default') !== (tabId || 'default')) {
+        // We only sync by name for Frames, as Widgets don't have a name property
+        const frameName = (currentMainFrame as any).name;
+
+        if (frameName) {
+          // Look for a frame in the target tab with the same name
+          const targetFrame = dashboardFrames.find(f => 
+            (f.tabId === tabId || (tabId === 'default' && !f.tabId)) && 
+            f.name === frameName
+          );
+          
+          if (targetFrame) {
+            setMainFrameId(targetFrame.id);
+          } else {
+            // Fallback: pick the first frame in the new tab to keep preview mode active on a valid frame
+            const firstFrame = dashboardFrames.find(f => (f.tabId === tabId || (tabId === 'default' && !f.tabId)));
+            if (firstFrame) {
+              setMainFrameId(firstFrame.id);
+            }
+          }
+        } else {
+          // If it's a widget or nameless frame, just pick the first frame in the new tab as fallback
+          const firstFrame = dashboardFrames.find(f => (f.tabId === tabId || (tabId === 'default' && !f.tabId)));
+          if (firstFrame) {
+            setMainFrameId(firstFrame.id);
+          }
+        }
+      }
+    }
     
     // Auto-pan to frame if switching tabs in whiteboard mode
-    if (layoutMode === 'whiteboard') {
+    // Skip this in preview mode so the fitToContent effect handles it precisely with 0 padding
+    if (layoutMode === 'whiteboard' && !isPreviewMode) {
       const frame = dashboardFrames.find(f => f.tabId === tabId || (tabId === 'default' && !f.tabId));
       if (frame) {
         // Center the frame in view
@@ -2199,6 +2510,23 @@ export default function BIHubPage() {
     saveToHistory();
     const newId = Math.random().toString(36).substr(2, 9);
     const newTab = { id: newId, name: `Tab ${dashboardTabs.length + 1}` };
+
+    // Auto-clone attached frame if in custom/floating mode
+    if (tabPosition === 'custom' && tabFrameId) {
+      const sourceFrame = dashboardFrames.find(f => f.id === tabFrameId);
+      // Ensure the source frame belongs to the currently active tab
+      if (sourceFrame && (sourceFrame.tabId === activeTabId || (!sourceFrame.tabId && activeTabId === 'default'))) {
+        const newFrameId = Math.random().toString(36).substr(2, 9);
+        const newFrame: DashboardFrame = {
+          ...sourceFrame,
+          id: newFrameId,
+          tabId: newId, // Assign to new tab
+          name: sourceFrame.name
+        };
+        setDashboardFrames(prev => [...prev, newFrame]);
+      }
+    }
+
     setDashboardTabs(prev => [...prev, newTab]);
     // Keep activeTabId unchanged to stay on the current screen
     setShowTabSettings(true);
@@ -2431,7 +2759,7 @@ export default function BIHubPage() {
             <div>
               <h1 className="text-4xl font-extrabold tracking-tight flex items-center gap-3">
                 <Archive className="text-orange-500 animate-pulse" />
-                BI Hub
+                Trực quan hóa
               </h1>
               <p className="text-neutral-400 mt-2">Manage datasets, build charts, and orchestrate visual dashboards.</p>
             </div>
@@ -2512,7 +2840,11 @@ export default function BIHubPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {dashboards.map(dashboard => (
+                  {dashboards.filter(dashboard => {
+                    if ((currentUser as any)?.role === 'admin') return true;
+                    if (!dashboard.items || dashboard.items.length === 0) return true;
+                    return dashboard.items.some((item: any) => hasChartPermission(item.chart_id));
+                  }).map(dashboard => (
                     <div
                       key={dashboard.id}
                       onClick={() => handleOpenDashboard(dashboard)}
@@ -2620,7 +2952,14 @@ export default function BIHubPage() {
           DASHBOARD BUILDER SUB-VIEW
           ========================================== */}
       {view === "edit-dashboard" && selectedDashboard && (
-        <div className={`flex-1 flex flex-col ${isPreviewMode ? 'fixed inset-0 z-[100] bg-neutral-950' : ''}`}>
+        <div 
+          className={`flex-1 flex flex-col ${isPreviewMode ? 'fixed inset-0 z-[100]' : ''}`}
+          style={isPreviewMode ? {
+            backgroundColor: (mainFrameId 
+              ? (dashboardFrames.find(f => f.id === mainFrameId)?.bgColor || dashboardWidgets.find(w => w.id === mainFrameId)?.bgColor || selectedDashboard?.theme_config?.canvasBg || '#ffffff') 
+              : (selectedDashboard?.theme_config?.canvasBg || '#ffffff'))
+          } : {}}
+        >
           {/* Hide the global scroll-to-top button which overlaps with dashboard controls */}
           <style dangerouslySetInnerHTML={{ __html: `
             .scroll-to-top-button { display: none !important; }
@@ -2639,7 +2978,7 @@ export default function BIHubPage() {
                     setShowAddChart(false);
                   }}
                   className="p-2 hover:bg-neutral-800 rounded-xl text-neutral-400 hover:text-white transition-colors cursor-pointer"
-                  title="Back to BI Hub"
+                  title="Back to Trực quan hóa"
                 >
                   <ArrowLeft className="w-5 h-5" />
                 </button>
@@ -2685,9 +3024,15 @@ export default function BIHubPage() {
                     )}
                     {isEditMode && (
                       <button
-                        onClick={() => window.open(`/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}`, '_blank')}
+                        onClick={() => {
+                          if (layoutMode === 'whiteboard') {
+                            setShowIframePreview(true);
+                          } else {
+                            window.open(`/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}`, '_blank');
+                          }
+                        }}
                         className="ml-2 flex items-center gap-1.5 px-2.5 py-1 text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 rounded font-mono uppercase tracking-wide cursor-pointer transition-colors select-none"
-                        title="Open standalone preview in new tab"
+                        title={layoutMode === 'whiteboard' ? "Open preview overlay" : "Open standalone preview in new tab"}
                       >
                         <Eye className="w-3 h-3" /> Preview Dashboard
                       </button>
@@ -2774,7 +3119,10 @@ export default function BIHubPage() {
                                 } else if (item.type === 'action_filter') {
                                   addWidget('filter');
                                 } else if (item.type === 'action_toggle_header') {
-                                  setDashboardItems(prev => prev.map(i => ({ ...i, hideHeader: !i.hideHeader })));
+                                  setDashboardItems(prev => {
+                                    const areAllHidden = prev.length > 0 && prev.every(i => i.hideHeader);
+                                    return prev.map(i => ({ ...i, hideHeader: !areAllHidden }));
+                                  });
                                 }
                                 setShowAddElementDropdown(false);
                               }}
@@ -2797,6 +3145,7 @@ export default function BIHubPage() {
                             { type: 'rectangle' as WidgetType, icon: <Square className="w-4 h-4" />, label: 'Rectangle', desc: 'Shape / container' },
                             { type: 'circle' as WidgetType, icon: <Circle className="w-4 h-4" />, label: 'Circle / Oval', desc: 'Rounded shape' },
                             { type: 'divider' as WidgetType, icon: <Minus className="w-4 h-4" />, label: 'Divider', desc: 'Horizontal separator' },
+                            { type: 'code' as WidgetType, icon: <PenTool className="w-4 h-4" />, label: 'Custom JS', desc: 'Add interactive logic' },
                           ]).map(item => (
                             <button
                               key={item.type}
@@ -2830,12 +3179,15 @@ export default function BIHubPage() {
           <div className={`flex-1 flex min-h-0 ${(isHeaderDisabled || isPreviewMode) ? '' : 'mt-4'} ${tabPosition === 'left' || tabPosition === 'right' ? 'flex-row' : 'flex-col'}`}>
 
             {/* Left Tab Bar */}
-            {tabPosition === 'left' && !isPreviewMode && !mainFrameId && (
+            {tabPosition === 'left' && !mainFrameId && (
               <div
-                className="bg-neutral-950 border-r border-neutral-900/60 shrink-0 p-4 pt-6 flex flex-col gap-6 overflow-y-auto"
-                style={{ width: tabBarSize }}
+                className="bg-transparent border-r border-neutral-900/60 shrink-0 flex flex-col overflow-y-auto"
+                style={{ 
+                  width: tabBarSize,
+                  justifyContent: tabAlign === 'center' ? 'center' : tabAlign === 'end' ? 'flex-end' : 'flex-start'
+                }}
               >
-                <div className="flex flex-col" style={{ gap: `${tabGap}px` }}>
+                <div className="flex flex-col p-4" style={{ gap: `${tabGap}px` }}>
                   {dashboardTabs.map(tab => renderTabItem(tab, false))}
                   {isEditMode && renderAddTabButton()}
                 </div>
@@ -2846,17 +3198,17 @@ export default function BIHubPage() {
             <div className={`flex-1 flex flex-col min-h-0 ${tabPosition === 'right' ? 'order-first' : ''}`}>
 
               {/* Top Tab Bar */}
-              {tabPosition === 'top' && !isPreviewMode && !mainFrameId && (
+              {tabPosition === 'top' && !mainFrameId && (
                 <div
-                  className="bg-neutral-950 border-b border-neutral-900/60 p-3 px-8 flex items-center justify-between gap-4 shrink-0"
+                  className="bg-transparent border-b border-neutral-900/60 shrink-0 p-3 px-8 flex items-center gap-4"
                   style={{ height: tabBarSize }}
                 >
-                  <div className="flex flex-wrap items-center" style={{ gap: `${tabGap}px` }}>
+                  <div className={`flex flex-1 flex-wrap items-center ${tabAlign === 'center' ? 'justify-center' : tabAlign === 'end' ? 'justify-end' : 'justify-start'}`} style={{ gap: `${tabGap}px` }}>
                     {dashboardTabs.map(tab => renderTabItem(tab, true))}
                     {isEditMode && renderAddTabButton()}
                   </div>
                   {isEditMode && (
-                    <span className="text-[10px] text-neutral-500 italic hidden sm:inline-block">
+                    <span className="text-[10px] text-neutral-500 italic hidden sm:inline-block shrink-0">
                       Tip: Double-click a tab to rename. Move items via their dropdowns.
                     </span>
                   )}
@@ -2873,16 +3225,18 @@ export default function BIHubPage() {
 
               {/* Free-Form Canvas */}
               <div
-                className={`flex-1 relative ${layoutMode === 'whiteboard' ? 'overflow-hidden' : 'overflow-auto'} ${isPreviewMode && layoutMode === 'slide' ? 'flex items-center justify-center' : ''}`}
+                className={`flex-1 relative ${(layoutMode === 'whiteboard' || (isPreviewMode && mainFrameId)) ? 'overflow-hidden' : 'overflow-auto'}`}
                 style={{
-                  backgroundColor: selectedDashboard?.theme_config?.canvasBg || 'transparent',
+                  backgroundColor: (isPreviewMode && mainFrameId) 
+                    ? (dashboardFrames.find(f => f.id === mainFrameId)?.bgColor || dashboardWidgets.find(w => w.id === mainFrameId)?.bgColor || selectedDashboard?.theme_config?.canvasBg || 'transparent')
+                    : (selectedDashboard?.theme_config?.canvasBg || 'transparent'),
                   cursor: layoutMode === 'whiteboard' ? (spacePressed ? (isPanningRef.current.active ? 'grabbing' : 'grab') : 'default') : 'default'
                 }}
                 ref={gridContainerRef}
                 onDragOver={isEditMode ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } : undefined}
                 onDrop={isEditMode ? handleGridDrop : undefined}
-                onWheel={layoutMode === 'whiteboard' ? handleWheel : undefined}
-                onMouseDown={layoutMode === 'whiteboard' ? handleCanvasMouseDown : undefined}
+                onWheel={handleWheel}
+                onMouseDown={handleCanvasMouseDown}
               >
                 {/* Whiteboard dot-grid background */}
                 {layoutMode === 'whiteboard' && !isPreviewMode && (
@@ -2902,8 +3256,8 @@ export default function BIHubPage() {
                     key={idx}
                     className="absolute pointer-events-none z-[2000] border-orange-500/60"
                     style={{
-                      left: layoutMode === 'whiteboard' ? (guide.x !== undefined ? guide.x * zoom + pan.x : 0) : (guide.x !== undefined ? guide.x : 0),
-                      top: layoutMode === 'whiteboard' ? (guide.y !== undefined ? guide.y * zoom + pan.y : 0) : (guide.y !== undefined ? guide.y : 0),
+                      left: guide.x !== undefined ? guide.x * zoom + pan.x : 0,
+                      top: guide.y !== undefined ? guide.y * zoom + pan.y : 0,
                       width: guide.type === 'v' ? '1px' : '4000px',
                       height: guide.type === 'h' ? '1px' : '4000px',
                       marginLeft: guide.type === 'h' ? '-2000px' : '0',
@@ -3002,16 +3356,16 @@ export default function BIHubPage() {
                   <div
                     className="relative shrink-0"
                     style={{
+                      transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                      transformOrigin: '0 0',
                       ...(layoutMode === 'whiteboard' ? {
-                        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                        transformOrigin: '0 0',
                         width: 'max-content',
                         minWidth: '100%',
                         minHeight: '100%',
                       } : {
                         ...(isPreviewMode ? {
-                          width: `${tabBoundingBox.maxX + tabBoundingBox.minX}px`,
-                          height: `${tabBoundingBox.maxY + tabBoundingBox.minY}px`,
+                          width: `${tabBoundingBox.maxX - tabBoundingBox.minX}px`,
+                          height: `${tabBoundingBox.maxY - tabBoundingBox.minY}px`,
                         } : {
                           minHeight: Math.max(
                             600,
@@ -3021,7 +3375,7 @@ export default function BIHubPage() {
                         })
                       })
                     }}
-                    onMouseDown={layoutMode === 'whiteboard' ? handleCanvasMouseDown : undefined}
+                    onMouseDown={handleCanvasMouseDown}
                   >
                     {/* Marquee Selection Box */}
                     {selectionBox && !isPreviewMode && (
@@ -3115,14 +3469,14 @@ export default function BIHubPage() {
                     ))}
 
                     {/* Floating / Frame-Attached Tab Bar */}
-                    {(tabPosition === 'custom' || (mainFrameId && ['top', 'bottom', 'left', 'right'].includes(tabPosition))) && !isPreviewMode && (
+                    {(tabPosition === 'custom' || (mainFrameId && ['top', 'bottom', 'left', 'right'].includes(tabPosition))) && (
                       <div
                         style={{
                           position: 'absolute',
                           ...( ( (tabPosition === 'custom' && tabFrameId) || (tabPosition !== 'custom' && mainFrameId) ) ? (() => {
                             const targetId = tabPosition === 'custom' ? tabFrameId : mainFrameId;
                             const targetPos = tabPosition === 'custom' ? tabFramePosition : tabPosition;
-                            const f = dashboardFrames.find(f => f.id === targetId);
+                            const f = dashboardFrames.find(f => f.id === targetId) || dashboardWidgets.find(w => w.id === targetId);
                             if (!f) return { left: customTabRect.x, top: customTabRect.y, width: customTabRect.w, height: customTabRect.h, zIndex: 1000 };
                             
                             const barSize = tabBarSize;
@@ -3305,8 +3659,16 @@ export default function BIHubPage() {
 
                           {/* Chart area */}
                           <div className="flex-1 relative min-h-0">
-                            <div className="absolute inset-0 p-2">
-                              <EChartRenderer config={config} data={filteredData} />
+                            <div className="absolute inset-0 p-2 flex items-center justify-center">
+                              {!hasChartPermission(item.chart.id) ? (
+                                <div className="flex flex-col items-center justify-center text-center p-4 h-full w-full bg-neutral-900/50 rounded-lg border border-dashed border-neutral-800">
+                                  <ShieldX className="w-8 h-8 text-neutral-600 mb-2" />
+                                  <p className="text-sm font-semibold text-neutral-400">No Permission</p>
+                                  <p className="text-xs text-neutral-500 mt-1 max-w-[200px]">You don't have access to view this chart's data.</p>
+                                </div>
+                              ) : (
+                                <EChartRenderer config={config} data={filteredData} />
+                              )}
                             </div>
                           </div>
 
@@ -3340,6 +3702,7 @@ export default function BIHubPage() {
                       const isDivider = widget.itemType === 'divider';
                       const isImage = widget.itemType === 'image';
                       const isFilter = widget.itemType === 'filter';
+                      const isCode = widget.itemType === 'code';
                       const isShape = widget.itemType === 'rectangle' || widget.itemType === 'circle';
                       const isEditing = editingWidgetId === widget.id;
 
@@ -3789,6 +4152,23 @@ export default function BIHubPage() {
                             </div>
                           )}
 
+                          {/* Custom JS Code Widget */}
+                          {isCode && (
+                            <CodeWidgetRenderer 
+                              widget={widget} 
+                              onSetFilter={(col, val) => {
+                                // Find if there's a filter widget for this column or just use global filter logic
+                                // For simplicity, we can update a global-like state if we had one, 
+                                // but here we'll update the activeValue of the first filter widget found with this column
+                                setDashboardWidgets(prev => prev.map(w => 
+                                  (w.itemType === 'filter' && w.filterColumn === col) ? { ...w, activeValue: val } : w
+                                ));
+                              }}
+                              onSwitchTab={(tabId) => handleSelectTab(tabId)}
+                              allWidgets={dashboardWidgets}
+                            />
+                          )}
+
                           {/* Edit controls in edit mode */}
                           {isEditMode && (
                             <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 z-10">
@@ -3846,17 +4226,17 @@ export default function BIHubPage() {
               </div>
 
               {/* Bottom Tab Bar */}
-              {tabPosition === 'bottom' && !isPreviewMode && !mainFrameId && (
+              {tabPosition === 'bottom' && !mainFrameId && (
                 <div
-                  className="bg-neutral-950 border-t border-neutral-900/60 p-3 px-8 flex items-center justify-between gap-4 shrink-0"
+                  className="bg-transparent border-t border-neutral-900/60 shrink-0 p-3 px-8 flex items-center gap-4"
                   style={{ height: tabBarSize }}
                 >
-                  <div className="flex flex-wrap items-center" style={{ gap: `${tabGap}px` }}>
+                  <div className={`flex flex-1 flex-wrap items-center ${tabAlign === 'center' ? 'justify-center' : tabAlign === 'end' ? 'justify-end' : 'justify-start'}`} style={{ gap: `${tabGap}px` }}>
                     {dashboardTabs.map(tab => renderTabItem(tab, true))}
                     {isEditMode && renderAddTabButton()}
                   </div>
                   {isEditMode && (
-                    <span className="text-[10px] text-neutral-500 italic hidden sm:inline-block">
+                    <span className="text-[10px] text-neutral-500 italic hidden sm:inline-block shrink-0">
                       Tip: Double-click a tab to rename. Move items via their dropdowns.
                     </span>
                   )}
@@ -3865,12 +4245,15 @@ export default function BIHubPage() {
             </div>
 
             {/* Right Tab Bar */}
-            {tabPosition === 'right' && !isPreviewMode && !mainFrameId && (
+            {tabPosition === 'right' && !mainFrameId && (
               <div
-                className="bg-neutral-950 border-l border-neutral-900/60 shrink-0 p-4 pt-6 flex flex-col gap-6 overflow-y-auto"
-                style={{ width: tabBarSize }}
+                className="bg-transparent border-l border-neutral-900/60 shrink-0 flex flex-col overflow-y-auto"
+                style={{ 
+                  width: tabBarSize,
+                  justifyContent: tabAlign === 'center' ? 'center' : tabAlign === 'end' ? 'flex-end' : 'flex-start'
+                }}
               >
-                <div className="flex flex-col" style={{ gap: `${tabGap}px` }}>
+                <div className="flex flex-col p-4" style={{ gap: `${tabGap}px` }}>
                   {dashboardTabs.map(tab => renderTabItem(tab, false))}
                   {isEditMode && renderAddTabButton()}
                 </div>
@@ -3956,6 +4339,33 @@ export default function BIHubPage() {
                       onChange={(e) => setTabBarSize(parseInt(e.target.value))}
                       className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-orange-500"
                     />
+                  </div>
+                )}
+
+                {/* Tab Alignment */}
+                {tabPosition !== 'none' && tabPosition !== 'custom' && (
+                  <div className="space-y-3 pt-4 border-t border-neutral-800">
+                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">
+                      {tabPosition === 'top' || tabPosition === 'bottom' ? 'Horizontal Alignment' : 'Vertical Alignment'}
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'start', label: tabPosition === 'top' || tabPosition === 'bottom' ? 'Left' : 'Top' },
+                        { id: 'center', label: 'Center' },
+                        { id: 'end', label: tabPosition === 'top' || tabPosition === 'bottom' ? 'Right' : 'Bottom' },
+                      ].map(align => (
+                        <button
+                          key={align.id}
+                          onClick={() => setTabAlign(align.id as any)}
+                          className={`flex items-center justify-center px-2 py-2 rounded-xl transition-all cursor-pointer border text-[10px] ${tabAlign === align.id
+                            ? 'bg-orange-600/10 border-orange-500/40 text-orange-500 font-bold'
+                            : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                            }`}
+                        >
+                          {align.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -4092,12 +4502,24 @@ export default function BIHubPage() {
                       className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 text-sm text-neutral-200 outline-none focus:border-orange-500/50 transition-colors"
                     >
                       <option value="">None (Fit all content)</option>
-                      {dashboardFrames.map(f => (
-                        <option key={f.id} value={f.id}>{f.name} ({f.pos.w}x{f.pos.h})</option>
-                      ))}
+                      <optgroup label="Screens / Frames">
+                        {dashboardFrames.map(f => (
+                          <option key={f.id} value={f.id}>{f.name} ({f.pos.w}x{f.pos.h})</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Rectangle Widgets">
+                        {dashboardWidgets.filter(w => w.itemType === 'rectangle').map(w => {
+                          const tab = dashboardTabs.find(t => t.id === (w.tabId || 'default'));
+                          return (
+                            <option key={w.id} value={w.id}>
+                              Widget: {w.text || 'Untitled Rect'} {tab ? "(" + tab.name + ")" : ""}
+                            </option>
+                          );
+                        })}
+                      </optgroup>
                     </select>
                     <p className="text-[9px] text-neutral-500 italic">
-                      The selected frame will be used as the primary viewport for public dashboard links.
+                      The selected frame or rectangle will be used as the primary viewport for public dashboard links.
                     </p>
                   </div>
 
@@ -4140,85 +4562,223 @@ export default function BIHubPage() {
                     />
                   </div>
 
-                  <div className="space-y-3 pt-4 border-t border-neutral-800">
-                    <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Main Frame (Focus for Preview)</label>
-                    <select
-                      value={mainFrameId || ""}
-                      onChange={e => setMainFrameId(e.target.value || null)}
-                      className="w-full bg-neutral-950 border border-neutral-800 text-neutral-300 text-xs rounded-xl px-4 py-3 focus:outline-none focus:border-orange-500 transition-colors"
-                    >
-                      <option value="">None (Auto-calculate)</option>
-                      {dashboardWidgets.filter(w => (w.tabId || 'default') === activeTabId && w.itemType === 'rectangle').map(w => (
-                        <option key={w.id} value={w.id}>Widget: {w.text || 'Untitled Rectangle'} ({w.id})</option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {showAddChart && (
-            <div className="fixed inset-y-0 right-0 w-80 bg-neutral-900 border-l border-neutral-800 p-6 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200">
-              <div className="flex justify-between items-center mb-4 shrink-0">
-                <h3 className="font-bold text-lg">Add Chart</h3>
-                <button onClick={() => setShowAddChart(false)} className="p-1 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-neutral-50 cursor-pointer">
+            <div className="fixed inset-y-0 right-0 w-80 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200">
+              {/* Sidebar Header */}
+              <div className="flex justify-between items-center p-4 border-b border-neutral-800 shrink-0">
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-orange-500" />
+                  Dashboard Charts
+                </h3>
+                <button onClick={() => { setShowAddChart(false); setSidebarTab('add'); setSelectedManagedCharts([]); }} className="p-1 hover:bg-neutral-800 rounded-lg text-neutral-400 hover:text-neutral-50 cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Search Bar */}
-              <div className="relative mb-4 shrink-0">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-neutral-500" />
-                <input
-                  type="text"
-                  placeholder="Search charts by name..."
-                  value={chartSearchQuery}
-                  onChange={e => setChartSearchQuery(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-10 pr-4 py-2 text-xs text-neutral-50 focus:border-orange-500 focus:outline-none transition-colors"
-                />
+              {/* 2-Tab Switcher */}
+              <div className="flex border-b border-neutral-800 shrink-0">
+                <button
+                  onClick={() => { setSidebarTab('add'); setSelectedManagedCharts([]); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition-all ${sidebarTab === 'add' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Chart
+                </button>
+                <button
+                  onClick={() => { setSidebarTab('manage'); setSelectedManagedCharts([]); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition-all ${sidebarTab === 'manage' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+                >
+                  <Settings2 className="w-3.5 h-3.5" /> Manage Charts
+                </button>
               </div>
 
-              {/* Drag hint */}
-              <p className="text-[10px] text-neutral-500 mb-3 shrink-0 flex items-center gap-1">
-                <span className="inline-block w-3 h-3 border border-neutral-600 rounded mr-0.5">⠿</span>
-                Drag a card onto the dashboard or click to add
-              </p>
+              {/* ─── Tab 1: Add Chart ─── */}
+              {sidebarTab === 'add' && (
+                <div className="flex-1 flex flex-col p-4 min-h-0">
+                  {/* Search Bar */}
+                  <div className="relative mb-3 shrink-0">
+                    <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-neutral-500" />
+                    <input
+                      type="text"
+                      placeholder="Search charts..."
+                      value={chartSearchQuery}
+                      onChange={e => setChartSearchQuery(e.target.value)}
+                      className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-4 py-2 text-xs text-neutral-50 focus:border-orange-500 focus:outline-none transition-colors"
+                    />
+                  </div>
 
-              <div className="flex-1 overflow-auto space-y-3 pr-1">
-                {charts.length === 0 ? (
-                  <div className="text-center text-neutral-500 mt-10">
-                    No charts available. Go to Charts tab to create one first.
-                  </div>
-                ) : charts.filter(c => c.name.toLowerCase().includes(chartSearchQuery.toLowerCase())).length === 0 ? (
-                  <div className="text-center text-neutral-500 mt-10 text-xs italic">
-                    No charts match your search.
-                  </div>
-                ) : (
-                  charts
-                    .filter(c => c.name.toLowerCase().includes(chartSearchQuery.toLowerCase()))
-                    .map(chart => (
-                      <div
-                        key={chart.id}
-                        draggable
-                        onDragStart={(e) => {
-                          setDraggedChart(chart);
-                          e.dataTransfer.effectAllowed = 'copy';
-                          e.dataTransfer.setData('text/plain', chart.id);
-                        }}
-                        onDragEnd={() => setDraggedChart(null)}
-                        onClick={() => handleAddChartToDashboard(chart)}
-                        className="p-4 bg-neutral-950 border border-neutral-800 rounded-xl cursor-grab active:cursor-grabbing hover:border-orange-500 hover:bg-orange-500/5 transition-all duration-200 group select-none"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-neutral-600 text-xs">⠿</span>
-                          <h4 className="font-semibold text-orange-400 group-hover:text-orange-300 truncate">{chart.name}</h4>
-                        </div>
-                        <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">{chart.chart_type}</p>
+                  <p className="text-[10px] text-neutral-500 mb-3 shrink-0 flex items-center gap-1">
+                    <span className="inline-block text-neutral-600">⠿</span>
+                    Drag or click to add · Showing 10 most recent charts
+                  </p>
+
+                  <div className="flex-1 overflow-auto space-y-2.5 pr-1">
+                    {charts.length === 0 ? (
+                      <div className="text-center text-neutral-500 mt-10 text-xs">
+                        No charts available. Create one first.
                       </div>
-                    ))
-                )}
-              </div>
+                    ) : (() => {
+                      // Sort by created_at DESC and limit to 10 most recent
+                      const sorted = [...charts]
+                        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+                        .slice(0, 10)
+                        .filter(c => c.name.toLowerCase().includes(chartSearchQuery.toLowerCase()));
+                      
+                      if (sorted.length === 0) return (
+                        <div className="text-center text-neutral-500 mt-10 text-xs italic">No charts match your search.</div>
+                      );
+
+                      return sorted.map(chart => (
+                        <div
+                          key={chart.id}
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggedChart(chart);
+                            e.dataTransfer.effectAllowed = 'copy';
+                            e.dataTransfer.setData('text/plain', chart.id);
+                          }}
+                          onDragEnd={() => setDraggedChart(null)}
+                          onClick={() => handleAddChartToDashboard(chart)}
+                          className="p-3.5 bg-neutral-950 border border-neutral-800 rounded-xl cursor-grab active:cursor-grabbing hover:border-orange-500 hover:bg-orange-500/5 transition-all duration-200 group select-none"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-neutral-600 text-xs">⠿</span>
+                            <h4 className="font-semibold text-orange-400 group-hover:text-orange-300 truncate text-sm">{chart.name}</h4>
+                          </div>
+                          <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">{chart.chart_type}</p>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Tab 2: Manage Charts ─── */}
+              {sidebarTab === 'manage' && (
+                <div className="flex-1 flex flex-col p-4 min-h-0">
+                  {/* Actions bar */}
+                  <div className="flex items-center justify-between mb-3 shrink-0">
+                    <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">
+                      {dashboardItems.length} charts in dashboard
+                    </span>
+                    {selectedManagedCharts.length > 0 && (
+                      <button
+                        onClick={async () => {
+                          // Load all users when opening permission modal
+                          if (allSystemUsers.length === 0) {
+                            try {
+                              const users = await api.permissions.listUsers();
+                              setAllSystemUsers(users);
+                            } catch { }
+                          }
+                          setPermissionTargetChartIds(selectedManagedCharts);
+                          setShowPermissionModal(true);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Shield className="w-3 h-3" />
+                        Setting ({selectedManagedCharts.length})
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Select All */}
+                  {dashboardItems.length > 0 && (
+                    <div className="flex items-center gap-2 mb-2 shrink-0">
+                      <input
+                        type="checkbox"
+                        id="select-all-charts"
+                        checked={selectedManagedCharts.length === dashboardItems.length && dashboardItems.length > 0}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedManagedCharts(dashboardItems.filter(i => i.chart?.id).map((i: any) => i.chart.id));
+                          } else {
+                            setSelectedManagedCharts([]);
+                          }
+                        }}
+                        className="w-3.5 h-3.5 accent-orange-500 cursor-pointer"
+                      />
+                      <label htmlFor="select-all-charts" className="text-[10px] text-neutral-400 cursor-pointer">Select all</label>
+                    </div>
+                  )}
+
+                  <div className="flex-1 overflow-auto space-y-2 pr-1">
+                    {dashboardItems.length === 0 ? (
+                      <div className="text-center text-neutral-500 mt-10 text-xs">
+                        No charts in dashboard yet. Switch to "Add Chart" tab to add some.
+                      </div>
+                    ) : (
+                      dashboardItems.map((item: any) => {
+                        if (!item.chart) return null;
+                        const chartId = item.chart.id;
+                        const perms = chartPermissions[chartId];
+                        const permCount = perms?.length || 0;
+                        const isSelected = selectedManagedCharts.includes(chartId);
+                        const tabName = dashboardTabs.find(t => t.id === (item.tabId || 'default'))?.name || 'Default';
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-3 bg-neutral-950 border rounded-xl transition-all ${isSelected ? 'border-orange-500 bg-orange-500/5' : 'border-neutral-800 hover:border-neutral-700'}`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={e => {
+                                  if (e.target.checked) {
+                                    setSelectedManagedCharts(prev => [...prev, chartId]);
+                                  } else {
+                                    setSelectedManagedCharts(prev => prev.filter(id => id !== chartId));
+                                  }
+                                }}
+                                className="w-3.5 h-3.5 accent-orange-500 mt-0.5 cursor-pointer shrink-0"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-xs font-semibold text-orange-400 truncate">{item.chart.name}</span>
+                                  <button
+                                    onClick={async () => {
+                                      if (allSystemUsers.length === 0) {
+                                        try {
+                                          const users = await api.permissions.listUsers();
+                                          setAllSystemUsers(users);
+                                        } catch { }
+                                      }
+                                      setPermissionTargetChartIds([chartId]);
+                                      setShowPermissionModal(true);
+                                    }}
+                                    className="p-1 hover:bg-neutral-800 text-neutral-500 hover:text-orange-500 rounded-lg transition-colors cursor-pointer shrink-0"
+                                    title="Manage Permissions"
+                                  >
+                                    <Settings2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                <p className="text-[10px] text-neutral-600 mt-0.5">{item.chart.chart_type} · {tabName}</p>
+                                <div className="flex items-center gap-1 mt-1.5">
+                                  {permCount === 0 ? (
+                                    <span className="flex items-center gap-1 px-1.5 py-0.5 bg-neutral-800 text-neutral-500 text-[9px] rounded font-semibold">
+                                      <Lock className="w-2.5 h-2.5" /> Private
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center gap-1 px-1.5 py-0.5 bg-orange-500/10 text-orange-400 text-[9px] rounded font-semibold">
+                                      <Users className="w-2.5 h-2.5" /> {permCount} user{permCount > 1 ? 's' : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -4332,7 +4892,7 @@ export default function BIHubPage() {
               <button
                 onClick={() => { setView("list"); setEditingChartId(null); }}
                 className="p-2 hover:bg-neutral-800 rounded-xl text-neutral-400 hover:text-white transition-colors cursor-pointer"
-                title="Back to BI Hub"
+                title="Back to Trực quan hóa"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
@@ -4671,17 +5231,18 @@ export default function BIHubPage() {
                         onClick={() => {
                           const cols = datasetPreview?.columns?.map((c: any) => c.name || c).join(', ') || '(chưa load dataset)';
                           const prompt = [
-                            `Tôi đang cấu hình Custom ECharts trong Apache Superset. Hãy viết một đoạn mã JavaScript HOÀN CHỈNH để vẽ chart ${aiPromptChartDesc || 'Donut chart'} sử dụng các trường dữ liệu sau: ${cols}.`,
+                            `Tôi đang cấu hình Custom ECharts trong hệ thống Trực quan hóa. Hãy viết một đoạn mã JavaScript HOÀN CHỈNH để vẽ chart ${aiPromptChartDesc || 'Donut chart'} sử dụng các trường dữ liệu sau: ${cols}.`,
                             ``,
-                            `Yêu cầu hiển thị dữ liệu: ${aiPromptFieldDesc || 'Hiển thị đầy đủ thông tin các trường lên Tooltip và Label'}.`,
-                            `Lưu ý về thiết kế: ${aiPromptDesignNote || 'Thiết kế hiện đại, màu sắc hài hòa, có bo góc nhẹ cho các phần tử'}.`,
+                            `DỮ LIỆU ĐẦU VÀO:`,
+                            `Hệ thống sẽ cung cấp một biến cục bộ tên là 'data'. Biến 'data' này là một mảng các Object (Array of Objects), trong đó mỗi Object đại diện cho một bản ghi từ SQL. Ví dụ: [{ "truong_1": 10, "truong_2": "A" }, ...]`,
                             ``,
-                            `⚠️ CÁC QUY TẮC BẮT BUỘC KHI VIẾT CODE CHO SUPERSET:`,
-                            `1. KHÔNG KHAI BÁO BIẾN 'payload'. Trong Superset phiên bản mới, dữ liệu truyền vào qua biến 'data'. Hãy dùng cú pháp an toàn: "const rawData = (typeof data !== 'undefined' ? data : (typeof payload !== 'undefined' ? payload.data : []));" để tránh lỗi 'payload is not defined'.`,
-                            `2. Dữ liệu (rawData) là một mảng các Object, mỗi Object chứa các key chính xác như danh sách trường dữ liệu đã cho ở trên. Hãy sử dụng cấu trúc 'dataset' của ECharts và dùng hàm '.map()' để chuyển đổi 'rawData' sang dạng mảng hai chiều (Mảng các dòng dữ liệu kèm Header ở dòng đầu tiên).`,
-                            `3. Tại cấu hình 'series', sử dụng thuộc tính 'encode' (itemName, value) để ánh xạ dữ liệu từ dataset thay vì hardcode dữ liệu vào từng phần tử.`,
-                            `4. Tùy biến thuộc tính 'tooltip.formatter' bằng một hàm (function) trả về chuỗi HTML string để hiển thị tường minh TẤT CẢ các trường dữ liệu được yêu cầu khi người dùng di chuột vào biểu đồ.`,
-                            `5. Ở cuối đoạn mã, BẮT BUỘC phải có lệnh "return option;" để Superset nhận diện và render được biểu đồ. KHÔNG giải thích dông dài, CHỈ trả về đoạn code JavaScript chạy được trực tiếp.`,
+                            `YÊU CẦU VỀ CODE:`,
+                            `1. KHÔNG sử dụng 'fetch' hay gọi API bên ngoài. Dữ liệu đã có sẵn trong biến 'data'.`,
+                            `2. Hãy sử dụng hàm '.map()' trên biến 'data' để trích xuất các mảng cần thiết cho xAxis.data, yAxis.data hoặc series.data. Ví dụ: const labels = data.map(item => item.name);`,
+                            `3. Yêu cầu hiển thị dữ liệu chi tiết: ${aiPromptFieldDesc || 'Hiển thị đầy đủ thông tin các trường lên Tooltip và Label'}.`,
+                            `4. Lưu ý về thiết kế: ${aiPromptDesignNote || 'Thiết kế hiện đại, màu sắc hài hòa, có hiệu ứng dark mode, bo góc nhẹ'}.`,
+                            `5. Biểu đồ phải có Tooltip trực quan (trigger: 'axis' hoặc 'item').`,
+                            `6. BẮT BUỘC đoạn mã phải kết thúc bằng lệnh "return option;" (trong đó 'option' là đối tượng cấu hình ECharts). KHÔNG giải thích, CHỈ trả về đoạn code JavaScript.`,
                           ].join('\n');
                           navigator.clipboard.writeText(prompt).then(() => {
                             setAiPromptCopied(true);
@@ -4700,28 +5261,24 @@ export default function BIHubPage() {
                     </div>
                     <div className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl p-4 overflow-auto shadow-inner relative">
                       <p className="text-xs leading-relaxed font-mono text-neutral-300 whitespace-pre-wrap select-all">
-                        <span className="text-neutral-500">tôi đang sử dụng superset và muốn đoạn code echart để thực hiện vẽ chart </span>
-                        <span className="text-orange-400 font-semibold">{aiPromptChartDesc || <span className="italic text-neutral-600">(mô tả chart mà bạn muốn hiển thị)</span>}</span>
-                        <span className="text-neutral-500"> với các trường dữ liệu </span>
+                        <span className="text-neutral-500">Tôi muốn vẽ biểu đồ </span>
+                        <span className="text-orange-400 font-semibold">{aiPromptChartDesc || <span className="italic text-neutral-600">(mô tả loại chart)</span>}</span>
+                        <span className="text-neutral-500"> sử dụng biến </span>
+                        <span className="text-orange-400 font-semibold">data</span>
+                        <span className="text-neutral-500"> là mảng các record chứa các cột: </span>
                         <span className="text-sky-400 font-semibold">
                           {datasetPreview?.columns?.length > 0
                             ? datasetPreview.columns.map((c: any) => c.name || c).join(', ')
-                            : <span className="italic text-neutral-600">(chưa load dataset)</span>
+                            : <span className="italic text-neutral-600">(chưa có dataset)</span>
                           }
                         </span>
-                        <span className="text-neutral-500"> trong đó dữ liệu tôi muốn hiển thị ra: </span>
-                        <span className="text-emerald-400 font-semibold">{aiPromptFieldDesc || <span className="italic text-neutral-600">(mô tả trường mà bạn muốn hiển thị)</span>}</span>
-                        <span className="text-neutral-500">. lưu ý về thiết kế: </span>
-                        <span className="text-pink-400 font-semibold">{aiPromptDesignNote || <span className="italic text-neutral-600">(các thiết kế mà bạn muốn hiển thị)</span>}</span>
+                        <span className="text-neutral-500">. Chi tiết hiển thị: </span>
+                        <span className="text-emerald-400 font-semibold">{aiPromptFieldDesc || <span className="italic text-neutral-600">(trường dữ liệu nào ở đâu)</span>}</span>
+                        <span className="text-neutral-500">. Thiết kế: </span>
+                        <span className="text-pink-400 font-semibold">{aiPromptDesignNote || <span className="italic text-neutral-600">(màu sắc, style...)</span>}</span>
+                        <span className="text-neutral-500">. Bắt buộc kết thúc bằng lệnh </span>
+                        <span className="text-orange-400 font-semibold">return option;</span>
                       </p>
-
-                      {/* Fixed prompt requirement */}
-                      <div className="mt-4 pt-3 border-t border-neutral-800/60">
-                        <p className="text-[10px] text-neutral-500 mb-2 italic">Yêu cầu bổ sung:</p>
-                        <p className="text-[11px] text-orange-400/80 font-mono leading-tight">
-                          trong edit chart phần hiển thị các cột của dataset thay vì để là collapse hay expand thay bằng nút copy toàn bộ tên trường đưa vào một list dạng [a,b,c] nhé. và khi ấn vào trường nào thì có thể thực hiện copy name của trường đó
-                        </p>
-                      </div>
 
                       {/* AI Links */}
                       <div className="mt-4 pt-3 border-t border-neutral-800/60 flex items-center gap-3">
@@ -4753,6 +5310,218 @@ export default function BIHubPage() {
       {/* ==========================================
           MODALS
           ========================================== */}
+
+      {/* ─── No Permission Tab Popup ─── */}
+      {showNoPermTabPopup && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowNoPermTabPopup(false)}>
+          <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-6 relative animate-in scale-in duration-150 text-center" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-center mb-4">
+              <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <ShieldX className="w-7 h-7 text-red-400" />
+              </div>
+            </div>
+            <h3 className="font-bold text-lg text-neutral-50 mb-2">No Permission</h3>
+            <p className="text-sm text-neutral-400 mb-4">
+              You don't have access to <span className="text-orange-400 font-semibold">"{noPermTabName}"</span> tab. Contact your dashboard admin to request access.
+            </p>
+            <button
+              onClick={() => setShowNoPermTabPopup(false)}
+              className="px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold rounded-xl transition-all cursor-pointer"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Chart Permission Modal ─── */}
+      {showPermissionModal && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl flex flex-col max-h-[85vh] animate-in scale-in duration-150">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-5 border-b border-neutral-800 shrink-0">
+              <div>
+                <h3 className="font-bold text-lg text-neutral-50 flex items-center gap-2">
+                  <Shield className="text-orange-500 w-5 h-5" />
+                  Chart Permissions
+                </h3>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  {permissionTargetChartIds.length === 1
+                    ? `Setting access for: ${dashboardItems.find(i => i.chart?.id === permissionTargetChartIds[0])?.chart?.name || permissionTargetChartIds[0]}`
+                    : `Setting access for ${permissionTargetChartIds.length} charts`
+                  }
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowPermissionModal(false); setPermissionUserSearch(''); }}
+                className="p-1.5 hover:bg-neutral-800 rounded-xl text-neutral-400 hover:text-neutral-50 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Info Banner */}
+            <div className="mx-5 mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2 shrink-0">
+              <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-300">
+                <span className="font-bold">Private by default.</span> Charts with no users assigned are only visible to <span className="font-semibold">admins</span>. Add users below to grant view access.
+              </p>
+            </div>
+
+            {/* Search Users */}
+            <div className="px-5 pt-4 shrink-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-neutral-500" />
+                <input
+                  type="text"
+                  placeholder="Search users by name or email..."
+                  value={permissionUserSearch}
+                  onChange={e => setPermissionUserSearch(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-4 py-2 text-sm text-neutral-50 focus:border-orange-500 focus:outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Current Permissions Summary */}
+            <div className="px-5 pt-3 shrink-0">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">
+                  Grant access to users
+                </span>
+                {(() => {
+                  // Get union of all user_ids across target charts for initial selection
+                  const allPermitted = permissionTargetChartIds.flatMap(cid => chartPermissions[cid] || []);
+                  const uniquePermitted = [...new Set(allPermitted)];
+                  return uniquePermitted.length > 0 ? (
+                    <span className="text-[10px] text-orange-400 font-semibold">{uniquePermitted.length} user{uniquePermitted.length > 1 ? 's' : ''} with access</span>
+                  ) : null;
+                })()}
+              </div>
+            </div>
+
+            {/* Users List */}
+            <div className="flex-1 overflow-auto px-5 pb-2 space-y-2 min-h-0">
+              {allSystemUsers
+                .filter(u => {
+                  const q = permissionUserSearch.toLowerCase();
+                  return !q || (u.email || '').toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q);
+                })
+                .map(u => {
+                  // For single chart: check if user is in that chart's permissions
+                  // For multi-chart: check if user is in ALL selected charts
+                  const isGranted = permissionTargetChartIds.every(cid => (chartPermissions[cid] || []).includes(u.id));
+                  const isPartial = !isGranted && permissionTargetChartIds.some(cid => (chartPermissions[cid] || []).includes(u.id));
+
+                  return (
+                    <div
+                      key={u.id}
+                      onClick={() => {
+                        // Toggle permission for this user across all target charts
+                        setChartPermissions(prev => {
+                          const next = { ...prev };
+                          if (isGranted) {
+                            // Remove from all target charts
+                            permissionTargetChartIds.forEach(cid => {
+                              next[cid] = (next[cid] || []).filter(uid => uid !== u.id);
+                            });
+                          } else {
+                            // Add to all target charts
+                            permissionTargetChartIds.forEach(cid => {
+                              next[cid] = [...new Set([...(next[cid] || []), u.id])];
+                            });
+                          }
+                          return next;
+                        });
+                      }}
+                      className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all border ${isGranted ? 'bg-orange-500/10 border-orange-500/30' : isPartial ? 'bg-amber-500/5 border-amber-500/20' : 'border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/50'}`}
+                    >
+                      {/* Avatar */}
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isGranted ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-400'}`}>
+                        {(u.full_name || u.email || '?')[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-neutral-200 truncate">{u.full_name || u.email}</p>
+                        <p className="text-[10px] text-neutral-500 truncate">{u.email} · {u.role || 'user'}</p>
+                      </div>
+                      <div className="shrink-0">
+                        {isGranted ? (
+                          <ShieldCheck className="w-4 h-4 text-orange-400" />
+                        ) : isPartial ? (
+                          <Shield className="w-4 h-4 text-amber-400 opacity-50" />
+                        ) : (
+                          <ShieldX className="w-4 h-4 text-neutral-600" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              }
+              {allSystemUsers.filter(u => {
+                const q = permissionUserSearch.toLowerCase();
+                return !q || (u.email || '').toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q);
+              }).length === 0 && (
+                <div className="text-center text-neutral-500 text-xs py-8">No users found matching "{permissionUserSearch}"</div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-neutral-800 flex justify-between items-center shrink-0">
+              <button
+                onClick={() => {
+                  // Clear all permissions for target charts
+                  setChartPermissions(prev => {
+                    const next = { ...prev };
+                    permissionTargetChartIds.forEach(cid => { next[cid] = []; });
+                    return next;
+                  });
+                }}
+                className="px-4 py-2 text-neutral-500 hover:text-red-400 text-sm font-semibold transition-colors cursor-pointer"
+              >
+                Clear All
+              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setShowPermissionModal(false); setPermissionUserSearch(''); }}
+                  className="px-4 py-2 border border-neutral-700 text-neutral-300 text-sm font-semibold rounded-xl hover:bg-neutral-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={savingPermissions}
+                  onClick={async () => {
+                    setSavingPermissions(true);
+                    try {
+                      // Save permissions to backend
+                      if (permissionTargetChartIds.length === 1) {
+                        await api.permissions.setChartPermissions(
+                          permissionTargetChartIds[0],
+                          chartPermissions[permissionTargetChartIds[0]] || []
+                        );
+                      } else {
+                        // For batch: use intersection (permissions that ALL charts share)
+                        const userIds = [...new Set(
+                          permissionTargetChartIds.flatMap(cid => chartPermissions[cid] || [])
+                        )];
+                        await api.permissions.batchSetPermissions(permissionTargetChartIds, userIds);
+                      }
+                      Sonner.toast.success('Permissions saved successfully');
+                      setShowPermissionModal(false);
+                      setPermissionUserSearch('');
+                    } catch (err) {
+                      Sonner.toast.error('Failed to save permissions');
+                    } finally {
+                      setSavingPermissions(false);
+                    }
+                  }}
+                  className="px-6 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-orange-600/20"
+                >
+                  {savingPermissions ? 'Saving...' : 'Save Permissions'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Dashboard Modal */}
       {showCreateDashModal && (
@@ -4922,7 +5691,7 @@ export default function BIHubPage() {
                         }}
                         className="mt-4 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
                       >
-                        Go to Data Hub
+                        Go to Kho truy vấn
                       </button>
                     </div>
                   ) : (
@@ -5012,8 +5781,12 @@ export default function BIHubPage() {
                   ) : (
                     <div className="flex flex-col h-full p-2 overflow-auto">
                       <h4 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-4">AI Instruction Prompt</h4>
-                      <div className="flex-1 bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 font-mono text-sm text-orange-400 leading-relaxed whitespace-pre-wrap select-all">
-                        {`trong edit chart phần hiển thị các cột của dataset thay vì để là collapse hay expand thay bằng nút copy toàn bộ tên trường đưa vào một list dạng [a,b,c] nhé. và khi ấn vào trường nào thì có thể thực hiện copy name của trường đó`}
+                      <div className="flex-1 bg-neutral-900/50 border border-neutral-800 rounded-xl p-5 font-mono text-[11px] text-orange-400/90 leading-relaxed whitespace-pre-wrap select-all">
+                        {`Yêu cầu AI viết code ECharts cho hệ thống này:
+1. Sử dụng biến 'data' (mảng các Object) làm nguồn dữ liệu.
+2. Dùng 'data.map(item => item.ten_cot)' để lấy dữ liệu cho các trục.
+3. Luôn kết thúc bằng lệnh 'return option;'.
+4. Các cột hiện có: ${datasetPreview?.columns?.map((c: any) => c.name || c).join(', ') || '...loading'}`}
                       </div>
                       <div className="mt-4 p-4 bg-orange-500/5 border border-orange-500/10 rounded-xl">
                         <p className="text-xs text-neutral-400 italic">
@@ -5467,6 +6240,7 @@ export default function BIHubPage() {
             const isShape = widget.itemType === 'rectangle' || widget.itemType === 'circle';
             const isImage = widget.itemType === 'image';
             const isFilter = widget.itemType === 'filter';
+            const isCode = widget.itemType === 'code';
 
             return (
               <>
@@ -5487,6 +6261,53 @@ export default function BIHubPage() {
                 </div>
 
                 <div className="flex-1 p-5 space-y-5 overflow-y-auto custom-scrollbar">
+
+                  {/* Code Settings */}
+                  {isCode && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 border-b border-neutral-800 pb-2">
+                        <PenTool className="w-4 h-4 text-neutral-500" />
+                        <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">Custom JS Logic</span>
+                      </div>
+                      
+                      <div className="bg-orange-500/5 border border-orange-500/10 rounded-xl p-3">
+                        <p className="text-[10px] text-orange-400 leading-relaxed">
+                          Write JavaScript to add interactivity. Use <code className="bg-orange-500/10 px-1 rounded">document.getElementById('widget-&#123;&#123;id&#125;&#125;')</code> to target this element's container.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <label className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">JavaScript Code</label>
+                          <button 
+                            onClick={() => {
+                              const defaultCode = `// 1. Access the container element\nelement.innerHTML = '<div style="padding: 20px; color: #f97316; font-weight: bold; text-align: center; border: 2px dashed #f97316; border-radius: 12px; cursor: pointer;">Click me to set filter!</div>';\n\n// 2. Use the Bridge API to interact with the FE\nelement.onclick = () => {\n  // Example: Set a filter for 'Region' to 'North'\n  // setFilter('Region', 'North');\n  \n  notify('Interactive action triggered!', 'success');\n};\n\n// Available in context: { element, id, setFilter, switchTab, getWidget, notify }`;
+                              setDashboardWidgets(prev => prev.map(w => w.id === widget.id ? { ...w, code: defaultCode } : w));
+                            }}
+                            className="text-[10px] text-orange-500 hover:underline font-bold"
+                          >
+                            Reset Template
+                          </button>
+                        </div>
+                        <div className="h-64 rounded-xl border border-neutral-800 overflow-hidden shadow-inner">
+                          <Editor
+                            theme="vs-dark"
+                            language="javascript"
+                            value={widget.code || ""}
+                            onChange={(val) => setDashboardWidgets(prev => prev.map(w => w.id === widget.id ? { ...w, code: val } : w))}
+                            options={{
+                              minimap: { enabled: false },
+                              fontSize: 12,
+                              scrollBeyondLastLine: false,
+                              lineNumbers: "on",
+                              padding: { top: 10, bottom: 10 },
+                              tabSize: 2,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Filter Settings */}
                   {isFilter && (
@@ -6251,6 +7072,84 @@ export default function BIHubPage() {
           })()}
         </div>
       )}
+      {showIframePreview && (() => {
+        const frame = mainFrameId 
+          ? (dashboardFrames.find(f => f.id === mainFrameId) || dashboardWidgets.find(w => w.id === mainFrameId)) 
+          : null;
+        const frameW = frame?.pos.w || 1280;
+        const frameH = frame?.pos.h || 720;
+        const frameName = (frame as any)?.name || (frame as any)?.text || 'Dashboard Preview';
+        
+        // Simple heuristic for scaling to fit 95% of viewport
+        // In a real app, we might use a resize observer or state
+        const winW = typeof window !== 'undefined' ? window.innerWidth : 1920;
+        const winH = typeof window !== 'undefined' ? window.innerHeight : 1080;
+        const scale = Math.min((winW * 0.95) / frameW, (winH * 0.9) / frameH);
+
+        return (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="absolute top-6 right-6 z-[10002] flex items-center gap-4">
+              <div className="flex flex-col items-end">
+                <span className="text-xs font-bold text-neutral-200 uppercase tracking-widest">{frameName}</span>
+              </div>
+
+              <button
+                onClick={() => {
+                  const url = `${window.location.origin}/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}`;
+                  const iframeCode = `<iframe src="${url}" width="${frameW}" height="${frameH}" style="border:none; width:100%; max-width:${frameW}px; aspect-ratio:${frameW}/${frameH};" frameborder="0" allowfullscreen scrolling="no"></iframe>`;
+                  navigator.clipboard.writeText(iframeCode).then(() => {
+                    Sonner.toast.success("Iframe code copied to clipboard!");
+                  });
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-600/20 border border-emerald-500/30 active:scale-95"
+              >
+                <Copy className="w-4 h-4" /> Copy Iframe Code
+              </button>
+
+              <button
+                onClick={() => setShowIframePreview(false)}
+                className="p-2.5 bg-neutral-800 hover:bg-red-600 text-neutral-200 rounded-full transition-all shadow-xl cursor-pointer border border-neutral-700 hover:border-red-500"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Vertical centered button on the right edge to open in new tab */}
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 z-[10002] flex flex-col items-center">
+              <button
+                onClick={() => {
+                  const url = `/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}`;
+                  window.open(url, '_blank');
+                }}
+                className="group flex items-center justify-center w-12 h-12 bg-neutral-800 hover:bg-orange-600 text-neutral-300 hover:text-white rounded-l-2xl shadow-2xl transition-all border border-r-0 border-neutral-700 hover:border-orange-500 active:scale-95"
+                title="Open in new tab (Full Screen)"
+              >
+                <Forward className="w-6 h-6 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+
+            <div
+              style={{
+                width: frameW,
+                height: frameH,
+                minWidth: frameW,
+                minHeight: frameH,
+                transform: `scale(${scale})`,
+                transformOrigin: 'center center',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                backgroundColor: frame?.bgColor || selectedDashboard?.theme_config?.canvasBg || '#ffffff'
+              }}
+              className="rounded-lg overflow-hidden border border-neutral-800 relative shadow-2xl shrink-0"
+            >
+              <iframe
+                src={`/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}`}
+                className="w-full h-full border-none"
+                title="Dashboard Preview"
+              />
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

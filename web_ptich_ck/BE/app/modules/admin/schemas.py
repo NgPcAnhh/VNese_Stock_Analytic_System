@@ -222,6 +222,7 @@ class RoleResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
+    permissions: List[str] = []
     user_count: int
     created_at: datetime
 
@@ -231,3 +232,10 @@ class RoleResponse(BaseModel):
 
 class UpdateRoleRequest(BaseModel):
     description: Optional[str] = None
+    permissions: Optional[List[str]] = None
+
+
+class CreateRoleRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    permissions: List[str] = []

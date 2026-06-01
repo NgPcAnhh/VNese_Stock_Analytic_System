@@ -582,7 +582,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                                     <p className="font-medium leading-none">{user.full_name || user.email.split('@')[0]}</p>
                                     <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
                                 </div>
-                                {user.role === 'admin' && (
+                                {user?.role === 'admin' && (
                                     <Button variant="outline" size="sm" onClick={() => router.push('/admin')} className="ml-2 hidden lg:flex items-center gap-1 border-primary/50 text-primary hover:bg-primary/10">
                                         <ShieldCheck className="h-4 w-4" />
                                         <span className="hidden xl:inline">Quản Trị</span>

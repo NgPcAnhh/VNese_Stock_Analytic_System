@@ -163,6 +163,33 @@ function PriceBoardSwitch({ value, onChange }: { value: boolean; onChange: (v: b
     );
 }
 
+function AutoHideSidebarSwitch({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+    return (
+        <button
+            role="switch"
+            aria-checked={value}
+            onClick={() => onChange(!value)}
+            className={cn(
+                "relative inline-flex h-7 w-14 items-center rounded-full transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                value ? "bg-blue-500" : "bg-muted-foreground/30"
+            )}
+        >
+            <span
+                className={cn(
+                    "inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-md transition-transform duration-300",
+                    value ? "translate-x-8" : "translate-x-1"
+                )}
+            >
+                {value ? (
+                    <EyeOff className="size-3 text-blue-500" />
+                ) : (
+                    <Eye className="size-3 text-muted-foreground" />
+                )}
+            </span>
+        </button>
+    );
+}
+
 
 // ─── Change Password Dialog ───────────────────────────────────────────────────
 function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
@@ -576,7 +603,7 @@ function TwoFADisableDialog({ onClose, onSuccess }: { onClose: () => void; onSuc
 // ─── Settings Page ─────────────────────────────────────────────────────────────
 export default function SettingsPage() {
     const {
-        darkMode, setDarkMode,        showPriceBoardPopup, setShowPriceBoardPopup,        sidebarItems, moveSidebarItem, toggleSidebarItem, resetSidebarItems,
+        darkMode, setDarkMode,        showPriceBoardPopup, setShowPriceBoardPopup,        autoHideSidebar, setAutoHideSidebar,        sidebarItems, moveSidebarItem, toggleSidebarItem, resetSidebarItems,
     } = useSettings();
     const { user, isAuthenticated } = useAuth();
     const [currentPlan] = useState("free");
@@ -879,6 +906,25 @@ export default function SettingsPage() {
                                 </Badge>
                             </div>
                             <PriceBoardSwitch value={showPriceBoardPopup} onChange={setShowPriceBoardPopup} />
+                        </div>
+                    </Card>
+
+                    {/* Auto-hide Sidebar toggle */}
+                    <Card className="p-6">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                    {autoHideSidebar ? <EyeOff className="size-4 text-blue-500" /> : <Eye className="size-4 text-muted-foreground" />}
+                                    <h3 className="font-semibold text-foreground">Tự động ẩn Sidebar</h3>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                    Tự động ẩn thanh bên điều hướng. Chỉ hiển thị khi di chuyển chuột vào cạnh trái màn hình (giống trang Bảng điện).
+                                </p>
+                                <Badge variant="outline" className="text-xs w-fit text-foreground">
+                                    {autoHideSidebar ? "Đang bật — Tự động ẩn" : "Đang tắt — Cố định"}
+                                </Badge>
+                            </div>
+                            <AutoHideSidebarSwitch value={autoHideSidebar} onChange={setAutoHideSidebar} />
                         </div>
                     </Card>
 

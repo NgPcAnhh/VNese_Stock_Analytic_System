@@ -9,6 +9,7 @@ export interface User {
     full_name?: string;
     avatar_url?: string;
     role: string;
+    permissions: string[];
     auth_provider: string;
     is_verified: boolean;
     is_totp_enabled?: boolean;

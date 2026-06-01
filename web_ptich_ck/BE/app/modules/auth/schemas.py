@@ -65,6 +65,7 @@ class UserResponse(BaseModel):
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     role: str
+    permissions: list[str] = []
     auth_provider: str
     is_verified: bool
     is_totp_enabled: bool = False

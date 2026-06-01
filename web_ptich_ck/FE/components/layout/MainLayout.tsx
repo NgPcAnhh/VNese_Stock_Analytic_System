@@ -8,6 +8,7 @@ import { StockTicker } from "./StockTicker";
 import ScrollToTopButton from "./ScrollToTopButton";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/AuthContext";
+import { useSettings } from "@/lib/SettingsContext";
 import { useSessionTracking, usePageViewTracking, useErrorTracking } from "@/hooks/useTracking";
 import { PriceBoardPopup } from "@/components/dashboard/PriceBoardPopup";
 import { Menu } from "lucide-react";
@@ -22,11 +23,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const [isCollapsed, setIsCollapsed] = useState(true);
     const [showPopupForCurrentLogin, setShowPopupForCurrentLogin] = useState(false);
     
-    // Trạng thái cho sidebar hover trên bảng điện
+    // Trạng thái cho sidebar hover
     const [isHoverSidebarVisible, setIsHoverSidebarVisible] = useState(false);
     const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
 
     const { isAuthenticated, isLoading, user, openAuthModal } = useAuth();
+    const { autoHideSidebar } = useSettings();
 
     // Theo dõi thời gian phiên làm việc
     useSessionTracking(user?.id);
@@ -75,10 +77,18 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         }
     }, [pathname, showPopupForCurrentLogin]);
 
-    const hideSidebarFromUrl = searchParams.get("hideSidebar") === "true";
+    const hideSidebarFromUrl = searchParams.get("hideSidebar") === "true" || searchParams.get("preview") === "true";
+    const hideHeaderFromUrl = searchParams.get("disable_header") === "true" || searchParams.get("preview") === "true";
     const isPriceBoardIframe = pathname === "/price-board" && hideSidebarFromUrl;
     const isPriceBoardMain = pathname === "/price-board" && !hideSidebarFromUrl;
+
+    // logic xác định xem có nên dùng chế độ ẩn sidebar không
+    // Luôn ẩn ở PriceBoardMain, hoặc ẩn ở các trang khác nếu setting autoHideSidebar bật
+    const useAutoHideMode = isPriceBoardMain || autoHideSidebar;
+
     const isBIHub = pathname === "/data-sources" || pathname === "/hub";
+    const isPreviewMode = searchParams.get("preview") === "true";
+
     // Reset timeout khi thao tác với sidebar hover
     const handleSidebarHoverActivity = () => {
         if (hoverTimeout) {
@@ -90,7 +100,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         }, 3000);
         setHoverTimeout(timeout);
     };
-    if (isPriceBoardIframe) {
+
+    if (isPriceBoardIframe || (isBIHub && isPreviewMode)) {
         return (
             <div className="flex h-screen overflow-hidden bg-background">
                 <main className="flex-1 overflow-hidden w-full transition-all duration-300">
@@ -102,16 +113,16 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
     return (
         <div className="flex h-screen overflow-hidden bg-background relative">
-            {/* Vùng trigger bên trái để mở sidebar hover khi ở trang bảng điện chính */}
-            {isPriceBoardMain && (
+            {/* Vùng trigger bên trái để mở sidebar hover */}
+            {useAutoHideMode && (
                 <div 
                     className="absolute left-0 top-0 bottom-0 w-8 z-40 bg-transparent" 
                     onMouseEnter={handleSidebarHoverActivity} 
                 />
             )}
 
-            {/* Desktop Sidebar - Hidden on mobile, visible on lg */}
-            {!isPriceBoardMain && (
+            {/* Desktop Sidebar - Fixed position (nếu không ở chế độ ẩn) */}
+            {!useAutoHideMode && (
                 <div className="hidden lg:block transition-all duration-300 ease-in-out">
                     <Sidebar
                         collapsed={isCollapsed}
@@ -120,8 +131,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 </div>
             )}
 
-            {/* Desktop Hover Sidebar for Price Board */}
-            {isPriceBoardMain && (
+            {/* Desktop Hover Sidebar - Dành cho chế độ ẩn (Price board hoặc setting bật) */}
+            {useAutoHideMode && (
                 <div 
                     className={cn(
                         "hidden lg:block absolute left-0 top-0 bottom-0 z-50 transition-transform duration-300 ease-in-out bg-background border-r border-border shadow-2xl",

@@ -72,7 +72,7 @@ def get_refresh_token_expiry() -> datetime:
 
 def create_temp_2fa_token(user_id: int) -> str:
     """Create a short-lived temp token (5 min) for 2FA verification step."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=45)
     payload = {
         "sub": str(user_id),
         "type": "2fa_temp",

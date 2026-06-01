@@ -94,6 +94,7 @@ from app.modules.bi.queries.router import router as queries_router
 from app.modules.bi.datasets.router import router as datasets_router
 from app.modules.bi.charts.router import router as charts_router
 from app.modules.bi.dashboards.router import router as dashboards_router
+from app.modules.bi.permissions.router import router as permissions_router
 
 # Include routers
 app.include_router(tong_quan_router, prefix="/api/v1")
@@ -114,6 +115,7 @@ app.include_router(queries_router, prefix="/api/v1/queries", tags=["queries"])
 app.include_router(datasets_router, prefix="/api/v1/datasets", tags=["datasets"])
 app.include_router(charts_router, prefix="/api/v1/charts", tags=["charts"])
 app.include_router(dashboards_router, prefix="/api/v1/dashboards", tags=["dashboards"])
+app.include_router(permissions_router, prefix="/api/v1/permissions", tags=["chart-permissions"])
 
 @app.get("/")
 async def read_root():

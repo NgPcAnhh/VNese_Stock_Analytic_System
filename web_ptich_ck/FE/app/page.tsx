@@ -11,6 +11,7 @@ import { ValuationChart } from "@/components/charts/ValuationChart";
 import { LiquidityChart } from "@/components/charts/LiquidityChart";
 import { TopStocks } from "@/components/dashboard/TopStocks";
 import { MacroData } from "@/components/dashboard/MacroData";
+import { MarketIndicesOverview } from "@/components/dashboard/MarketIndicesOverview";
 import { NewsSection } from "@/components/dashboard/NewsSection";
 import { Footer } from "@/components/layout/Footer";
 import { BarChart3, TrendingUp, ChevronDown, Rocket, Activity, LineChart, Newspaper, ArrowRight, Database, Globe, ArrowLeftRight, CandlestickChart, ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
@@ -542,8 +543,11 @@ export default function Home() {
                         </div>
                     </div>
 
-                    <div className="p-2 rounded-2xl bg-card">
-                        <MacroData />
+                    <div className="space-y-8">
+                        <MarketIndicesOverview />
+                        <div className="p-2 rounded-2xl bg-card">
+                            <MacroData />
+                        </div>
                     </div>
                 </section>
 

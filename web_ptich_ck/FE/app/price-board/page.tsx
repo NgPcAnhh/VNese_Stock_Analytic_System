@@ -1,7 +1,7 @@
 import PriceBoard from "@/components/price-board/PriceBoard";
 
 export const metadata = {
-  title: "Bảng điện - StockPro",
+  title: "Bảng giá chứng khoán - StockPro",
   description: "Bảng giá chứng khoán realtime",
 };
 
