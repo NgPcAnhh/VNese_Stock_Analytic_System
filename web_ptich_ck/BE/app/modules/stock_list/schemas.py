@@ -117,6 +117,14 @@ class ScreenerItem(BaseModel):
     weekChange52: Optional[float] = None     # %
     high52w: Optional[float] = None          # VND
     low52w: Optional[float] = None           # VND
+    price_n_1: Optional[float] = None        # Giá ngày n-1
+    volume_n_1: Optional[int] = None         # KL ngày n-1
+    price_n_2: Optional[float] = None        # Giá ngày n-2
+    volume_n_2: Optional[int] = None         # KL ngày n-2
+    priceChange_n_1_2: Optional[float] = None        # Thay đổi giá n-1 so với n-2
+    priceChangePercent_n_1_2: Optional[float] = None # % thay đổi giá n-1 so với n-2
+    volumeChange_n_1_2: Optional[int] = None         # Thay đổi KL n-1 so với n-2
+    volumeChangePercent_n_1_2: Optional[float] = None # % thay đổi KL n-1 so với n-2
     beta: Optional[float] = None
     rsi14: Optional[float] = None
     macdSignal: Optional[str] = None

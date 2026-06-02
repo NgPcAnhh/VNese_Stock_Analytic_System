@@ -13,12 +13,13 @@ WITH ranked_dates AS (
     FROM history_price
     WHERE trading_date IS NOT NULL
     ORDER BY trading_date DESC
-    LIMIT 2
+    LIMIT 3
 ),
 dates AS (
     SELECT
         MAX(CASE WHEN rn = 1 THEN trading_date END) AS latest_date,
         MAX(CASE WHEN rn = 2 THEN trading_date END) AS prev_date,
+        MAX(CASE WHEN rn = 3 THEN trading_date END) AS prev_prev_date,
         TO_CHAR(
             (
                 TO_DATE(MAX(CASE WHEN rn = 1 THEN trading_date END), 'YYYY-MM-DD')
@@ -170,9 +171,14 @@ hp_latest AS (
     JOIN dates d ON hp.trading_date = d.latest_date
 ),
 hp_prev AS (
-    SELECT UPPER(BTRIM(hp.ticker)) AS ticker, hp.close
+    SELECT UPPER(BTRIM(hp.ticker)) AS ticker, hp.close, hp.volume
     FROM history_price hp
     JOIN dates d ON hp.trading_date = d.prev_date
+),
+hp_prev_prev AS (
+    SELECT UPPER(BTRIM(hp.ticker)) AS ticker, hp.close, hp.volume
+    FROM history_price hp
+    JOIN dates d ON hp.trading_date = d.prev_prev_date
 ),
 co_dedup AS (
     SELECT DISTINCT ON (UPPER(BTRIM(ticker)))
@@ -273,7 +279,10 @@ SELECT
 
     hp.close,
     hp_prev.close AS prev_close,
+    hp_prev_prev.close AS prev_prev_close,
     hp.volume,
+    hp_prev.volume AS prev_volume,
+    hp_prev_prev.volume AS prev_prev_volume,
     av.avg_volume_10d,
     sp.sparkline,
 
@@ -396,6 +405,7 @@ FROM base_stocks bs
 CROSS JOIN dates d
 LEFT JOIN hp_latest hp ON hp.ticker = bs.ticker
 LEFT JOIN hp_prev ON hp_prev.ticker = bs.ticker
+LEFT JOIN hp_prev_prev ON hp_prev_prev.ticker = bs.ticker
 LEFT JOIN co_dedup co ON co.ticker = bs.ticker
 LEFT JOIN shares sh ON sh.ticker = bs.ticker
 LEFT JOIN equity eq ON eq.ticker = bs.ticker

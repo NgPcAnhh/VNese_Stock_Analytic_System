@@ -15,7 +15,12 @@ interface BreadthData {
     unchanged: number;
 }
 
-export const MarketBreadth = () => {
+interface MarketBreadthProps {
+    titleSize?: "sm" | "lg";
+    chartHeight?: string;
+}
+
+export const MarketBreadth = ({ titleSize = "lg", chartHeight = "100%" }: MarketBreadthProps) => {
     const [data, setData] = useState<BreadthData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -137,7 +142,7 @@ export const MarketBreadth = () => {
         <Card className="shadow-sm border-border h-full flex flex-col">
             <CardHeader className="pb-2 shrink-0">
                 <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-bold text-foreground">
+                    <CardTitle className={`${titleSize === "sm" ? "text-sm" : "text-lg"} font-bold text-foreground`}>
                         Độ rộng thị trường
                     </CardTitle>
                     {!loading && (
@@ -151,19 +156,14 @@ export const MarketBreadth = () => {
                     )}
                 </div>
             </CardHeader>
-            <CardContent className="flex-1 min-h-0 relative">
+            <CardContent className="flex-1 min-h-0 relative p-4">
                 {loading && !data ? (
-                    <div className="flex flex-col items-center justify-center h-full gap-4">
+                    <div className="flex flex-col items-center justify-center h-full min-h-[180px] gap-4">
                         <div className="relative">
-                            <Skeleton className="h-40 w-40 rounded-full" />
+                            <Skeleton className="h-32 w-32 rounded-full" />
                             <div className="absolute inset-0 flex items-center justify-center">
                                 <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
                             </div>
-                        </div>
-                        <div className="flex gap-6 animate-pulse">
-                            <Skeleton className="h-4 w-16" />
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="h-4 w-14" />
                         </div>
                     </div>
                 ) : error ? (
@@ -179,7 +179,7 @@ export const MarketBreadth = () => {
                 ) : (
                     <ReactECharts
                         option={option}
-                        style={{ height: "100%", width: "100%" }}
+                        style={{ height: chartHeight, width: "100%" }}
                         notMerge
                     />
                 )}

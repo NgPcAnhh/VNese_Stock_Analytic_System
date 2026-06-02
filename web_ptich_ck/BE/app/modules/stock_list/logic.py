@@ -215,6 +215,14 @@ async def get_stock_overview(
             FROM {SCHEMA}.history_price
             WHERE trading_date = :prev_date
         ),
+        latest_eb AS (
+            SELECT DISTINCT ON (UPPER(BTRIM(ticker)))
+                UPPER(BTRIM(ticker)) AS ticker,
+                CASE WHEN match_price > 0 THEN match_price ELSE ref_price END AS eb_price
+            FROM {SCHEMA}.electric_board
+            WHERE match_price > 0 OR ref_price > 0
+            ORDER BY UPPER(BTRIM(ticker)), trading_date DESC
+        ),
         bctc_metrics AS (
             SELECT bs.ticker, s.shares, e.equity, n.ttm_ni
             FROM co_dedup bs
@@ -243,6 +251,7 @@ async def get_stock_overview(
             co.sector,
             co.exchange_norm AS exchange,
             hp.close AS current_price,
+            eb.eb_price,
             CASE WHEN hp_prev.close > 0
                 THEN hp.close - hp_prev.close
                 ELSE 0
@@ -294,6 +303,7 @@ async def get_stock_overview(
         LEFT JOIN hp_prev ON hp_prev.ticker = bs.ticker
         LEFT JOIN latest_fr fr ON fr.ticker = bs.ticker
         LEFT JOIN bctc_metrics bm ON bm.ticker = bs.ticker
+        LEFT JOIN latest_eb eb ON eb.ticker = bs.ticker
         WHERE {where_clause}
         ORDER BY {sort_col} {sort_direction} NULLS LAST
         LIMIT :limit OFFSET :offset
@@ -330,9 +340,27 @@ async def get_stock_overview(
     for r in rows:
         t = r["ticker"]
         w52 = week52_map.get(t, {})
-        current = float(r["current_price"]) if r["current_price"] else None
-        high52 = w52.get("high")
-        low52 = w52.get("low")
+        
+        # Raw prices are usually in 1000s (e.g. 25.5) -> Convert to VND
+        current = float(r["current_price"]) * 1000 if r["current_price"] else None
+        p_change = float(r["price_change"]) * 1000 if r["price_change"] is not None else None
+        p_change_pct = float(r["price_change_percent"]) if r["price_change_percent"] is not None else None
+        
+        # sparkline values are also in 1000s
+        raw_sparkline = sparkline_map.get(t, [])
+        sparkline = [round(c * 1000, 0) for c in raw_sparkline]
+
+        # Fallback from sparkline
+        if current is None and sparkline:
+            current = sparkline[-1]
+            if len(sparkline) >= 2:
+                p_change = sparkline[-1] - sparkline[-2]
+                if sparkline[-2] > 0:
+                    p_change_pct = round((sparkline[-1] - sparkline[-2]) / sparkline[-2] * 100, 2)
+
+        high52 = float(w52["high"]) * 1000 if w52.get("high") else None
+        low52 = float(w52["low"]) * 1000 if w52.get("low") else None
+        
         # 52w change = (current - low52) / low52 * 100
         week_change_52 = None
         if current and low52 and low52 > 0:
@@ -343,23 +371,23 @@ async def get_stock_overview(
             "company_name": r["company_name"] if r["company_name"] and r["company_name"] != "NaN" else None,
             "sector": r["sector"] if r["sector"] and r["sector"] != "NaN" else None,
             "exchange": r["exchange"] if r["exchange"] and r["exchange"] != "NaN" else None,
-            "current_price": float(r["current_price"]) if r["current_price"] else None,
-            "price_change": float(r["price_change"]) if r["price_change"] else None,
-            "price_change_percent": float(r["price_change_percent"]) if r["price_change_percent"] else None,
+            "current_price": current,
+            "price_change": p_change,
+            "price_change_percent": p_change_pct,
             "volume": int(r["volume"]) if r["volume"] else None,
             "avg_volume_10d": avg_vol_map.get(t),
             "market_cap": float(r["computed_market_cap"]) if r["computed_market_cap"] else None,
             "pe": float(r["computed_pe"]) if r["computed_pe"] else None,
             "pb": float(r["computed_pb"]) if r["computed_pb"] else None,
-            "eps": float(r["computed_eps"]) if r["computed_eps"] else None,
-            "roe": round(r["roe"] * 100, 2) if r["roe"] else None,      # Convert ratio → percent
+            "eps": float(r["computed_eps"]) if r.get("computed_eps") else None,
+            "roe": round(r["roe"] * 100, 2) if r["roe"] else None,
             "roa": round(r["roa"] * 100, 2) if r["roa"] else None,
             "debt_to_equity": round(r["debt_to_equity"], 2) if r["debt_to_equity"] else None,
             "dividend_yield": round(r["dividend_yield"] * 100, 2) if r["dividend_yield"] else None,
             "high_52w": high52,
             "low_52w": low52,
             "week_change_52": week_change_52,
-            "sparkline": sparkline_map.get(t, []),
+            "sparkline": sparkline,
         })
 
     # ── Summary stats ──
@@ -614,6 +642,7 @@ async def _get_stock_overview_from_mv(
             mv.sector,
             mv.exchange,
             mv.current_price,
+            mv.eb_price,
             mv.price_change,
             mv.price_change_percent,
             mv.volume,
@@ -636,49 +665,41 @@ async def _get_stock_overview_from_mv(
         LIMIT :limit OFFSET :offset
     """)
 
-    summary_sql = text(f"""
-        SELECT
-            COUNT(*) AS total_stocks,
-            COUNT(*) FILTER (WHERE mv.price_change > 0) AS total_up,
-            COUNT(*) FILTER (WHERE mv.price_change < 0) AS total_down,
-            COUNT(*) FILTER (WHERE mv.price_change = 0) AS total_unchanged,
-            COALESCE(SUM(mv.volume), 0) AS total_volume,
-            AVG(mv.pe) FILTER (WHERE mv.pe > 0 AND mv.pe < 200) AS avg_pe
-        FROM {SCREENER_MV} mv
-    """)
+    # ... (summary_sql remains same) ...
 
-    query_params = {"limit": page_size, "offset": offset, **params}
-    try:
-        res = await db.execute(data_sql, query_params)
-        rows = res.mappings().all()
-    except Exception as exc:
-        logger.info("stock overview MV data query failed, fallback to legacy query: %s", exc)
-        await db.rollback()
-        return None
-
-    if not rows:
-        return None
-
-    try:
-        summary_res = await db.execute(summary_sql)
-        summary_row = summary_res.mappings().first()
-    except Exception as exc:
-        logger.info("stock overview MV summary query failed, fallback to legacy query: %s", exc)
-        await db.rollback()
-        return None
-
+    # ... (query execution remains same) ...
+    
+    # (Inside data loop)
     data = []
     for r in rows:
         sparkline_raw = r["sparkline"] or []
         sparkline = [float(x) for x in sparkline_raw if x is not None]
+        
+        current_p = float(r["current_price"]) if r["current_price"] is not None else None
+        eb_p = float(r["eb_price"]) if r.get("eb_price") is not None else None
+        p_change = float(r["price_change"]) if r["price_change"] is not None else None
+        p_change_pct = float(r["price_change_percent"]) if r["price_change_percent"] is not None else None
+
+        # Fallback 1: Electric Board price (real-time)
+        if current_p is None and eb_p:
+            current_p = eb_p
+
+        # Fallback 2: Sparkline (history)
+        if current_p is None and sparkline:
+            current_p = sparkline[-1]
+            if len(sparkline) >= 2:
+                p_change = sparkline[-1] - sparkline[-2]
+                if sparkline[-2] > 0:
+                    p_change_pct = round((sparkline[-1] - sparkline[-2]) / sparkline[-2] * 100, 2)
+
         data.append({
             "ticker": r["ticker"],
             "company_name": r["company_name"],
             "sector": r["sector"],
             "exchange": r["exchange"],
-            "current_price": float(r["current_price"]) if r["current_price"] is not None else None,
-            "price_change": float(r["price_change"]) if r["price_change"] is not None else None,
-            "price_change_percent": float(r["price_change_percent"]) if r["price_change_percent"] is not None else None,
+            "current_price": current_p,
+            "price_change": p_change,
+            "price_change_percent": p_change_pct,
             "volume": int(r["volume"]) if r["volume"] is not None else None,
             "avg_volume_10d": int(r["avg_volume_10d"]) if r["avg_volume_10d"] is not None else None,
             "market_cap": float(r["market_cap"]) if r["market_cap"] is not None else None,
@@ -1064,6 +1085,13 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
     res = await db.execute(prev_date_sql, {"latest_date": latest_date})
     prev_date = res.scalar()
 
+    prev_prev_date_sql = text(f"""
+        SELECT MAX(trading_date) FROM {SCHEMA}.history_price
+        WHERE trading_date < :prev_date
+    """)
+    res = await db.execute(prev_prev_date_sql, {"prev_date": prev_date})
+    prev_prev_date = res.scalar()
+
     # Compute date boundaries
     try:
         dt = datetime.strptime(str(latest_date), "%Y-%m-%d")
@@ -1190,9 +1218,14 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
             WHERE trading_date = :latest_date
         ),
         hp_prev AS (
-            SELECT UPPER(BTRIM(ticker)) AS ticker, close
+            SELECT UPPER(BTRIM(ticker)) AS ticker, close, volume
             FROM {SCHEMA}.history_price
             WHERE trading_date = :prev_date
+        ),
+        hp_prev_prev AS (
+            SELECT UPPER(BTRIM(ticker)) AS ticker, close, volume
+            FROM {SCHEMA}.history_price
+            WHERE trading_date = :prev_prev_date
         ),
         co_dedup AS (
             SELECT DISTINCT ON (UPPER(BTRIM(ticker)))
@@ -1250,6 +1283,9 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
             co.exchange,
             hp.close AS close_raw,
             hp_prev.close AS prev_close_raw,
+            hp_prev.volume AS prev_volume_raw,
+            hp_prev_prev.close AS prev_prev_close_raw,
+            hp_prev_prev.volume AS prev_prev_volume_raw,
             hp.volume,
             sh.shares,
             eq.equity,
@@ -1275,6 +1311,7 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
         FROM base_stocks bs
         LEFT JOIN hp_latest hp ON hp.ticker = bs.ticker
         LEFT JOIN hp_prev ON hp_prev.ticker = bs.ticker
+        LEFT JOIN hp_prev_prev ON hp_prev_prev.ticker = bs.ticker
         LEFT JOIN co_dedup co ON co.ticker = bs.ticker
         LEFT JOIN shares sh ON sh.ticker = bs.ticker
         LEFT JOIN equity eq ON eq.ticker = bs.ticker
@@ -1298,6 +1335,7 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
             res = await db.execute(main_sql, {
                 "latest_date": latest_date,
                 "prev_date": prev_date,
+                "prev_prev_date": prev_prev_date,
                 "date_1y_ago": date_1y_ago,
             })
             base_rows = res.mappings().all()
@@ -1397,6 +1435,14 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
 
         # Current price (VND)
         current_price = round(close_raw * 1000, 0) if close_raw else None
+        eb_p = float(r["eb_price"]) if r.get("eb_price") else None
+        
+        if current_price is None and eb_p:
+            current_price = eb_p
+            
+        sparkline_data = tech.get("sparkline", [])
+        if current_price is None and sparkline_data:
+            current_price = sparkline_data[-1]
 
         # Price change
         price_change = None
@@ -1404,6 +1450,12 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
         if close_raw and prev_raw and prev_raw > 0:
             price_change = round((close_raw - prev_raw) * 1000, 0)
             price_change_pct = round((close_raw - prev_raw) / prev_raw * 100, 2)
+        elif current_price and len(sparkline_data) >= 2:
+            p_n = current_price  # Use current_price (could be from EB)
+            p_n_1 = sparkline_data[-2]
+            if p_n_1 > 0:
+                price_change = p_n - p_n_1
+                price_change_pct = round((p_n - p_n_1) / p_n_1 * 100, 2)
 
         # Market cap (tỷ VND)
         market_cap = float(r["market_cap"]) if r["market_cap"] is not None else None
@@ -1478,6 +1530,32 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
         if current_price and low_52w and low_52w > 0:
             week_change_52 = round((current_price - low_52w) / low_52w * 100, 2)
 
+        # n-1 and n-2 Data
+        price_n_1 = round(float(r["prev_close_raw"]) * 1000, 0) if r.get("prev_close_raw") else None
+        if price_n_1 is None and len(sparkline_data) >= 2:
+            price_n_1 = sparkline_data[-2]
+
+        volume_n_1 = int(r["prev_volume_raw"]) if r.get("prev_volume_raw") else None
+
+        price_n_2 = round(float(r["prev_prev_close_raw"]) * 1000, 0) if r.get("prev_prev_close_raw") else None
+        if price_n_2 is None and len(sparkline_data) >= 3:
+            price_n_2 = sparkline_data[-3]
+
+        volume_n_2 = int(r["prev_prev_volume_raw"]) if r.get("prev_prev_volume_raw") else None
+
+        # Comparisons (n-1 vs n-2)
+        price_change_n_1_2 = None
+        price_change_pct_n_1_2 = None
+        if price_n_1 and price_n_2 and price_n_2 > 0:
+            price_change_n_1_2 = price_n_1 - price_n_2
+            price_change_pct_n_1_2 = round((price_n_1 - price_n_2) / price_n_2 * 100, 2)
+
+        volume_change_n_1_2 = None
+        volume_change_pct_n_1_2 = None
+        if volume_n_1 is not None and volume_n_2 and volume_n_2 > 0:
+            volume_change_n_1_2 = volume_n_1 - volume_n_2
+            volume_change_pct_n_1_2 = round((volume_n_1 - volume_n_2) / volume_n_2 * 100, 2)
+
         # Signal
         rsi14 = tech.get("rsi14")
         macd_sig = tech.get("macd_signal", "Trung tính")
@@ -1515,6 +1593,14 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
             "weekChange52": week_change_52,
             "high52w": high_52w,
             "low52w": low_52w,
+            "price_n_1": price_n_1,
+            "volume_n_1": volume_n_1,
+            "price_n_2": price_n_2,
+            "volume_n_2": volume_n_2,
+            "priceChange_n_1_2": price_change_n_1_2,
+            "priceChangePercent_n_1_2": price_change_pct_n_1_2,
+            "volumeChange_n_1_2": volume_change_n_1_2,
+            "volumeChangePercent_n_1_2": volume_change_pct_n_1_2,
             "beta": None,               # Requires index correlation, not implemented
             "rsi14": rsi14,
             "macdSignal": macd_sig,

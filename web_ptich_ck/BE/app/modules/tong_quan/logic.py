@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import date, timedelta
+from datetime import datetime, date, timedelta
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
@@ -494,14 +494,24 @@ async def get_market_comparison(db: AsyncSession) -> List[Dict[str, Any]]:
 # ────────────────────────────────────────────────────────────────────
 
 async def get_market_breadth(db: AsyncSession) -> Dict[str, int]:
-    """Count advancing / declining / unchanged stocks for the latest trading day.
-
-    Redis cache 2 phút.
+    """Count advancing / declining / unchanged stocks.
+    
+    Logic:
+    - Before 16:00 (4 PM): Compare Day N-1 vs Day N-2
+    - After 16:00 (4 PM): Compare Day N vs Day N-1
+    - If a ticker is missing from one side: Count as 'unchanged'
     """
-    cache_key = "market_breadth"
+    cache_key = "market_breadth_v2"
     cached = await cache_get(cache_key)
     if cached is not None:
         return cached
+
+    # Determine which ranks to use based on current time
+    now = datetime.now()
+    if now.hour < 16:
+        rn_0, rn_1 = 2, 3
+    else:
+        rn_0, rn_1 = 1, 2
 
     sql = text("""
         WITH ranked_dates AS (
@@ -514,24 +524,40 @@ async def get_market_breadth(db: AsyncSession) -> Dict[str, int]:
         ),
         date_vars AS (
             SELECT
-                (SELECT trading_date FROM ranked_dates WHERE rn = 1) AS t0_date,
-                (SELECT trading_date FROM ranked_dates WHERE rn = 2) AS t1_date
+                (SELECT trading_date FROM ranked_dates WHERE rn = :rn_0) AS t0_date,
+                (SELECT trading_date FROM ranked_dates WHERE rn = :rn_1) AS t1_date
+        ),
+        cur_prices AS (
+            SELECT ticker, close FROM hethong_phantich_chungkhoan.history_price
+            WHERE trading_date = (SELECT t0_date FROM date_vars) AND close IS NOT NULL
+        ),
+        prev_prices AS (
+            SELECT ticker, close FROM hethong_phantich_chungkhoan.history_price
+            WHERE trading_date = (SELECT t1_date FROM date_vars) AND close IS NOT NULL
+        ),
+        merged AS (
+            SELECT 
+                COALESCE(c.ticker, p.ticker) as ticker,
+                c.close as cur_close,
+                p.close as prev_close
+            FROM cur_prices c
+            FULL OUTER JOIN prev_prices p ON c.ticker = p.ticker
         )
         SELECT
-            COUNT(*) FILTER (WHERE cur.close > prev.close) AS advancing,
-            COUNT(*) FILTER (WHERE cur.close < prev.close) AS declining,
-            COUNT(*) FILTER (WHERE cur.close = prev.close) AS unchanged
-        FROM date_vars v
-        JOIN hethong_phantich_chungkhoan.history_price cur
-        ON cur.trading_date = v.t0_date
-        JOIN hethong_phantich_chungkhoan.history_price prev
-        ON prev.trading_date = v.t1_date
-        AND prev.ticker = cur.ticker
-        WHERE v.t0_date > v.t1_date
-        AND prev.close > 0;
+            COUNT(*) FILTER (WHERE cur_close > prev_close) AS advancing,
+            COUNT(*) FILTER (WHERE cur_close < prev_close) AS declining,
+            COUNT(*) FILTER (WHERE cur_close = prev_close OR cur_close IS NULL OR prev_close IS NULL) AS unchanged
+        FROM merged
+        WHERE (SELECT t0_date FROM date_vars) IS NOT NULL 
+          AND (SELECT t1_date FROM date_vars) IS NOT NULL;
     """)
-    res = await db.execute(sql)
-    r = res.mappings().one()
+    
+    res = await db.execute(sql, {"rn_0": rn_0, "rn_1": rn_1})
+    r = res.mappings().one_or_none()
+    
+    if not r:
+        return {"advancing": 0, "declining": 0, "unchanged": 0}
+        
     result = {
         "advancing": int(r["advancing"] or 0),
         "declining": int(r["declining"] or 0),

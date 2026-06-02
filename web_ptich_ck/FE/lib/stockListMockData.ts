@@ -31,6 +31,14 @@ export interface StockListItem {
   weekChange52: number; // %
   high52w: number;
   low52w: number;
+  price_n_1?: number;
+  volume_n_1?: number;
+  price_n_2?: number;
+  volume_n_2?: number;
+  priceChange_n_1_2?: number;
+  priceChangePercent_n_1_2?: number;
+  volumeChange_n_1_2?: number;
+  volumeChangePercent_n_1_2?: number;
   beta: number;
   rsi14: number;
   macdSignal: "Mua" | "Bán" | "Trung tính";

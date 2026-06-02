@@ -5,7 +5,6 @@ import { useRef } from "react";
 import MarketHeatmap from "@/components/market/MarketHeatmap";
 import IndexImpactLiquidity from "@/components/market/IndexImpactLiquidity";
 import { MarketBreadth } from "@/components/dashboard/MarketBreadth";
-import { CashFlow } from "@/components/market/CashFlow";
 import { TableProperties } from "lucide-react";
 
 // ── Lazy load below-fold components — chỉ tải khi scroll tới ──
@@ -55,18 +54,15 @@ export default function MarketPage() {
                     <MarketHeatmap />
                 </section>
 
-                {/* ── Tier 2: Tổng quan — Breadth + CashFlow ── */}
+                {/* ── Tier 2: Tổng quan — Breadth, Impact, Foreign Flow ── */}
                 <section>
                     <h2 className="text-lg font-bold text-foreground mb-3 flex items-center gap-2">
                         <span className="w-1 h-5 bg-orange-500 rounded-full" />
                         Tổng quan thị trường
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="md:col-span-1">
-                            <MarketBreadth />
-                        </div>
-                        <div className="md:col-span-2 flex flex-col gap-4">
-                            <CashFlow />
+                        <MarketBreadth titleSize="sm" chartHeight="220px" />
+                        <div className="md:col-span-2">
                             <IndexImpactLiquidity />
                         </div>
                     </div>

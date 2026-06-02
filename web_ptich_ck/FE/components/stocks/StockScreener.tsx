@@ -63,6 +63,14 @@ function mapApiToStockItem(item: any): StockListItem {
     weekChange52: item.weekChange52 ?? 0,
     high52w: item.high52w ?? 0,
     low52w: item.low52w ?? 0,
+    price_n_1: item.price_n_1,
+    volume_n_1: item.volume_n_1,
+    price_n_2: item.price_n_2,
+    volume_n_2: item.volume_n_2,
+    priceChange_n_1_2: item.priceChange_n_1_2,
+    priceChangePercent_n_1_2: item.priceChangePercent_n_1_2,
+    volumeChange_n_1_2: item.volumeChange_n_1_2,
+    volumeChangePercent_n_1_2: item.volumeChangePercent_n_1_2,
     beta: item.beta ?? 0,
     rsi14: item.rsi14 ?? 50,
     macdSignal: item.macdSignal ?? "Trung tính",
@@ -865,6 +873,8 @@ export default function StockScreener() {
                         <SortHeader label="Giá" field="currentPrice" className="text-right" />
                         <SortHeader label="%" field="priceChangePercent" className="text-right" />
                         <SortHeader label="KL" field="volume" className="text-right" />
+                        <SortHeader label="Giá n-1" field="price_n_1" className="text-right bg-orange-50/30" />
+                        <SortHeader label="% n-1/n-2" field="priceChangePercent_n_1_2" className="text-right bg-orange-50/30" />
                         <SortHeader label="Vốn hóa" field="marketCap" className="text-right" />
                         <SortHeader label="P/E" field="pe" className="text-right" />
                         <SortHeader label="P/B" field="pb" className="text-right" />
@@ -876,7 +886,6 @@ export default function StockScreener() {
                         <SortHeader label="LN ↑" field="profitGrowth" className="text-right" />
                         <SortHeader label="Cổ tức" field="dividendYield" className="text-right" />
                         <SortHeader label="RSI" field="rsi14" className="text-right" />
-                        <SortHeader label="NN%" field="foreignOwnership" className="text-right" />
                         <SortHeader label="52W" field="weekChange52" className="text-right" />
                         <TableHead className="text-center">MACD</TableHead>
                         <TableHead className="text-center">Tín hiệu</TableHead>
@@ -885,7 +894,7 @@ export default function StockScreener() {
                     <TableBody>
                       {paginated.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={20} className="text-center py-16">
+                          <TableCell colSpan={21} className="text-center py-16">
                             <div className="flex flex-col items-center gap-2 text-gray-400">
                               <Search className="w-8 h-8" />
                               <p className="text-sm font-medium">Không tìm thấy cổ phiếu phù hợp</p>
@@ -963,6 +972,22 @@ export default function StockScreener() {
                                 {fmtVol(stock.volume)}
                               </TableCell>
 
+                              {/* Price n-1 */}
+                              <TableCell className="text-right text-gray-500 bg-orange-50/20">
+                                {stock.price_n_1 ? fmt(stock.price_n_1) : "—"}
+                              </TableCell>
+
+
+
+                              {/* Price % n-1/n-2 */}
+                              <TableCell className="text-right bg-orange-50/20">
+                                {stock.priceChangePercent_n_1_2 !== undefined ? (
+                                  <span className={`text-[10px] font-medium ${stock.priceChangePercent_n_1_2 >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                    {fmtPct(stock.priceChangePercent_n_1_2)}
+                                  </span>
+                                ) : "—"}
+                              </TableCell>
+
                               {/* Market Cap */}
                               <TableCell className="text-right text-gray-600 font-medium">
                                 {fmtCap(stock.marketCap)}
@@ -1030,10 +1055,7 @@ export default function StockScreener() {
                                 <RsiBadge value={stock.rsi14} />
                               </TableCell>
 
-                              {/* Foreign Ownership */}
-                              <TableCell className="text-right text-gray-600">
-                                {stock.foreignOwnership.toFixed(1)}%
-                              </TableCell>
+
 
                               {/* 52W Change */}
                               <TableCell className="text-right">
