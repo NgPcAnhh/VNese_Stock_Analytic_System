@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fetchWithAuth } from "@/lib/auth";
-import { Shield, Users, Plus, Check } from "lucide-react";
+import { Shield, Users, Plus, Check, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AdminCreateRoleModal } from "./AdminCreateRoleModal";
 import { DEFAULT_SIDEBAR_ITEMS } from "@/lib/SettingsContext";
@@ -88,6 +88,25 @@ export function AdminRolesPanel() {
         }
     };
 
+    const deleteRole = async (id: number, name: string) => {
+        if (name.toLowerCase() === "admin") {
+            toast.error("Không thể xóa vai trò admin");
+            return;
+        }
+        if (!confirm(`Xác nhận xóa vai trò "${name}"? Hành động này không thể hoàn tác.`)) return;
+        
+        const r = await fetchWithAuth(`${API}/admin/roles/${id}`, {
+            method: "DELETE",
+        });
+        if (r.ok) {
+            toast.success("Đã xóa vai trò thành công");
+            load();
+        } else {
+            const err = await r.json();
+            toast.error(err.detail || "Không thể xóa vai trò");
+        }
+    };
+
     if (loading) return (
         <div className="flex h-48 items-center justify-center">
             <div className="h-7 w-7 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -118,9 +137,22 @@ export function AdminRolesPanel() {
                                         <Shield className="h-5 w-5 text-muted-foreground" />
                                         <CardTitle className="text-base capitalize">{role.name}</CardTitle>
                                     </div>
-                                    <Badge className={`text-xs ${ROLE_COLORS[role.name] || ""}`} variant="outline">
-                                        {role.name}
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        {role.name.toLowerCase() !== "admin" && (
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                title="Xóa role"
+                                                onClick={() => deleteRole(role.id, role.name)}
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
+                                        <Badge className={`text-xs ${ROLE_COLORS[role.name] || ""}`} variant="outline">
+                                            {role.name}
+                                        </Badge>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-4 flex-1 flex flex-col">

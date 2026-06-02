@@ -445,6 +445,7 @@ export default function BIHubPage() {
 
   // Permission system state
   const [chartPermissions, setChartPermissions] = useState<Record<string, number[]>>({}); 
+  const [tempChartPermissions, setTempChartPermissions] = useState<Record<string, number[]>>({});
   // chartPermissions[chart_id] = [user_id1, user_id2, ...]  (empty = private, only admin+creator)
   const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [permissionTargetChartIds, setPermissionTargetChartIds] = useState<string[]>([]);
@@ -2646,15 +2647,16 @@ if (element) {
     });
   };
 
-  // Dashboard Tabs Logic
   // Helper: check if current user has permission to view a chart
   const hasChartPermission = (chartId: string): boolean => {
     if (!chartId) return true;
+    
+    // Admin always has permission
+    if ((currentUser as any)?.role === 'admin') return true;
+
     const perms = chartPermissions[chartId];
     // No permissions set = private: only admin/creator can view
     if (!perms || perms.length === 0) {
-      // Admin always has permission
-      if ((currentUser as any)?.role === 'admin') return true;
       // Check if current user is creator (we don't have that info directly in FE, 
       // so when no permissions set, treat as "private - no access for regular users")
       return false;
@@ -5313,6 +5315,7 @@ if (element) {
                                         } catch { }
                                       }
                                       setPermissionTargetChartIds([chartId]);
+                                      setTempChartPermissions(JSON.parse(JSON.stringify(chartPermissions)));
                                       setShowPermissionModal(true);
                                     }}
                                     className="p-1 hover:bg-neutral-800 text-neutral-500 hover:text-orange-500 rounded-lg transition-colors cursor-pointer shrink-0"
@@ -5945,6 +5948,43 @@ if (element) {
               </div>
             </div>
 
+            {/* Selected Users Chips */}
+            {(() => {
+              const allPermitted = permissionTargetChartIds.flatMap(cid => tempChartPermissions[cid] || []);
+              const uniquePermittedIds = [...new Set(allPermitted)];
+              const selectedUsers = allSystemUsers.filter(u => uniquePermittedIds.includes(u.id));
+
+              if (selectedUsers.length === 0) return null;
+
+              return (
+                <div className="px-5 pt-3 shrink-0 flex flex-wrap gap-2 max-h-[80px] overflow-y-auto custom-scrollbar">
+                  {selectedUsers.map(u => (
+                    <div 
+                      key={u.id}
+                      className="flex items-center gap-1.5 px-2 py-1 bg-orange-500/20 border border-orange-500/30 rounded-lg text-orange-400 text-[10px] font-bold animate-in zoom-in duration-150"
+                    >
+                      <span className="truncate max-w-[100px]">{u.full_name || u.email}</span>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTempChartPermissions(prev => {
+                            const next = { ...prev };
+                            permissionTargetChartIds.forEach(cid => {
+                              next[cid] = (next[cid] || []).filter(uid => uid !== u.id);
+                            });
+                            return next;
+                          });
+                        }}
+                        className="p-0.5 hover:bg-orange-500/30 rounded transition-colors cursor-pointer"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* Current Permissions Summary */}
             <div className="px-5 pt-3 shrink-0">
               <div className="flex items-center justify-between mb-2">
@@ -5972,15 +6012,15 @@ if (element) {
                 .map(u => {
                   // For single chart: check if user is in that chart's permissions
                   // For multi-chart: check if user is in ALL selected charts
-                  const isGranted = permissionTargetChartIds.every(cid => (chartPermissions[cid] || []).includes(u.id));
-                  const isPartial = !isGranted && permissionTargetChartIds.some(cid => (chartPermissions[cid] || []).includes(u.id));
+                  const isGranted = permissionTargetChartIds.every(cid => (tempChartPermissions[cid] || []).includes(u.id));
+                  const isPartial = !isGranted && permissionTargetChartIds.some(cid => (tempChartPermissions[cid] || []).includes(u.id));
 
                   return (
                     <div
                       key={u.id}
                       onClick={() => {
                         // Toggle permission for this user across all target charts
-                        setChartPermissions(prev => {
+                        setTempChartPermissions(prev => {
                           const next = { ...prev };
                           if (isGranted) {
                             // Remove from all target charts
@@ -6031,8 +6071,8 @@ if (element) {
             <div className="p-5 border-t border-neutral-800 flex justify-between items-center shrink-0">
               <button
                 onClick={() => {
-                  // Clear all permissions for target charts
-                  setChartPermissions(prev => {
+                  // Clear all permissions for target charts in temp state
+                  setTempChartPermissions(prev => {
                     const next = { ...prev };
                     permissionTargetChartIds.forEach(cid => { next[cid] = []; });
                     return next;
@@ -6054,19 +6094,27 @@ if (element) {
                   onClick={async () => {
                     setSavingPermissions(true);
                     try {
+                      const finalPerms = tempChartPermissions;
                       // Save permissions to backend
                       if (permissionTargetChartIds.length === 1) {
+                        const chartId = permissionTargetChartIds[0];
                         await api.permissions.setChartPermissions(
-                          permissionTargetChartIds[0],
-                          chartPermissions[permissionTargetChartIds[0]] || []
+                          chartId,
+                          finalPerms[chartId] || []
                         );
                       } else {
-                        // For batch: use intersection (permissions that ALL charts share)
-                        const userIds = [...new Set(
-                          permissionTargetChartIds.flatMap(cid => chartPermissions[cid] || [])
-                        )];
-                        await api.permissions.batchSetPermissions(permissionTargetChartIds, userIds);
+                        // For batch: we need to handle this carefully.
+                        // The UI toggles them all, so we just send the updated perms for each chart.
+                        // Actually, api.permissions.batchSetPermissions might expect a single list for ALL charts.
+                        // Let's see how batchSetPermissions is implemented or just loop.
+                        for (const chartId of permissionTargetChartIds) {
+                          await api.permissions.setChartPermissions(chartId, finalPerms[chartId] || []);
+                        }
                       }
+                      
+                      // Update main state
+                      setChartPermissions(finalPerms);
+                      
                       Sonner.toast.success('Permissions saved successfully');
                       setShowPermissionModal(false);
                       setPermissionUserSearch('');

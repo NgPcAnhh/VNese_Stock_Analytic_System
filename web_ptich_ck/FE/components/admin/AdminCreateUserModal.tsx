@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, UserPlus, Loader2 } from "lucide-react";
@@ -20,6 +20,13 @@ export function AdminCreateUserModal({ onClose, onSuccess }: AdminCreateUserModa
     const [password, setPassword] = useState("");
     const [fullName, setFullName] = useState("");
     const [role, setRole] = useState("user");
+    const [roles, setRoles] = useState<{id: number, name: string}[]>([]);
+
+    useEffect(() => {
+        fetchWithAuth(`${API}/admin/roles`)
+            .then(r => r.ok ? r.json() : [])
+            .then(data => setRoles(data));
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -35,7 +42,15 @@ export function AdminCreateUserModal({ onClose, onSuccess }: AdminCreateUserModa
 
             if (!res.ok) {
                 const err = await res.json();
-                toast.error(err.detail || "Không thể tạo tài khoản");
+                let errorMsg = "Không thể tạo tài khoản";
+                if (err && err.detail) {
+                    if (typeof err.detail === "string") {
+                        errorMsg = err.detail;
+                    } else if (Array.isArray(err.detail)) {
+                        errorMsg = err.detail.map((e: any) => e.msg).join(", ");
+                    }
+                }
+                toast.error(errorMsg);
                 setLoading(false);
                 return;
             }
@@ -45,12 +60,14 @@ export function AdminCreateUserModal({ onClose, onSuccess }: AdminCreateUserModa
 
             // Update role if not 'user'
             if (role !== "user") {
-                const roleId = role === "admin" ? 2 : role === "moderator" ? 3 : 1;
-                await fetchWithAuth(`${API}/admin/users/${newUserId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ role_id: roleId }),
-                });
+                const selectedRole = roles.find(r => r.name === role);
+                if (selectedRole) {
+                    await fetchWithAuth(`${API}/admin/users/${newUserId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ role_id: selectedRole.id }),
+                    });
+                }
             }
 
             toast.success("Đã tạo người dùng mới thành công");
@@ -83,6 +100,7 @@ export function AdminCreateUserModal({ onClose, onSuccess }: AdminCreateUserModa
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
                             required
+                            minLength={2}
                         />
                     </div>
                     
@@ -101,24 +119,24 @@ export function AdminCreateUserModal({ onClose, onSuccess }: AdminCreateUserModa
                         <label className="text-sm font-medium">Mật khẩu</label>
                         <Input 
                             type="password"
-                            placeholder="Nhập mật khẩu" 
+                            placeholder="Nhập mật khẩu (tối thiểu 8 ký tự)" 
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            minLength={6}
+                            minLength={8}
                         />
                     </div>
                     
                     <div className="space-y-2">
                         <label className="text-sm font-medium">Vai trò</label>
                         <select 
-                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 capitalize"
                             value={role}
                             onChange={(e) => setRole(e.target.value)}
                         >
-                            <option value="user">User</option>
-                            <option value="moderator">Moderator</option>
-                            <option value="admin">Admin</option>
+                            {roles.map(r => (
+                                <option key={r.id} value={r.name}>{r.name}</option>
+                            ))}
                         </select>
                     </div>
 

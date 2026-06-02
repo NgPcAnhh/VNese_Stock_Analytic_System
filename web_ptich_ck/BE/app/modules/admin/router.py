@@ -267,7 +267,7 @@ async def update_user(
     if body.is_verified is not None:
         user.is_verified = body.is_verified
 
-    await db.flush()
+    await db.commit()
     await db.refresh(user, attribute_names=["role"])
     return _user_dict(user)
 
@@ -284,7 +284,7 @@ async def admin_reset_password(
         raise HTTPException(status_code=404, detail="User not found")
 
     user.hashed_password = hash_password(body.new_password)
-    await db.flush()
+    await db.commit()
     return {"success": True, "message": f"Đã đặt lại mật khẩu cho {user.email}"}
 
 
@@ -297,7 +297,7 @@ async def revoke_user_sessions(user_id: int, db: AsyncSession = Depends(get_db))
         WHERE user_id = :uid AND NOT revoked
     """)
     result = await db.execute(sql, {"uid": user_id})
-    await db.flush()
+    await db.commit()
     return {"success": True, "revoked_count": result.rowcount}
 
 
@@ -316,7 +316,7 @@ async def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     await db.delete(user)
-    await db.flush()
+    await db.commit()
     return {"success": True, "message": f"Đã xóa user {user.email}"}
 
 
@@ -433,7 +433,7 @@ async def revoke_token(token_id: int, db: AsyncSession = Depends(get_db)):
     if not token:
         raise HTTPException(status_code=404, detail="Token not found")
     token.revoked = True
-    await db.flush()
+    await db.commit()
     return {"success": True, "message": "Token đã bị thu hồi."}
 
 
@@ -728,7 +728,7 @@ async def create_role(
         permissions=body.permissions,
     )
     db.add(role)
-    await db.flush()
+    await db.commit()
     await db.refresh(role)
 
     return {
@@ -755,7 +755,7 @@ async def update_role(
         role.description = body.description
     if body.permissions is not None:
         role.permissions = body.permissions
-    await db.flush()
+    await db.commit()
 
     count = (await db.execute(select(func.count(User.id)).where(User.role_id == role.id))).scalar_one()
     return {
@@ -766,6 +766,29 @@ async def update_role(
         "user_count": int(count), 
         "created_at": role.created_at
     }
+
+
+@router.delete("/roles/{role_id}", summary="Xóa vai trò")
+async def delete_role(
+    role_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Xóa một role (không cho xóa admin)."""
+    role = (await db.execute(select(Role).where(Role.id == role_id))).scalars().first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    
+    if role.name.lower() == "admin":
+        raise HTTPException(status_code=400, detail="Không thể xóa role quản trị hệ thống.")
+    
+    # Check for active users
+    count = (await db.execute(select(func.count(User.id)).where(User.role_id == role.id))).scalar_one()
+    if count > 0:
+        raise HTTPException(status_code=400, detail=f"Không thể xóa role đang có {count} người dùng.")
+        
+    await db.delete(role)
+    await db.commit()
+    return {"message": "Đã xóa vai trò thành công"}
 
 
 # ═══════════════════════════════════════════════════════════════════

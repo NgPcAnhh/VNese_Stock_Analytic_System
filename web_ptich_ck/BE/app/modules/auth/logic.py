@@ -100,7 +100,7 @@ async def register_user(
         auth_provider="local",
     )
     db.add(user)
-    await db.flush()
+    await db.commit()
     await db.refresh(user, attribute_names=["role"])
 
     role_name = _user_role_name(user)
@@ -113,7 +113,7 @@ async def register_user(
         token=refresh,
         expires_at=get_refresh_token_expiry(),
     ))
-    await db.flush()
+    await db.commit()
 
     return _build_auth_response(user, access, refresh, settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
@@ -160,7 +160,7 @@ async def authenticate_user(
 
     # Cập nhật last_login_at
     user.last_login_at = datetime.now(timezone.utc)
-    await db.flush()
+    await db.commit()
     await db.refresh(user, attribute_names=["role"])
 
     role_name = _user_role_name(user)
@@ -174,7 +174,7 @@ async def authenticate_user(
         ip_address=ip_address,
         expires_at=get_refresh_token_expiry(),
     ))
-    await db.flush()
+    await db.commit()
 
     # Ghi log đăng nhập
     from app.modules.tracking.logic import track_login as _track_login
@@ -224,7 +224,7 @@ async def verify_login_2fa(
 
     # OTP hợp lệ → cấp tokens
     user.last_login_at = datetime.now(timezone.utc)
-    await db.flush()
+    await db.commit()
     await db.refresh(user, attribute_names=["role"])
 
     role_name = _user_role_name(user)
@@ -238,7 +238,7 @@ async def verify_login_2fa(
         ip_address=ip_address,
         expires_at=get_refresh_token_expiry(),
     ))
-    await db.flush()
+    await db.commit()
 
     from app.modules.tracking.logic import track_login as _track_login
     await _track_login(db, user_id=user.id, method="local_2fa", success=True,
@@ -297,13 +297,13 @@ async def google_login_or_register(
             role_id=1,
         )
         db.add(user)
-        await db.flush()
+        await db.commit()
 
     if not user.is_active:
         return "account_disabled"
 
     user.last_login_at = datetime.now(timezone.utc)
-    await db.flush()
+    await db.commit()
     await db.refresh(user, attribute_names=["role"])
 
     role_name = _user_role_name(user)
@@ -317,7 +317,7 @@ async def google_login_or_register(
         device_info="Google OAuth",
         expires_at=get_refresh_token_expiry(),
     ))
-    await db.flush()
+    await db.commit()
 
     # Ghi log đăng nhập Google
     from app.modules.tracking.logic import track_login as _track_login
@@ -389,7 +389,7 @@ async def revoke_refresh_token(db: AsyncSession, refresh_token_str: str) -> bool
         .where(RefreshToken.token == refresh_token_str)
         .values(revoked=True)
     )
-    await db.flush()
+    await db.commit()
     return result.rowcount > 0
 
 
@@ -414,7 +414,7 @@ async def create_password_reset_token(db: AsyncSession, email: str) -> str | Non
         token=token,
         expires_at=expires_at,
     ))
-    await db.flush()
+    await db.commit()
     return token
 
 
@@ -452,7 +452,7 @@ async def reset_password(db: AsyncSession, token: str, new_password: str) -> str
         .where(RefreshToken.user_id == user.id)
         .values(revoked=True)
     )
-    await db.flush()
+    await db.commit()
     return "success"
 
 
@@ -488,7 +488,7 @@ async def change_password(
         .where(RefreshToken.user_id == user.id)
         .values(revoked=True)
     )
-    await db.flush()
+    await db.commit()
     return "success"
 
 
@@ -512,7 +512,7 @@ async def update_user_profile(
         user.avatar_url = avatar_url
     user.updated_at = datetime.now(timezone.utc)
 
-    await db.flush()
+    await db.commit()
     await db.refresh(user, attribute_names=["role"])
     return user
 
@@ -542,7 +542,7 @@ async def setup_totp(db: AsyncSession, user_id: int) -> dict | str:
         secret = pyotp.random_base32()
         user.totp_secret = secret
         user.updated_at = datetime.now(timezone.utc)
-        await db.flush()
+        await db.commit()
 
     totp = pyotp.TOTP(secret)
     provisioning_uri = totp.provisioning_uri(
@@ -587,7 +587,7 @@ async def enable_totp(db: AsyncSession, user_id: int, otp: str) -> str:
 
     user.is_totp_enabled = True
     user.updated_at = datetime.now(timezone.utc)
-    await db.flush()
+    await db.commit()
     return "success"
 
 
@@ -613,5 +613,5 @@ async def disable_totp(db: AsyncSession, user_id: int, otp: str) -> str:
     user.is_totp_enabled = False
     user.totp_secret = None
     user.updated_at = datetime.now(timezone.utc)
-    await db.flush()
+    await db.commit()
     return "success"

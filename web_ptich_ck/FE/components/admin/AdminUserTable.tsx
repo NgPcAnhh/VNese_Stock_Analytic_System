@@ -37,6 +37,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 export function AdminUserTable() {
     const { user: currentUser } = useAuth();
     const [users, setUsers] = useState<UserAdminResponse[]>([]);
+    const [roles, setRoles] = useState<{id: number, name: string}[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [roleFilter, setRoleFilter] = useState("all");
@@ -47,6 +48,14 @@ export function AdminUserTable() {
     const [totalUsers, setTotalUsers] = useState(0);
     const [detailUserId, setDetailUserId] = useState<number | null>(null);
     const [showCreateUser, setShowCreateUser] = useState(false);
+
+    const loadRoles = async () => {
+        const res = await fetchWithAuth(`${API}/admin/roles`);
+        if (res.ok) {
+            const data = await res.json();
+            setRoles(data);
+        }
+    };
 
     const loadUsers = async () => {
         setLoading(true);
@@ -70,6 +79,10 @@ export function AdminUserTable() {
     };
 
     useEffect(() => {
+        loadRoles();
+    }, []);
+
+    useEffect(() => {
         const t = setTimeout(loadUsers, 300);
         return () => clearTimeout(t);
     }, [page, search, roleFilter, providerFilter, activeFilter]);
@@ -86,7 +99,15 @@ export function AdminUserTable() {
             toast.success("Đã cập nhật");
         } else {
             const err = await r.json();
-            toast.error(err.detail || "Có lỗi xảy ra");
+            let errorMsg = "Có lỗi xảy ra";
+            if (err && err.detail) {
+                if (typeof err.detail === "string") {
+                    errorMsg = err.detail;
+                } else if (Array.isArray(err.detail)) {
+                    errorMsg = err.detail.map((e: any) => e.msg).join(", ");
+                }
+            }
+            toast.error(errorMsg);
         }
     };
 
@@ -105,8 +126,10 @@ export function AdminUserTable() {
     };
 
     const handleRoleChange = (userId: number, value: string) => {
-        const roles: Record<string, number> = { user: 1, admin: 2, moderator: 3 };
-        patchUser(userId, { role_id: roles[value] });
+        const role = roles.find(r => r.name === value);
+        if (role) {
+            patchUser(userId, { role_id: role.id });
+        }
     };
 
     const fmtDate = (s: string | null) => s
@@ -127,9 +150,9 @@ export function AdminUserTable() {
                         <SelectTrigger className="w-32 h-9"><SelectValue placeholder="Role" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Tất cả</SelectItem>
-                            <SelectItem value="user">User</SelectItem>
-                            <SelectItem value="moderator">Moderator</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
+                            {roles.map(r => (
+                                <SelectItem key={r.id} value={r.name} className="capitalize">{r.name}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                     <Select value={providerFilter} onValueChange={v => { setProviderFilter(v); setPage(1); }}>
@@ -150,7 +173,7 @@ export function AdminUserTable() {
                     </Select>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={loadUsers}>
+                    <Button variant="outline" size="sm" onClick={() => { loadRoles(); loadUsers(); }}>
                         <RefreshCw className="h-3.5 w-3.5 mr-1" /> Làm mới
                     </Button>
                     <Button variant="default" size="sm" onClick={() => setShowCreateUser(true)}>
@@ -190,11 +213,11 @@ export function AdminUserTable() {
                                 <TableCell className="max-w-[120px] truncate">{u.full_name || "—"}</TableCell>
                                 <TableCell>
                                     <Select value={u.role} onValueChange={v => handleRoleChange(u.id, v)} disabled={u.id === currentUser?.id}>
-                                        <SelectTrigger className="w-28 h-7 text-xs"><SelectValue /></SelectTrigger>
+                                        <SelectTrigger className="w-28 h-7 text-xs capitalize"><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="user">User</SelectItem>
-                                            <SelectItem value="moderator">Moderator</SelectItem>
-                                            <SelectItem value="admin">Admin</SelectItem>
+                                            {roles.map(r => (
+                                                <SelectItem key={r.id} value={r.name} className="capitalize">{r.name}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </TableCell>
