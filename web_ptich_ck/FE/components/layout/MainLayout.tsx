@@ -87,7 +87,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const useAutoHideMode = isPriceBoardMain || autoHideSidebar;
 
     const isBIHub = pathname === "/data-sources" || pathname === "/hub";
+    const isPriceBoard = pathname === "/price-board";
+    const isChatbot = pathname === "/stockpilot";
+    const hideScrollToTop = isBIHub || isPriceBoard || isChatbot;
+
     const isPreviewMode = searchParams.get("preview") === "true";
+    const layoutModeParam = searchParams.get("layoutMode");
 
     // Reset timeout khi thao tác với sidebar hover
     const handleSidebarHoverActivity = () => {
@@ -102,9 +107,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
 
     if (isPriceBoardIframe || (isBIHub && isPreviewMode)) {
+        const isSlideMode = layoutModeParam === 'slide';
         return (
             <div className="flex h-screen overflow-hidden bg-background">
-                <main className="flex-1 overflow-hidden w-full transition-all duration-300">
+                <main className={`flex-1 w-full transition-all duration-300 ${isSlideMode ? 'overflow-y-auto' : 'overflow-hidden'}`}>
                     {children}
                 </main>
             </div>
@@ -182,7 +188,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                 </main>
             </div>
 
-            <ScrollToTopButton />
+            {!hideScrollToTop && <ScrollToTopButton />}
             {isAuthenticated && !isPriceBoardIframe && pathname === "/" && showPopupForCurrentLogin && (
                 <PriceBoardPopup onHandled={() => setShowPopupForCurrentLogin(false)} />
             )}

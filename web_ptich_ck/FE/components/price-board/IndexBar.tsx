@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useRef, useState, memo, useMemo } from "react";
+import React, { useEffect, useRef, useState, memo, useMemo, useContext } from "react";
 import ReactECharts from "echarts-for-react";
 import { marketEvents } from "@/lib/socketEvents";
 import type { IndexDisplayData } from "@/lib/priceBoardTypes";
 import { INDEX_CODES, CHART_INDEX_IDS } from "@/lib/priceBoardData";
 import { fmtIndexValue, fmtIndexChange, safeFloat } from "@/lib/priceBoardUtils";
+import { StockWebSocketContext } from "@/lib/StockWebSocketContext";
 
 /* ================================================================= */
 /*  IndexBar – top row showing market indices with live updates       */
@@ -23,7 +24,7 @@ const MiniSparkline = memo(function MiniSparkline({
 }) {
   const option = useMemo(() => ({
     animation: false,
-    grid: { top: 2, bottom: 2, left: 0, right: 0 },
+    grid: { top: 4, bottom: 4, left: 0, right: 0 },
     xAxis: { type: "category" as const, show: false, boundaryGap: false },
     yAxis: {
       type: "value" as const,
@@ -31,12 +32,38 @@ const MiniSparkline = memo(function MiniSparkline({
       min: data.length > 0 ? Math.min(...data) * 0.9999 : undefined,
       max: data.length > 0 ? Math.max(...data) * 1.0001 : undefined,
     },
+    tooltip: {
+      show: true,
+      trigger: "axis" as const,
+      axisPointer: {
+        type: "none" as const,
+      },
+      formatter: (params: any) => {
+        const val = params[0]?.value;
+        return val != null ? val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
+      },
+      confine: true,
+      backgroundColor: "rgba(19, 23, 34, 0.95)",
+      borderColor: color + "80",
+      borderWidth: 1,
+      padding: [4, 8],
+      textStyle: {
+        color: "#ffffff",
+        fontSize: 10,
+        fontWeight: "600",
+        fontFamily: "var(--font-roboto), sans-serif",
+      },
+      extraCssText: "box-shadow: 0 4px 12px rgba(0,0,0,0.5); border-radius: 4px; pointer-events: none; z-index: 9999;",
+    },
     series: [
       {
         type: "line",
         data,
         smooth: true,
-        symbol: "none",
+        symbol: "circle",
+        showSymbol: false,
+        symbolSize: 5,
+        itemStyle: { color },
         lineStyle: { width: 1.5, color },
         areaStyle: {
           color: {
@@ -65,6 +92,11 @@ const MiniSparkline = memo(function MiniSparkline({
 
 /** A single mini index card */
 const IndexCard = memo(function IndexCard({ symbol }: { symbol: string }) {
+  const context = useContext(StockWebSocketContext);
+  const getIndexHistory = context?.getIndexHistory;
+  const getIndexState = context?.getIndexState;
+
+  const lastState = getIndexState ? getIndexState(symbol) : undefined;
   const stateRef = useRef<{
     value: number;
     change: number;
@@ -75,37 +107,24 @@ const IndexCard = memo(function IndexCard({ symbol }: { symbol: string }) {
     declines: number;
     noChange: number;
   }>({
-    value: 0,
-    change: 0,
-    changePercent: 0,
-    totalVolume: 0,
-    totalValue: 0,
+    value: lastState?.p != null ? safeFloat(lastState.p) : 0,
+    change: lastState?.cv != null ? safeFloat(lastState.cv) : 0,
+    changePercent: lastState?.cp != null ? safeFloat(lastState.cp) : 0,
+    totalVolume: lastState?.tv != null ? safeFloat(lastState.tv) : 0,
+    totalValue: lastState?.tva != null ? safeFloat(lastState.tva) : 0,
     advances: 0,
     declines: 0,
     noChange: 0,
   });
 
-  const priceHistory = useRef<number[]>([]);
-  const MAX_POINTS = 60;
-
+  const priceHistory = getIndexHistory ? [...getIndexHistory(symbol)] : [];
   const [, tick] = useState(0);
   const rafId = useRef(0);
 
   useEffect(() => {
     const unsub = marketEvents.on(symbol, (delta: Record<string, unknown>) => {
       const s = stateRef.current;
-      if (delta.p != null) {
-        const newPrice = safeFloat(delta.p);
-        s.value = newPrice;
-        // Accumulate price history for sparkline
-        if (newPrice > 0) {
-          const hist = priceHistory.current;
-          if (hist.length === 0 || hist[hist.length - 1] !== newPrice) {
-            hist.push(newPrice);
-            if (hist.length > MAX_POINTS) hist.shift();
-          }
-        }
-      }
+      if (delta.p != null) s.value = safeFloat(delta.p);
       if (delta.cv != null) s.change = safeFloat(delta.cv);
       if (delta.cp != null) s.changePercent = safeFloat(delta.cp);
       if (delta.tv != null) s.totalVolume = safeFloat(delta.tv);
@@ -172,7 +191,7 @@ const IndexCard = memo(function IndexCard({ symbol }: { symbol: string }) {
       </div>
       {/* Right: sparkline chart */}
       <div className="flex-1 min-w-[80px] flex items-center">
-        <MiniSparkline data={[...priceHistory.current]} color={chartColor} height={52} />
+        <MiniSparkline data={priceHistory} color={chartColor} height={52} />
       </div>
     </div>
   );
@@ -194,8 +213,33 @@ interface IndexSummaryData {
 }
 
 const IndexSummaryTable = memo(function IndexSummaryTable() {
+  const context = useContext(StockWebSocketContext);
+  const getAllIndexStates = context?.getAllIndexStates;
+
   const storeRef = useRef<Record<string, IndexSummaryData>>({});
   const [, tick] = useState(0);
+
+  // Initialize from global state on mount to avoid blank/dashes state
+  useEffect(() => {
+    if (getAllIndexStates) {
+      const globalStates = getAllIndexStates();
+      for (const code of INDEX_CODES) {
+        const delta = globalStates[code];
+        if (delta) {
+          storeRef.current[code] = {
+            value: delta.p != null ? safeFloat(delta.p) : 0,
+            change: delta.cv != null ? safeFloat(delta.cv) : 0,
+            changePercent: delta.cp != null ? safeFloat(delta.cp) : 0,
+            totalVolume: delta.tv != null ? safeFloat(delta.tv) : 0,
+            totalValue: delta.tva != null ? safeFloat(delta.tva) : 0,
+            advances: 0,
+            declines: 0,
+            noChange: 0,
+          };
+        }
+      }
+    }
+  }, [getAllIndexStates]);
 
   useEffect(() => {
     const unsubs = INDEX_CODES.map((code) =>

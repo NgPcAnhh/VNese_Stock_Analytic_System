@@ -19,6 +19,12 @@ TOPIC_CONFIG = {
         "pk": ["ticker", "year", "quarter", "ind_code"],
         "required_columns": ["ticker", "quarter", "year", "ind_name", "value"]
     },
+    "history_price": {
+        "table": "history_price",
+        "mode": "upsert",
+        "pk": ["ticker", "trading_date"],
+        "required_columns": ["ticker", "trading_date", "open", "high", "low", "close", "volume"]
+    },
     "daily-price": {
         "table": "daily_price",
         "mode": "append",

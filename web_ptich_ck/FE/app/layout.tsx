@@ -6,6 +6,7 @@ import MainLayout from "@/components/layout/MainLayout";
 import { AuthProvider } from "@/lib/AuthContext";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { SettingsProvider } from "@/lib/SettingsContext";
+import { StockWebSocketProvider } from "@/lib/StockWebSocketContext";
 
 const roboto = Roboto({
   variable: "--font-roboto",
@@ -36,12 +37,14 @@ export default function RootLayout({
       >
         <AuthProvider>
           <SettingsProvider>
-            <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-background" />}>
-              <MainLayout>
-                {children}
-              </MainLayout>
-            </Suspense>
-            <AuthModal />
+            <StockWebSocketProvider>
+              <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-background" />}>
+                <MainLayout>
+                  {children}
+                </MainLayout>
+              </Suspense>
+              <AuthModal />
+            </StockWebSocketProvider>
           </SettingsProvider>
         </AuthProvider>
       </body>

@@ -269,94 +269,80 @@ function ProfitSection() {
     return profitDrivers.filter((d) => !d.isTotal).reduce((sum, d) => sum + d.value, 0);
   }, [profitDrivers]);
 
-  const funnelChart = useMemo(() => {
+  const profitFunnelChart = useMemo(() => {
     const prepared = profitFunnel
       .map((d) => ({ ...d, value: Number(d.value) }))
       .filter((d) => Number.isFinite(d.value) && d.value > 0);
 
-    const maxVal = prepared.length ? Math.max(...prepared.map((d) => d.value)) : 0;
-    const visualScaleExp = 0.72;
-    const visualFloorRatio = 0.2;
+    const baseVal = prepared.length ? prepared[0].value : 0;
 
     const visualized = prepared.map((d) => {
-      if (maxVal <= 0) {
-        return { ...d, realValue: d.value, visualValue: d.value, pctReal: 0 };
-      }
-      const ratio = d.value / maxVal;
-      const cheatedRatio = Math.max(Math.pow(ratio, visualScaleExp), visualFloorRatio);
+      const pctReal = baseVal > 0 ? (d.value / baseVal) * 100 : 0;
       return {
         ...d,
         realValue: d.value,
-        visualValue: cheatedRatio * maxVal,
-        pctReal: ratio * 100,
+        pctReal,
       };
     });
 
     return {
       tooltip: {
-        trigger: "item" as const,
-        formatter: (p: { data?: { realValue?: number; pctReal?: number }; name: string }) => {
-          const real = p.data?.realValue ?? 0;
-          const pct = p.data?.pctReal ?? 0;
-          return `${p.name}<br/>Thực tế: ${fmtN(real)} (${pct.toFixed(1)}%)`;
+        trigger: "axis" as const,
+        axisPointer: { type: "shadow" as const },
+        formatter: (params: any) => {
+          if (!params || params.length === 0) return "";
+          const p = params[0];
+          const d = visualized[p.dataIndex];
+          if (!d) return "";
+          return `<strong>${p.name}</strong><br/>Giá trị: ${fmtN(d.realValue)} Tỷ<br/>Tỷ lệ: ${d.pctReal.toFixed(1)}%`;
         },
+      },
+      grid: { top: 20, bottom: 20, left: 10, right: 110, containLabel: true },
+      xAxis: {
+        type: "value" as const,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { type: "dashed" as const, color: "#E5E7EB" } },
+      },
+      yAxis: {
+        type: "category" as const,
+        data: visualized.map((d) => d.name),
+        inverse: true,
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { fontSize: 12, fontWeight: 500, color: "#374151" },
       },
       series: [
         {
-          type: "funnel",
-          top: "6%",
-          bottom: "6%",
-          // Reserve ~25% right area for notes/labels; funnel uses ~75% remaining width.
-          left: "2%",
-          right: "26%",
-          minSize: "0%",
-          maxSize: "100%",
-          sort: "none" as const,
-          gap: 3,
+          type: "bar",
+          data: visualized.map((d) => ({
+            value: d.realValue,
+            itemStyle: {
+              color: d.color,
+              borderRadius: [0, 6, 6, 0] as const,
+            },
+          })),
+          barWidth: "40%",
           label: {
             show: true,
             position: "right" as const,
-            alignTo: "edge" as const,
-            edgeDistance: "6%",
-            color: "#111827",
-            fontSize: 10,
-            fontWeight: 600,
-            width: 170,
-            overflow: "truncate" as const,
-            align: "left" as const,
-            lineHeight: 14,
-            formatter: (p: { data?: { realValue?: number; pctReal?: number }; name: string }) => {
-              const real = p.data?.realValue ?? 0;
-              const pct = p.data?.pctReal ?? 0;
-              return `${p.name}\n${fmtN(real)} | ${pct.toFixed(1)}%`;
+            formatter: (p: any) => {
+              const d = visualized[p.dataIndex];
+              if (!d) return "";
+              return `${fmtN(d.realValue)} | ${d.pctReal.toFixed(1)}%`;
             },
-          },
-          labelLine: {
-            show: true,
-            length: 14,
-            length2: 22,
-            lineStyle: { color: "#9CA3AF", width: 1 },
-          },
-          itemStyle: {
-            borderColor: "#ffffff",
-            borderWidth: 1,
-            borderRadius: 4,
-            shadowBlur: 8,
-            shadowColor: "rgba(15, 23, 42, 0.12)",
+            fontSize: 11,
+            fontWeight: "bold" as const,
+            fontFamily: "Roboto Mono, monospace",
+            color: "#111827",
+            distance: 8,
           },
           emphasis: {
-            label: { color: "#0F172A", fontWeight: 700 },
-            itemStyle: { shadowBlur: 14, shadowColor: "rgba(15, 23, 42, 0.24)" },
-          },
-          data: visualized.map((d) => ({
-            value: d.visualValue,
-            name: d.name,
-            realValue: d.realValue,
-            pctReal: d.pctReal,
             itemStyle: {
-              color: d.color,
+              shadowBlur: 8,
+              shadowColor: "rgba(0, 0, 0, 0.15)",
             },
-          })),
+          },
         },
       ],
     };
@@ -392,10 +378,10 @@ function ProfitSection() {
 
       <div className="bg-card rounded-xl shadow-sm border border-border/50 p-5 h-full flex flex-col">
         <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5 mb-3">
-          <span>📉</span> Phễu Hiệu Quả (Profit Funnel)
+          <span>📊</span> Hiệu Quả Hoạt Động (Profit Funnel)
         </h3>
         <div className="flex-1 min-h-[420px]">
-          <ReactECharts option={funnelChart} style={{ height: "100%" }} />
+          <ReactECharts option={profitFunnelChart} style={{ height: "100%" }} />
         </div>
       </div>
     </div>

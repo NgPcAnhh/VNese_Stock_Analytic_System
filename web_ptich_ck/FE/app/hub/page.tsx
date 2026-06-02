@@ -23,6 +23,8 @@ import {
   ArrowLeft,
   Table2,
   ChevronRight,
+  ChevronLeft,
+  ChevronUp,
   Database,
   Calendar,
   Layers,
@@ -288,6 +290,10 @@ export default function BIHubPage() {
   const [tabGap, setTabGap] = useState<number>(8);
   const [tabAlign, setTabAlign] = useState<"start" | "center" | "end">("start");
   const [tabActiveColor, setTabActiveColor] = useState<string>("var(--color-orange-500)");
+  const [tabBgColor, setTabBgColor] = useState<string>("#ffffff");
+  const [tabBorderColor, setTabBorderColor] = useState<string>("#ffffff");
+  const [tabBarBgColor, setTabBarBgColor] = useState<string>("transparent");
+  const [tabBarBorderColor, setTabBarBorderColor] = useState<string>("transparent");
   const [alignmentGuides, setAlignmentGuides] = useState<{ x?: number, y?: number, type: 'h' | 'v' }[]>([]);
   const SNAP_THRESHOLD = 8;
 
@@ -451,6 +457,8 @@ export default function BIHubPage() {
   const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
   const [showTemplateSettings, setShowTemplateSettings] = useState(false);
   const addElementDropdownRef = useRef<HTMLDivElement>(null);
+  const templateSettingsRef = useRef<HTMLDivElement>(null);
+  const addChartRef = useRef<HTMLDivElement>(null);
   const widgetImageInputRef = useRef<HTMLInputElement>(null);
   const frameImageInputRef = useRef<HTMLInputElement>(null);
 
@@ -491,6 +499,9 @@ export default function BIHubPage() {
   const [showTabPosDropdown, setShowTabPosDropdown] = useState(false);
   const tabPosDropdownRef = useRef<HTMLDivElement>(null);
   const [showTabSettings, setShowTabSettings] = useState(false);
+  const [tabBarCollapseEnabled, setTabBarCollapseEnabled] = useState<boolean>(false);
+  const [isTabBarCollapsed, setIsTabBarCollapsed] = useState<boolean>(false);
+  const [tabBarPinned, setTabBarPinned] = useState<boolean>(false);
 
   // Whiteboard Layout State
   const [layoutMode, setLayoutMode] = useState<'slide' | 'whiteboard'>('slide');
@@ -578,12 +589,40 @@ export default function BIHubPage() {
   // ==========================================
   // DASHBOARD BUILDER HELPERS
   // ==========================================
+  // ==========================================
+  // DASHBOARD BUILDER HELPERS
+  // ==========================================
   const renderTabItem = (tab: { id: string; name: string }, horizontal: boolean) => {
     const isActive = activeTabId === tab.id;
     const isEditing = editingTabId === tab.id;
 
+    // Helper for generating soft translucent glow colors dynamically
+    const getRGBAColor = (hex: string, alpha: number) => {
+      if (!hex) return `rgba(234, 88, 12, ${alpha})`;
+      if (hex.startsWith('var')) {
+        return `rgba(234, 88, 12, ${alpha})`;
+      }
+      let c = hex.substring(1);
+      if (c.length === 3) {
+        c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+      }
+      try {
+        const r = parseInt(c.substring(0, 2), 16);
+        const g = parseInt(c.substring(2, 4), 16);
+        const b = parseInt(c.substring(4, 6), 16);
+        if (isNaN(r) || isNaN(g) || isNaN(b)) {
+          return `rgba(234, 88, 12, ${alpha})`;
+        }
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      } catch (e) {
+        return `rgba(234, 88, 12, ${alpha})`;
+      }
+    };
+
+    const activeColorHex = tabActiveColor.startsWith('var') ? '#ea580c' : tabActiveColor;
+
     // Apply styles based on tabBarStyle
-    let styleClasses = "";
+    let styleClasses = "relative group/item select-none transition-all duration-300 ease-out hover:scale-[1.02] active:scale-[0.98]";
     let inlineStyles: React.CSSProperties = { 
       borderRadius: `${tabBorderRadius}px`, 
       opacity: tabOpacity,
@@ -596,27 +635,31 @@ export default function BIHubPage() {
     };
 
     if (tabBarStyle === 'pills') {
-      styleClasses = isActive
-        ? "text-white shadow-lg shadow-orange-600/20"
-        : "border-neutral-800 bg-neutral-900/40 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800";
-      
       if (isActive) {
-        inlineStyles.backgroundColor = tabActiveColor.startsWith('var') ? tabActiveColor : tabActiveColor;
-        inlineStyles.borderColor = tabActiveColor.startsWith('var') ? tabActiveColor : tabActiveColor;
+        styleClasses += " text-white border-transparent";
+        inlineStyles.backgroundColor = activeColorHex;
+        inlineStyles.borderColor = 'transparent';
+        inlineStyles.boxShadow = `0 6px 16px -2px ${getRGBAColor(activeColorHex, 0.35)}, inset 0 1px 0 0 rgba(255, 255, 255, 0.15)`;
+      } else {
+        styleClasses += " border-neutral-800/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50 hover:border-neutral-700/50 hover:shadow-md hover:shadow-black/5";
+        inlineStyles.backgroundColor = tabBgColor;
+        inlineStyles.borderColor = tabBorderColor;
       }
     } else if (tabBarStyle === 'underline') {
-      styleClasses = isActive
-        ? "border-b-2 rounded-none bg-transparent"
-        : "border-transparent text-neutral-400 hover:text-neutral-200 rounded-none bg-transparent";
-      
+      // Underlines shouldn't have solid borders/backgrounds by default
+      styleClasses += " border-transparent rounded-none bg-transparent";
       if (isActive) {
-        inlineStyles.borderColor = tabActiveColor;
-        inlineStyles.color = tabActiveColor;
+        styleClasses += " font-bold";
+        inlineStyles.color = activeColorHex;
+      } else {
+        styleClasses += " text-neutral-400 hover:text-neutral-200";
       }
     } else { // flat
-      styleClasses = isActive
-        ? "bg-neutral-800 border-neutral-700 text-white"
-        : "border-transparent text-neutral-500 hover:text-neutral-300 bg-transparent";
+      if (isActive) {
+        styleClasses += " bg-neutral-850 border-neutral-800 text-white shadow-sm shadow-black/10";
+      } else {
+        styleClasses += " border-transparent text-neutral-500 hover:text-neutral-300 bg-transparent hover:bg-neutral-800/30";
+      }
     }
 
     return (
@@ -631,8 +674,23 @@ export default function BIHubPage() {
         }}
         style={inlineStyles}
         title={isEditMode ? "Double-click to rename" : undefined}
-        className={`flex items-center gap-2 text-xs cursor-pointer transition-all border shrink-0 ${styleClasses} ${!horizontal ? 'w-full justify-between' : ''}`}
+        className={`flex items-center gap-2 text-xs cursor-pointer border shrink-0 ${styleClasses} ${!horizontal ? 'w-full justify-between' : ''}`}
       >
+        {/* Soft active indicator for underline style - adapts to horizontal/vertical layout */}
+        {tabBarStyle === 'underline' && isActive && (
+          horizontal ? (
+            <div 
+              className="absolute bottom-0 left-[15%] right-[15%] h-[3px] rounded-full animate-in fade-in slide-in-from-bottom-1 duration-200"
+              style={{ backgroundColor: activeColorHex }}
+            />
+          ) : (
+            <div 
+              className="absolute left-0 top-[15%] bottom-[15%] w-[3px] rounded-full animate-in fade-in slide-in-from-left-1 duration-200"
+              style={{ backgroundColor: activeColorHex }}
+            />
+          )
+        )}
+
         {isEditing ? (
           <input
             value={editingTabName}
@@ -655,7 +713,7 @@ export default function BIHubPage() {
             }}
             onClick={e => e.stopPropagation()}
             onDoubleClick={e => e.stopPropagation()}
-            className="bg-neutral-900 text-neutral-50 border border-orange-500/50 rounded px-1.5 py-0.5 text-xs font-semibold focus:outline-none w-28"
+            className="bg-neutral-950 text-neutral-50 border border-orange-500/50 rounded-lg px-2 py-0.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-orange-500 w-28 transition-all"
             autoFocus
           />
         ) : (
@@ -667,7 +725,7 @@ export default function BIHubPage() {
         {isEditMode && dashboardTabs.length > 1 && (
           <button
             onClick={(e) => handleDeleteTab(tab.id, e)}
-            className="p-0.5 text-neutral-500 hover:text-red-400 rounded transition-colors"
+            className="p-1 text-neutral-500 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-all duration-200 shrink-0 ml-1 opacity-0 group-hover/item:opacity-100 focus:opacity-100"
             title="Delete Tab"
           >
             <X className="w-3 h-3" />
@@ -677,15 +735,61 @@ export default function BIHubPage() {
     );
   };
 
-  const renderAddTabButton = () => (
-    <button
-      onClick={handleAddTab}
-      className="flex items-center gap-1.5 text-xs text-orange-500 hover:text-orange-400 font-bold bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/20 hover:border-orange-500/30 rounded-xl px-3 py-2 transition-colors cursor-pointer shrink-0"
-      title={dashboardTabs.length > 1 ? "Custom Tab Bar" : "Add New Tab"}
-    >
-      <Plus className="w-3.5 h-3.5" /> {dashboardTabs.length > 1 ? "Custom Tab Bar" : "New Tab"}
-    </button>
-  );
+  const renderAddTabButton = () => {
+    const isOrange = tabActiveColor.startsWith('var');
+    const activeColorHex = isOrange ? '#ea580c' : tabActiveColor;
+    
+    const getRGBA = (hex: string, alpha: number) => {
+      let c = hex.substring(1);
+      if (c.length === 3) {
+        c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+      }
+      try {
+        const r = parseInt(c.substring(0, 2), 16);
+        const g = parseInt(c.substring(2, 4), 16);
+        const b = parseInt(c.substring(4, 6), 16);
+        if (isNaN(r) || isNaN(g) || isNaN(b)) {
+          return `rgba(234, 88, 12, ${alpha})`;
+        }
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      } catch (e) {
+        return `rgba(234, 88, 12, ${alpha})`;
+      }
+    };
+
+    const isCustomMode = dashboardTabs.length > 1;
+
+    return (
+      <button
+        onClick={isCustomMode ? () => setShowTabSettings(true) : handleAddTab}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold transition-all duration-300 rounded-xl cursor-pointer shrink-0 hover:scale-[1.02] active:scale-[0.98] border border-dashed group/add-btn"
+        style={{ 
+          borderRadius: `${tabBorderRadius}px`,
+          color: activeColorHex,
+          backgroundColor: getRGBA(activeColorHex, 0.04),
+          borderColor: getRGBA(activeColorHex, 0.2),
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = getRGBA(activeColorHex, 0.08);
+          e.currentTarget.style.borderColor = getRGBA(activeColorHex, 0.45);
+          e.currentTarget.style.boxShadow = `0 4px 12px ${getRGBA(activeColorHex, 0.12)}`;
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = getRGBA(activeColorHex, 0.04);
+          e.currentTarget.style.borderColor = getRGBA(activeColorHex, 0.2);
+          e.currentTarget.style.boxShadow = 'none';
+        }}
+        title={isCustomMode ? "Tab Bar Settings" : "Add New Tab"}
+      >
+        {isCustomMode ? (
+          <Settings2 className="w-3.5 h-3.5 transition-transform duration-300 group-hover/add-btn:rotate-90" />
+        ) : (
+          <Plus className="w-3.5 h-3.5 transition-transform duration-300 group-hover/add-btn:rotate-90" /> 
+        )}
+        <span>{isCustomMode ? "Custom Tab Bar" : "New Tab"}</span>
+      </button>
+    );
+  };
 
   // Direct Chart Edit from Dashboard Modal State
   const [editDashboardChartItem, setEditDashboardChartItem] = useState<any | null>(null);
@@ -848,6 +952,21 @@ export default function BIHubPage() {
     const tabWidgets = dashboardWidgets.filter(w => (w.tabId || 'default') === activeTabId);
     const tabFrames = dashboardFrames.filter(f => (f.tabId || 'default') === activeTabId);
 
+    if (layoutMode === 'slide') {
+      const maxYVal = Math.max(
+        720,
+        ...tabItems.map(i => (i.pos?.y ?? 0) + (i.pos?.h ?? 360)),
+        ...tabWidgets.map(w => (w.pos?.y ?? 0) + (w.pos?.h ?? 40)),
+        ...tabFrames.map(f => (f.pos?.y ?? 0) + (f.pos?.h ?? 100))
+      );
+      return {
+        minX: 0,
+        minY: 0,
+        maxX: 1280,
+        maxY: maxYVal
+      };
+    }
+
     // If a main frame is specified, use its dimensions as the tab's bounding box
     if (mainFrameId) {
       const mainFrame = tabFrames.find(f => f.id === mainFrameId) || tabWidgets.find(w => w.id === mainFrameId);
@@ -877,7 +996,8 @@ export default function BIHubPage() {
       maxX: Math.max(...allRects.map(r => r.x + r.w)),
       maxY: Math.max(...allRects.map(r => r.y + r.h))
     };
-  }, [dashboardItems, dashboardWidgets, dashboardFrames, activeTabId, mainFrameId]);
+  }, [dashboardItems, dashboardWidgets, dashboardFrames, activeTabId, mainFrameId, layoutMode]);
+
 
   const fitToContent = (padding = 80) => {
     if (!gridContainerRef.current) return;
@@ -919,7 +1039,46 @@ export default function BIHubPage() {
         clearTimeout(timer);
       };
     }
-  }, [isPreviewMode, layoutMode, dashboardItems.length, dashboardWidgets.length, dashboardFrames.length, activeTabId, mainFrameId]);
+  }, [isPreviewMode, layoutMode, dashboardItems.length, dashboardWidgets.length, dashboardFrames.length, activeTabId, mainFrameId, view]);
+
+  const fitSlide = () => {
+    if (!gridContainerRef.current) return;
+    const rect = gridContainerRef.current.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return;
+
+    const SLIDE_WIDTH = 1280;
+    if (isPreviewMode) {
+      // Preview mode: Zoom to fill the viewport width exactly, with no margins
+      const newZoom = rect.width / SLIDE_WIDTH;
+      setZoom(newZoom);
+      setPan({ x: 0, y: 0 });
+    } else {
+      // Edit mode: Left margin 20px, Right margin 25px (total 45px margin)
+      const marginLeft = 20;
+      const marginRight = 25;
+      const newZoom = rect.width / (SLIDE_WIDTH + marginLeft + marginRight);
+      const panX = marginLeft * newZoom;
+      setZoom(newZoom);
+      setPan({ x: panX, y: 0 });
+    }
+  };
+
+  useEffect(() => {
+    if (layoutMode === 'slide' && gridContainerRef.current) {
+      const handleResize = () => fitSlide();
+      window.addEventListener('resize', handleResize);
+      
+      const timer = setTimeout(() => {
+        fitSlide();
+      }, 100);
+      
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        clearTimeout(timer);
+      };
+    }
+  }, [layoutMode, isPreviewMode, activeTabId, view, dashboardItems.length, dashboardWidgets.length, dashboardFrames.length, tabPosition, tabBarSize, isTabBarCollapsed, tabBarCollapseEnabled]);
+
 
   // Outside click listener to close custom dropdowns
   useEffect(() => {
@@ -1176,6 +1335,33 @@ export default function BIHubPage() {
     }
   }, [selectedDatasetId, view]);
 
+  useEffect(() => {
+    const areSomeOpen = showTemplateSettings || showAddChart || showAddElementDropdown || showAddFrameDropdown;
+    if (!areSomeOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      // Template Settings
+      if (showTemplateSettings && templateSettingsRef.current && !templateSettingsRef.current.contains(event.target as Node)) {
+        setShowTemplateSettings(false);
+      }
+      // Add Chart
+      if (showAddChart && addChartRef.current && !addChartRef.current.contains(event.target as Node)) {
+        setShowAddChart(false);
+      }
+      // Add Element Dropdown
+      if (showAddElementDropdown && addElementDropdownRef.current && !addElementDropdownRef.current.contains(event.target as Node)) {
+        setShowAddElementDropdown(false);
+      }
+      // Add Frame Dropdown
+      if (showAddFrameDropdown && addFrameDropdownRef.current && !addFrameDropdownRef.current.contains(event.target as Node)) {
+        setShowAddFrameDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showTemplateSettings, showAddChart, showAddElementDropdown, showAddFrameDropdown]);
+
   const loadChartDatasetPreview = async (id: string) => {
     try {
       setDatasetPreview(null);
@@ -1225,6 +1411,9 @@ export default function BIHubPage() {
     }
     handleSelectTab(initialTabId);
     setTabPosition(dashboard.theme_config?.tabPosition || "top");
+    setTabBarCollapseEnabled(dashboard.theme_config?.tabBarCollapseEnabled ?? false);
+    setIsTabBarCollapsed(false);
+    setTabBarPinned(dashboard.theme_config?.tabBarPinned ?? false);
     setTabBarSize(dashboard.theme_config?.tabBarSize || (dashboard.theme_config?.tabPosition === 'left' || dashboard.theme_config?.tabPosition === 'right' ? 200 : 64));
     setCustomTabRect(dashboard.theme_config?.customTabRect || { x: 40, y: 40, w: 400, h: 60 });
     setLayoutMode(dashboard.theme_config?.layoutMode || 'slide');
@@ -1244,6 +1433,10 @@ export default function BIHubPage() {
     setTabGap(dashboard.theme_config?.tabGap ?? 8);
     setTabAlign(dashboard.theme_config?.tabAlign ?? "start");
     setTabActiveColor(dashboard.theme_config?.tabActiveColor ?? "var(--color-orange-500)");
+    setTabBgColor(dashboard.theme_config?.tabBgColor ?? "#ffffff");
+    setTabBorderColor(dashboard.theme_config?.tabBorderColor ?? "#ffffff");
+    setTabBarBgColor(dashboard.theme_config?.tabBarBgColor ?? "transparent");
+    setTabBarBorderColor(dashboard.theme_config?.tabBarBorderColor ?? "transparent");
 
     const newItems: any[] = [];
 
@@ -1412,7 +1605,13 @@ export default function BIHubPage() {
           tabPaddingY: tabPaddingY,
           tabGap: tabGap,
           tabAlign: tabAlign,
-          tabActiveColor: tabActiveColor
+          tabActiveColor: tabActiveColor,
+          tabBgColor: tabBgColor,
+          tabBorderColor: tabBorderColor,
+          tabBarBgColor: tabBarBgColor,
+          tabBarBorderColor: tabBarBorderColor,
+          tabBarCollapseEnabled: tabBarCollapseEnabled,
+          tabBarPinned: tabBarPinned
         }
       });
       setSelectedDashboard(updated);
@@ -1496,63 +1695,112 @@ export default function BIHubPage() {
     const others = [
       ...dashboardItems.filter(i => !excludeIds.includes(i.id) && (i.tabId || 'default') === activeTabId).map(i => i.pos),
       ...dashboardWidgets.filter(w => !excludeIds.includes(w.id) && (w.tabId || 'default') === activeTabId).map(w => w.pos),
-      ...dashboardFrames.filter(f => !excludeIds.includes(f.id)).map(f => ({ ...f.pos }))
+      ...dashboardFrames.filter(f => !excludeIds.includes(f.id) && (f.tabId || 'default') === activeTabId).map(f => ({ ...f.pos }))
     ];
+
+    // Add screen/canvas center target values
+    const screenTargetsX: number[] = [];
+    const screenTargetsY: number[] = [];
+    if (layoutMode === 'slide') {
+      screenTargetsX.push(640); // 1280 / 2
+      screenTargetsY.push(360); // 720 / 2
+    } else if (mainFrameId) {
+      const frame = dashboardFrames.find(f => f.id === mainFrameId);
+      if (frame) {
+        screenTargetsX.push(frame.pos.x + frame.pos.w / 2);
+        screenTargetsY.push(frame.pos.y + frame.pos.h / 2);
+      }
+    }
 
     const currentRight = currentPos.x + currentPos.w;
     const currentBottom = currentPos.y + currentPos.h;
     const currentCenterX = currentPos.x + currentPos.w / 2;
     const currentCenterY = currentPos.y + currentPos.h / 2;
 
-    let foundX = false;
-    let foundY = false;
+    let closestDeltaX = SNAP_THRESHOLD;
+    let closestDeltaY = SNAP_THRESHOLD;
+
+    // Collect candidate targets
+    const xTargets: { val: number; source: string }[] = [];
+    const yTargets: { val: number; source: string }[] = [];
+
+    screenTargetsX.forEach(val => xTargets.push({ val, source: 'screen' }));
+    screenTargetsY.forEach(val => yTargets.push({ val, source: 'screen' }));
 
     for (const other of others) {
       const otherRight = other.x + other.w;
-      const otherBottom = other.y + other.h;
       const otherCenterX = other.x + other.w / 2;
+      xTargets.push({ val: other.x, source: 'other' });
+      xTargets.push({ val: otherRight, source: 'other' });
+      xTargets.push({ val: otherCenterX, source: 'other' });
+
+      const otherBottom = other.y + other.h;
       const otherCenterY = other.y + other.h / 2;
-
-      // X-axis (Vertical guides)
-      const xTargets = [other.x, otherRight, otherCenterX];
-      for (const targetVal of xTargets) {
-        if (!foundX) {
-          if (Math.abs(currentPos.x - targetVal) < SNAP_THRESHOLD) {
-            snappedX = targetVal;
-            guides.push({ x: targetVal, type: 'v' });
-            foundX = true;
-          } else if (Math.abs(currentRight - targetVal) < SNAP_THRESHOLD) {
-            snappedX = targetVal - currentPos.w;
-            guides.push({ x: targetVal, type: 'v' });
-            foundX = true;
-          } else if (Math.abs(currentCenterX - targetVal) < SNAP_THRESHOLD) {
-            snappedX = targetVal - currentPos.w / 2;
-            guides.push({ x: targetVal, type: 'v' });
-            foundX = true;
-          }
-        }
-      }
-
-      // Y-axis (Horizontal guides)
-      const yTargets = [other.y, otherBottom, otherCenterY];
-      for (const targetVal of yTargets) {
-        if (!foundY) {
-          if (Math.abs(currentPos.y - targetVal) < SNAP_THRESHOLD) {
-            snappedY = targetVal;
-            guides.push({ y: targetVal, type: 'h' });
-            foundY = true;
-          } else if (Math.abs(currentBottom - targetVal) < SNAP_THRESHOLD) {
-            snappedY = targetVal - currentPos.h;
-            guides.push({ y: targetVal, type: 'h' });
-            foundY = true;
-          } else if (Math.abs(currentCenterY - targetVal) < SNAP_THRESHOLD) {
-            snappedY = targetVal - currentPos.h / 2;
-            guides.push({ y: targetVal, type: 'h' });
-            foundY = true;
-          }
-        }
-      }
+      yTargets.push({ val: other.y, source: 'other' });
+      yTargets.push({ val: otherBottom, source: 'other' });
+      yTargets.push({ val: otherCenterY, source: 'other' });
     }
+
+    // Snapping for X axis
+    xTargets.forEach(t => {
+      const deltas = [
+        { delta: currentPos.x - t.val, snapVal: t.val },
+        { delta: currentRight - t.val, snapVal: t.val - currentPos.w },
+        { delta: currentCenterX - t.val, snapVal: t.val - currentPos.w / 2 }
+      ];
+      deltas.forEach(d => {
+        if (Math.abs(d.delta) < Math.abs(closestDeltaX)) {
+          closestDeltaX = d.delta;
+          snappedX = d.snapVal;
+        }
+      });
+    });
+
+    // Snapping for Y axis
+    yTargets.forEach(t => {
+      const deltas = [
+        { delta: currentPos.y - t.val, snapVal: t.val },
+        { delta: currentBottom - t.val, snapVal: t.val - currentPos.h },
+        { delta: currentCenterY - t.val, snapVal: t.val - currentPos.h / 2 }
+      ];
+      deltas.forEach(d => {
+        if (Math.abs(d.delta) < Math.abs(closestDeltaY)) {
+          closestDeltaY = d.delta;
+          snappedY = d.snapVal;
+        }
+      });
+    });
+
+    // Now find all targets matching final snapped coords
+    const finalRight = snappedX + currentPos.w;
+    const finalCenterX = snappedX + currentPos.w / 2;
+
+    xTargets.forEach(t => {
+      if (
+        Math.abs(snappedX - t.val) < 0.1 ||
+        Math.abs(finalRight - t.val) < 0.1 ||
+        Math.abs(finalCenterX - t.val) < 0.1
+      ) {
+        if (!guides.some(g => g.x === t.val)) {
+          guides.push({ x: t.val, type: 'v' });
+        }
+      }
+    });
+
+    const finalBottom = snappedY + currentPos.h;
+    const finalCenterY = snappedY + currentPos.h / 2;
+
+    yTargets.forEach(t => {
+      if (
+        Math.abs(snappedY - t.val) < 0.1 ||
+        Math.abs(finalBottom - t.val) < 0.1 ||
+        Math.abs(finalCenterY - t.val) < 0.1
+      ) {
+        if (!guides.some(g => g.y === t.val)) {
+          guides.push({ y: t.val, type: 'h' });
+        }
+      }
+    });
 
     return { snappedX, snappedY, guides };
   };
@@ -2953,17 +3201,17 @@ if (element) {
           ========================================== */}
       {view === "edit-dashboard" && selectedDashboard && (
         <div 
-          className={`flex-1 flex flex-col ${isPreviewMode ? 'fixed inset-0 z-[100]' : ''}`}
+          className={`flex-1 flex flex-col ${(isPreviewMode && layoutMode === 'whiteboard') ? 'fixed inset-0 z-[100]' : ''}`}
           style={isPreviewMode ? {
             backgroundColor: (mainFrameId 
-              ? (dashboardFrames.find(f => f.id === mainFrameId)?.bgColor || dashboardWidgets.find(w => w.id === mainFrameId)?.bgColor || selectedDashboard?.theme_config?.canvasBg || '#ffffff') 
-              : (selectedDashboard?.theme_config?.canvasBg || '#ffffff'))
+              ? (dashboardFrames.find(f => f.id === mainFrameId)?.bgColor || dashboardWidgets.find(w => w.id === mainFrameId)?.bgColor || selectedDashboard?.theme_config?.canvasBg || '#f8f9fa') 
+              : (selectedDashboard?.theme_config?.canvasBg || '#f8f9fa'))
           } : {}}
         >
           {/* Hide the global scroll-to-top button which overlaps with dashboard controls */}
           <style dangerouslySetInnerHTML={{ __html: `
             .scroll-to-top-button { display: none !important; }
-            ${isPreviewMode ? 'body { overflow: hidden !important; }' : ''}
+            ${(isPreviewMode && layoutMode === 'whiteboard') ? 'body { overflow: hidden !important; }' : ''}
           ` }} />
           {/* Dashboard Header */}
           {!isHeaderDisabled && !isPreviewMode && (
@@ -3028,7 +3276,7 @@ if (element) {
                           if (layoutMode === 'whiteboard') {
                             setShowIframePreview(true);
                           } else {
-                            window.open(`/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}`, '_blank');
+                            window.open(`/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}&layoutMode=${layoutMode}`, '_blank');
                           }
                         }}
                         className="ml-2 flex items-center gap-1.5 px-2.5 py-1 text-[10px] bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/25 rounded font-mono uppercase tracking-wide cursor-pointer transition-colors select-none"
@@ -3105,8 +3353,8 @@ if (element) {
                             { 
                               type: 'action_tab', 
                               icon: <LayoutDashboard className="w-4 h-4" />, 
-                              label: dashboardTabs.length > 1 ? 'Custom Tab Bar' : 'New Tab', 
-                              desc: dashboardTabs.length > 1 ? 'Manage and add dashboard tabs' : 'Create a new dashboard tab' 
+                              label: dashboardTabs.length > 1 ? 'Tab Settings' : 'New Tab', 
+                              desc: dashboardTabs.length > 1 ? 'Manage dashboard tab bar' : 'Create a new dashboard tab' 
                             },
                             { type: 'action_filter', icon: <Filter className="w-4 h-4" />, label: 'Filter', desc: 'Add filter widget to canvas' },
                             { type: 'action_toggle_header', icon: <LayoutDashboard className="w-4 h-4" />, label: 'Toggle Headers', desc: 'Show/hide all chart headers' },
@@ -3115,7 +3363,11 @@ if (element) {
                               key={item.type}
                               onClick={() => {
                                 if (item.type === 'action_tab') {
-                                  handleAddTab();
+                                  if (dashboardTabs.length > 1) {
+                                    setShowTabSettings(true);
+                                  } else {
+                                    handleAddTab();
+                                  }
                                 } else if (item.type === 'action_filter') {
                                   addWidget('filter');
                                 } else if (item.type === 'action_toggle_header') {
@@ -3176,20 +3428,79 @@ if (element) {
           )}
 
           {/* Dashboard Body Area - Outer Flex container */}
-          <div className={`flex-1 flex min-h-0 ${(isHeaderDisabled || isPreviewMode) ? '' : 'mt-4'} ${tabPosition === 'left' || tabPosition === 'right' ? 'flex-row' : 'flex-col'}`}>
+          <div className={`flex-1 flex min-h-0 ${(isHeaderDisabled || isPreviewMode) ? '' : 'mt-4'} ${tabPosition === 'left' || tabPosition === 'right' ? 'flex-row' : 'flex-col'} relative`}>
+
+            {/* Floating Expand Handles */}
+            {tabBarCollapseEnabled && isTabBarCollapsed && (
+              <>
+                {tabPosition === 'left' && (
+                  <button
+                    onClick={() => setIsTabBarCollapsed(false)}
+                    className="absolute right-4 top-4 z-30 w-8 h-8 rounded-full bg-neutral-900 border border-neutral-800/80 flex items-center justify-center text-neutral-400 hover:text-orange-500 hover:border-orange-500/40 shadow-xl transition-all hover:scale-110 active:scale-95 group/expand-btn cursor-pointer"
+                    title="Expand Tab Bar"
+                  >
+                    <ChevronRight className="w-4 h-4 transition-transform group-hover/expand-btn:translate-x-0.5" />
+                  </button>
+                )}
+                {tabPosition === 'right' && (
+                  <button
+                    onClick={() => setIsTabBarCollapsed(false)}
+                    className="absolute right-4 top-4 z-30 w-8 h-8 rounded-full bg-neutral-900 border border-neutral-800/80 flex items-center justify-center text-neutral-400 hover:text-orange-500 hover:border-orange-500/40 shadow-xl transition-all hover:scale-110 active:scale-95 group/expand-btn cursor-pointer"
+                    title="Expand Tab Bar"
+                  >
+                    <ChevronLeft className="w-4 h-4 transition-transform group-hover/expand-btn:-translate-x-0.5" />
+                  </button>
+                )}
+                {tabPosition === 'top' && (
+                  <button
+                    onClick={() => setIsTabBarCollapsed(false)}
+                    className="absolute right-4 top-4 z-30 w-8 h-8 rounded-full bg-neutral-900 border border-neutral-800/80 flex items-center justify-center text-neutral-400 hover:text-orange-500 hover:border-orange-500/40 shadow-xl transition-all hover:scale-110 active:scale-95 group/expand-btn cursor-pointer"
+                    title="Expand Tab Bar"
+                  >
+                    <ChevronDown className="w-4 h-4 transition-transform group-hover/expand-btn:translate-y-0.5" />
+                  </button>
+                )}
+                {tabPosition === 'bottom' && (
+                  <button
+                    onClick={() => setIsTabBarCollapsed(false)}
+                    className="absolute right-4 bottom-4 z-30 w-8 h-8 rounded-full bg-neutral-900 border border-neutral-800/80 flex items-center justify-center text-neutral-400 hover:text-orange-500 hover:border-orange-500/40 shadow-xl transition-all hover:scale-110 active:scale-95 group/expand-btn cursor-pointer"
+                    title="Expand Tab Bar"
+                  >
+                    <ChevronUp className="w-4 h-4 transition-transform group-hover/expand-btn:-translate-y-0.5" />
+                  </button>
+                )}
+              </>
+            )}
 
             {/* Left Tab Bar */}
             {tabPosition === 'left' && !mainFrameId && (
               <div
-                className="bg-transparent border-r border-neutral-900/60 shrink-0 flex flex-col overflow-y-auto"
+                className="shrink-0 flex flex-col overflow-y-auto border-r"
                 style={{ 
-                  width: tabBarSize,
-                  justifyContent: tabAlign === 'center' ? 'center' : tabAlign === 'end' ? 'flex-end' : 'flex-start'
+                  width: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : tabBarSize,
+                  justifyContent: tabAlign === 'center' ? 'center' : tabAlign === 'end' ? 'flex-end' : 'flex-start',
+                  paddingLeft: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : undefined,
+                  paddingRight: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : undefined,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  overflow: 'hidden',
+                  backgroundColor: tabBarBgColor !== 'transparent' ? tabBarBgColor : undefined,
+                  borderColor: tabBarBorderColor !== 'transparent' ? tabBarBorderColor : 'rgba(23, 23, 23, 0.6)'
                 }}
               >
-                <div className="flex flex-col p-4" style={{ gap: `${tabGap}px` }}>
+                <div className="flex flex-col p-4 flex-1" style={{ gap: `${tabGap}px`, minWidth: tabBarSize - 32 }}>
                   {dashboardTabs.map(tab => renderTabItem(tab, false))}
                   {isEditMode && renderAddTabButton()}
+
+                  {tabBarCollapseEnabled && (
+                    <button 
+                      onClick={() => setIsTabBarCollapsed(true)}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-200 bg-neutral-950/20 hover:bg-neutral-800/40 border border-neutral-850 hover:border-neutral-800 rounded-xl transition-all duration-200 cursor-pointer shrink-0 mt-auto"
+                      style={{ borderRadius: `${tabBorderRadius}px` }}
+                      title="Collapse Tab Bar"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" /> <span>Collapse</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -3200,18 +3511,37 @@ if (element) {
               {/* Top Tab Bar */}
               {tabPosition === 'top' && !mainFrameId && (
                 <div
-                  className="bg-transparent border-b border-neutral-900/60 shrink-0 p-3 px-8 flex items-center gap-4"
-                  style={{ height: tabBarSize }}
+                  className={`border-b border-neutral-900/60 shrink-0 flex items-center gap-4 px-8 ${
+                    tabBarPinned 
+                      ? (isPreviewMode ? 'sticky top-0 z-40 bg-neutral-900/90 backdrop-blur-md' : 'sticky top-20 z-40 bg-neutral-900/90 backdrop-blur-md') 
+                      : 'bg-transparent relative'
+                  }`}
+                  style={{ 
+                    height: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : tabBarSize,
+                    paddingTop: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : undefined,
+                    paddingBottom: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : undefined,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    overflow: 'hidden',
+                    backgroundColor: tabBarBgColor !== 'transparent' ? tabBarBgColor : undefined,
+                    borderColor: tabBarBorderColor !== 'transparent' ? tabBarBorderColor : undefined
+                  }}
                 >
-                  <div className={`flex flex-1 flex-wrap items-center ${tabAlign === 'center' ? 'justify-center' : tabAlign === 'end' ? 'justify-end' : 'justify-start'}`} style={{ gap: `${tabGap}px` }}>
-                    {dashboardTabs.map(tab => renderTabItem(tab, true))}
-                    {isEditMode && renderAddTabButton()}
+                  <div className="flex flex-1 items-center justify-between min-w-0" style={{ height: tabBarSize - 24 }}>
+                    <div className={`flex flex-1 flex-wrap items-center ${tabAlign === 'center' ? 'justify-center' : tabAlign === 'end' ? 'justify-end' : 'justify-start'}`} style={{ gap: `${tabGap}px` }}>
+                      {dashboardTabs.map(tab => renderTabItem(tab, true))}
+                      {isEditMode && renderAddTabButton()}
+                    </div>
+                    {tabBarCollapseEnabled && (
+                      <button 
+                        onClick={() => setIsTabBarCollapsed(true)}
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-200 bg-neutral-950/20 hover:bg-neutral-800/40 border border-neutral-850 hover:border-neutral-800 rounded-xl transition-all duration-200 cursor-pointer shrink-0 ml-4"
+                        style={{ borderRadius: `${tabBorderRadius}px` }}
+                        title="Collapse Tab Bar"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" /> <span>Collapse</span>
+                      </button>
+                    )}
                   </div>
-                  {isEditMode && (
-                    <span className="text-[10px] text-neutral-500 italic hidden sm:inline-block shrink-0">
-                      Tip: Double-click a tab to rename. Move items via their dropdowns.
-                    </span>
-                  )}
                 </div>
               )}
 
@@ -3225,11 +3555,13 @@ if (element) {
 
               {/* Free-Form Canvas */}
               <div
-                className={`flex-1 relative ${(layoutMode === 'whiteboard' || (isPreviewMode && mainFrameId)) ? 'overflow-hidden' : 'overflow-auto'}`}
+                className={`flex-1 relative ${(layoutMode === 'whiteboard' || (isPreviewMode && mainFrameId)) ? 'overflow-hidden' : 'overflow-visible'}`}
                 style={{
-                  backgroundColor: (isPreviewMode && mainFrameId) 
-                    ? (dashboardFrames.find(f => f.id === mainFrameId)?.bgColor || dashboardWidgets.find(w => w.id === mainFrameId)?.bgColor || selectedDashboard?.theme_config?.canvasBg || 'transparent')
-                    : (selectedDashboard?.theme_config?.canvasBg || 'transparent'),
+                  backgroundColor: isPreviewMode 
+                    ? (selectedDashboard?.theme_config?.canvasBg || '#f8f9fa') 
+                    : (layoutMode === 'slide' 
+                      ? '#ffffff' // White editor pasteboard background for Slide mode
+                      : (selectedDashboard?.theme_config?.canvasBg || '#f8f9fa')),
                   cursor: layoutMode === 'whiteboard' ? (spacePressed ? (isPanningRef.current.active ? 'grabbing' : 'grab') : 'default') : 'default'
                 }}
                 ref={gridContainerRef}
@@ -3254,7 +3586,7 @@ if (element) {
                 {isEditMode && alignmentGuides.map((guide, idx) => (
                   <div
                     key={idx}
-                    className="absolute pointer-events-none z-[2000] border-orange-500/60"
+                    className="absolute pointer-events-none z-[2000] border-fuchsia-500"
                     style={{
                       left: guide.x !== undefined ? guide.x * zoom + pan.x : 0,
                       top: guide.y !== undefined ? guide.y * zoom + pan.y : 0,
@@ -3358,25 +3690,46 @@ if (element) {
                     style={{
                       transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                       transformOrigin: '0 0',
+                      backgroundColor: layoutMode === 'slide' ? (selectedDashboard?.theme_config?.canvasBg || '#f8f9fa') : 'transparent',
+                      boxShadow: (layoutMode === 'slide' && !isPreviewMode) ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)' : 'none',
                       ...(layoutMode === 'whiteboard' ? {
                         width: 'max-content',
                         minWidth: '100%',
                         minHeight: '100%',
                       } : {
-                        ...(isPreviewMode ? {
-                          width: `${tabBoundingBox.maxX - tabBoundingBox.minX}px`,
-                          height: `${tabBoundingBox.maxY - tabBoundingBox.minY}px`,
-                        } : {
-                          minHeight: Math.max(
-                            600,
-                            ...dashboardItems.filter(i => (i.tabId || 'default') === activeTabId).map(i => (i.pos?.y ?? 0) + (i.pos?.h ?? 360) + 40),
-                            ...dashboardWidgets.filter(w => (w.tabId || 'default') === activeTabId).map(w => (w.pos?.y ?? 0) + (w.pos?.h ?? 40) + 40)
-                          )
-                        })
+                        width: '1280px',
+                        minHeight: isPreviewMode 
+                          ? `${tabBoundingBox.maxY - tabBoundingBox.minY}px`
+                          : Math.max(
+                              720,
+                              ...dashboardItems.filter(i => (i.tabId || 'default') === activeTabId).map(i => (i.pos?.y ?? 0) + (i.pos?.h ?? 360) + 40),
+                              ...dashboardWidgets.filter(w => (w.tabId || 'default') === activeTabId).map(w => (w.pos?.y ?? 0) + (w.pos?.h ?? 40) + 40)
+                            )
                       })
                     }}
                     onMouseDown={handleCanvasMouseDown}
                   >
+                    {/* Slide mode dashed orange boundaries */}
+                    {layoutMode === 'slide' && !isPreviewMode && (
+                      <>
+                        <div
+                          className="absolute top-0 bottom-0 pointer-events-none z-[9999]"
+                          style={{
+                            left: 0,
+                            width: 0,
+                            borderLeft: '2px dashed #f97316',
+                          }}
+                        />
+                        <div
+                          className="absolute top-0 bottom-0 pointer-events-none z-[9999]"
+                          style={{
+                            left: '1280px',
+                            width: 0,
+                            borderLeft: '2px dashed #f97316',
+                          }}
+                        />
+                      </>
+                    )}
                     {/* Marquee Selection Box */}
                     {selectionBox && !isPreviewMode && (
                       <div
@@ -3498,10 +3851,13 @@ if (element) {
                             height: customTabRect.h,
                             zIndex: 1000,
                           }),
-                          backgroundColor: 'var(--color-neutral-900)',
-                          border: isEditMode ? '2px solid var(--color-orange-500)' : '1px solid var(--color-neutral-800)',
+                          backgroundColor: tabBarBgColor !== 'transparent' ? tabBarBgColor : 'rgba(23, 23, 23, 0.75)',
+                          backdropFilter: 'blur(12px)',
+                          border: isEditMode 
+                            ? `2px solid ${tabBarBorderColor !== 'transparent' ? tabBarBorderColor : 'var(--color-orange-500)'}` 
+                            : `1px solid ${tabBarBorderColor !== 'transparent' ? tabBarBorderColor : 'rgba(63, 63, 70, 0.4)'}`,
                         }}
-                        className="rounded-2xl shadow-2xl flex flex-col overflow-hidden group"
+                        className="rounded-2xl shadow-2xl flex flex-col overflow-hidden group transition-all duration-300"
                       >
                         {isEditMode && !tabFrameId && tabPosition === 'custom' && (
                           <div
@@ -4228,18 +4584,37 @@ if (element) {
               {/* Bottom Tab Bar */}
               {tabPosition === 'bottom' && !mainFrameId && (
                 <div
-                  className="bg-transparent border-t border-neutral-900/60 shrink-0 p-3 px-8 flex items-center gap-4"
-                  style={{ height: tabBarSize }}
+                  className={`border-t border-neutral-900/60 shrink-0 flex items-center gap-4 px-8 ${
+                    tabBarPinned 
+                      ? 'sticky bottom-0 z-40 bg-neutral-900/90 backdrop-blur-md' 
+                      : 'bg-transparent relative'
+                  }`}
+                  style={{ 
+                    height: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : tabBarSize,
+                    paddingTop: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : undefined,
+                    paddingBottom: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : undefined,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    overflow: 'hidden',
+                    backgroundColor: tabBarBgColor !== 'transparent' ? tabBarBgColor : undefined,
+                    borderColor: tabBarBorderColor !== 'transparent' ? tabBarBorderColor : undefined
+                  }}
                 >
-                  <div className={`flex flex-1 flex-wrap items-center ${tabAlign === 'center' ? 'justify-center' : tabAlign === 'end' ? 'justify-end' : 'justify-start'}`} style={{ gap: `${tabGap}px` }}>
-                    {dashboardTabs.map(tab => renderTabItem(tab, true))}
-                    {isEditMode && renderAddTabButton()}
+                  <div className="flex flex-1 items-center justify-between min-w-0" style={{ height: tabBarSize - 24 }}>
+                    <div className={`flex flex-1 flex-wrap items-center ${tabAlign === 'center' ? 'justify-center' : tabAlign === 'end' ? 'justify-end' : 'justify-start'}`} style={{ gap: `${tabGap}px` }}>
+                      {dashboardTabs.map(tab => renderTabItem(tab, true))}
+                      {isEditMode && renderAddTabButton()}
+                    </div>
+                    {tabBarCollapseEnabled && (
+                      <button 
+                        onClick={() => setIsTabBarCollapsed(true)}
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-neutral-500 hover:text-neutral-200 bg-neutral-950/20 hover:bg-neutral-800/40 border border-neutral-850 hover:border-neutral-800 rounded-xl transition-all duration-200 cursor-pointer shrink-0 ml-4"
+                        style={{ borderRadius: `${tabBorderRadius}px` }}
+                        title="Collapse Tab Bar"
+                      >
+                        <span>Collapse</span> <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
-                  {isEditMode && (
-                    <span className="text-[10px] text-neutral-500 italic hidden sm:inline-block shrink-0">
-                      Tip: Double-click a tab to rename. Move items via their dropdowns.
-                    </span>
-                  )}
                 </div>
               )}
             </div>
@@ -4247,15 +4622,32 @@ if (element) {
             {/* Right Tab Bar */}
             {tabPosition === 'right' && !mainFrameId && (
               <div
-                className="bg-transparent border-l border-neutral-900/60 shrink-0 flex flex-col overflow-y-auto"
+                className="shrink-0 flex flex-col overflow-y-auto border-l"
                 style={{ 
-                  width: tabBarSize,
-                  justifyContent: tabAlign === 'center' ? 'center' : tabAlign === 'end' ? 'flex-end' : 'flex-start'
+                  width: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : tabBarSize,
+                  justifyContent: tabAlign === 'center' ? 'center' : tabAlign === 'end' ? 'flex-end' : 'flex-start',
+                  paddingLeft: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : undefined,
+                  paddingRight: (isTabBarCollapsed && tabBarCollapseEnabled) ? 0 : undefined,
+                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  overflow: 'hidden',
+                  backgroundColor: tabBarBgColor !== 'transparent' ? tabBarBgColor : undefined,
+                  borderColor: tabBarBorderColor !== 'transparent' ? tabBarBorderColor : 'rgba(23, 23, 23, 0.6)'
                 }}
               >
-                <div className="flex flex-col p-4" style={{ gap: `${tabGap}px` }}>
+                <div className="flex flex-col p-4 flex-1" style={{ gap: `${tabGap}px`, minWidth: tabBarSize - 32 }}>
                   {dashboardTabs.map(tab => renderTabItem(tab, false))}
                   {isEditMode && renderAddTabButton()}
+
+                  {tabBarCollapseEnabled && (
+                    <button 
+                      onClick={() => setIsTabBarCollapsed(true)}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-200 bg-neutral-950/20 hover:bg-neutral-800/40 border border-neutral-850 hover:border-neutral-800 rounded-xl transition-all duration-200 cursor-pointer shrink-0 mt-auto"
+                      style={{ borderRadius: `${tabBorderRadius}px` }}
+                      title="Collapse Tab Bar"
+                    >
+                      <span>Collapse</span> <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -4263,8 +4655,8 @@ if (element) {
 
           {/* Tab Settings Drawer */}
           {showTabSettings && (
-            <div className="fixed inset-y-0 right-0 w-80 bg-neutral-900 border-l border-neutral-800 p-6 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200">
-              <div className="flex justify-between items-center mb-6 shrink-0">
+            <div className="fixed inset-y-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200">
+              <div className="flex justify-between items-center p-6 border-b border-neutral-800 shrink-0">
                 <h3 className="font-bold text-lg flex items-center gap-2">
                   <LayoutDashboard className="w-5 h-5 text-orange-500" /> Tab Settings
                 </h3>
@@ -4273,7 +4665,7 @@ if (element) {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-auto space-y-6">
+              <div className="flex-1 overflow-auto space-y-6 p-6">
                 {/* Master Toggle */}
                 <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-2xl">
                   <div className="flex items-center gap-3">
@@ -4289,6 +4681,14 @@ if (element) {
                     <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-200 ${tabPosition !== 'none' ? 'left-7' : 'left-1'}`} />
                   </button>
                 </div>
+
+                {/* Add New Tab Button */}
+                <button
+                  onClick={handleAddTab}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-orange-600/20 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Add New Tab
+                </button>
 
                 <div className="space-y-3">
                   <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Tab Bar Position</label>
@@ -4451,6 +4851,130 @@ if (element) {
                         </div>
                       </div>
                     </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                        <span>Background Color (Inactive)</span>
+                        <span className="text-orange-500 font-mono">{tabBgColor}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="color" 
+                          value={tabBgColor} 
+                          onChange={e => setTabBgColor(e.target.value)}
+                          className="w-10 h-10 bg-transparent border-none cursor-pointer rounded overflow-hidden"
+                        />
+                        <div className="flex flex-wrap gap-1.5 flex-1">
+                          {['#ffffff', '#000000', '#f97316', '#3b82f6', '#10b981', '#ef4444'].map(c => (
+                            <button 
+                              key={c}
+                              onClick={() => setTabBgColor(c)}
+                              className="w-5 h-5 rounded-full border border-white/10"
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                          <button 
+                            onClick={() => setTabBgColor('#ffffff')}
+                            className="px-2 py-0.5 rounded text-[8px] bg-neutral-800 text-neutral-400 border border-neutral-700"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                        <span>Border Color (Inactive)</span>
+                        <span className="text-orange-500 font-mono">{tabBorderColor}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="color" 
+                          value={tabBorderColor} 
+                          onChange={e => setTabBorderColor(e.target.value)}
+                          className="w-10 h-10 bg-transparent border-none cursor-pointer rounded overflow-hidden"
+                        />
+                        <div className="flex flex-wrap gap-1.5 flex-1">
+                          {['#ffffff', '#000000', '#f97316', '#3b82f6', '#10b981', '#ef4444'].map(c => (
+                            <button 
+                              key={c}
+                              onClick={() => setTabBorderColor(c)}
+                              className="w-5 h-5 rounded-full border border-white/10"
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                          <button 
+                            onClick={() => setTabBorderColor('#ffffff')}
+                            className="px-2 py-0.5 rounded text-[8px] bg-neutral-800 text-neutral-400 border border-neutral-700"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                        <span>Tab Bar Background Color</span>
+                        <span className="text-orange-500 font-mono">{tabBarBgColor}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="color" 
+                          value={tabBarBgColor === 'transparent' ? '#000000' : tabBarBgColor} 
+                          onChange={e => setTabBarBgColor(e.target.value)}
+                          className="w-10 h-10 bg-transparent border-none cursor-pointer rounded overflow-hidden"
+                        />
+                        <div className="flex flex-wrap gap-1.5 flex-1">
+                          {['#000000', '#171717', '#262626', '#1f2937', '#ea580c', '#3b82f6'].map(c => (
+                            <button 
+                              key={c}
+                              onClick={() => setTabBarBgColor(c)}
+                              className="w-5 h-5 rounded-full border border-white/10"
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                          <button 
+                            onClick={() => setTabBarBgColor('transparent')}
+                            className="px-2 py-0.5 rounded text-[8px] bg-neutral-800 text-neutral-400 border border-neutral-700 cursor-pointer"
+                          >
+                            Transparent
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[9px] text-neutral-500 uppercase">
+                        <span>Tab Bar Border Color</span>
+                        <span className="text-orange-500 font-mono">{tabBarBorderColor}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="color" 
+                          value={tabBarBorderColor === 'transparent' ? '#262626' : tabBarBorderColor} 
+                          onChange={e => setTabBarBorderColor(e.target.value)}
+                          className="w-10 h-10 bg-transparent border-none cursor-pointer rounded overflow-hidden"
+                        />
+                        <div className="flex flex-wrap gap-1.5 flex-1">
+                          {['#262626', '#171717', '#404040', '#ef4444', '#f97316', '#3b82f6'].map(c => (
+                            <button 
+                              key={c}
+                              onClick={() => setTabBarBorderColor(c)}
+                              className="w-5 h-5 rounded-full border border-white/10"
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                          <button 
+                            onClick={() => setTabBarBorderColor('transparent')}
+                            className="px-2 py-0.5 rounded text-[8px] bg-neutral-800 text-neutral-400 border border-neutral-700 cursor-pointer"
+                          >
+                            Transparent
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -4562,13 +5086,52 @@ if (element) {
                     />
                   </div>
 
+                  {/* Collapsible Tab Bar Config */}
+                  {['top', 'bottom', 'left', 'right'].includes(tabPosition) && (
+                    <div className="space-y-4 pt-4 border-t border-neutral-800">
+                      <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-2xl">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-neutral-200">Collapsible Tab Bar</span>
+                          <span className="text-[10px] text-neutral-500">Allow collapsing the tab bar to save space</span>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            setTabBarCollapseEnabled(!tabBarCollapseEnabled);
+                            setIsTabBarCollapsed(false);
+                          }}
+                          className={`w-12 h-6 rounded-full relative transition-all duration-200 ${tabBarCollapseEnabled ? 'bg-orange-600 shadow-[0_0_10px_rgba(234,88,12,0.4)]' : 'bg-neutral-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-200 ${tabBarCollapseEnabled ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pinned Tab Bar Config */}
+                  {['top', 'bottom'].includes(tabPosition) && (
+                    <div className="space-y-4 pt-4 border-t border-neutral-800">
+                      <div className="flex items-center justify-between p-4 bg-neutral-950 border border-neutral-800 rounded-2xl">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-neutral-200">Pin Tab Bar</span>
+                          <span className="text-[10px] text-neutral-500">Keep tab bar fixed at top/bottom of screen</span>
+                        </div>
+                        <button 
+                          onClick={() => setTabBarPinned(!tabBarPinned)}
+                          className={`w-12 h-6 rounded-full relative transition-all duration-200 ${tabBarPinned ? 'bg-orange-600 shadow-[0_0_10px_rgba(234,88,12,0.4)]' : 'bg-neutral-800'}`}
+                        >
+                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-200 ${tabBarPinned ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </div>
             </div>
           )}
 
           {showAddChart && (
-            <div className="fixed inset-y-0 right-0 w-80 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200">
+            <div ref={addChartRef} className="fixed inset-y-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200">
               {/* Sidebar Header */}
               <div className="flex justify-between items-center p-4 border-b border-neutral-800 shrink-0">
                 <h3 className="font-bold text-base flex items-center gap-2">
@@ -6052,7 +6615,7 @@ if (element) {
       {/* Dashboard Template Settings Modal */}
       {showTemplateSettings && selectedDashboard && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden animate-in scale-in duration-150 flex flex-col">
+          <div ref={templateSettingsRef} className="w-full max-w-lg bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden animate-in scale-in duration-150 flex flex-col">
             <div className="flex justify-between items-center p-5 border-b border-neutral-800 bg-neutral-900/50">
               <div>
                 <h3 className="font-bold text-lg text-neutral-50 flex items-center gap-2">
@@ -6230,7 +6793,7 @@ if (element) {
 
       {/* Widget Style Editor Sidebar */}
       {showWidgetStyleModal && stylingWidgetId && (
-        <div className="fixed inset-y-0 right-0 w-80 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
+        <div className="fixed inset-y-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
           {(() => {
             const widget = dashboardWidgets.find(w => w.id === stylingWidgetId);
             if (!widget) return null;
@@ -6851,7 +7414,7 @@ if (element) {
 
       {/* Frame Style Editor Sidebar */}
       {showFrameStyleModal && stylingFrameId && (
-        <div className="fixed inset-y-0 right-0 w-80 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
+        <div className="fixed inset-y-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
           {(() => {
             const frame = dashboardFrames.find(f => f.id === stylingFrameId);
             if (!frame) return null;
@@ -7095,7 +7658,7 @@ if (element) {
 
               <button
                 onClick={() => {
-                  const url = `${window.location.origin}/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}`;
+                  const url = `${window.location.origin}/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}&layoutMode=${layoutMode}`;
                   const iframeCode = `<iframe src="${url}" width="${frameW}" height="${frameH}" style="border:none; width:100%; max-width:${frameW}px; aspect-ratio:${frameW}/${frameH};" frameborder="0" allowfullscreen scrolling="no"></iframe>`;
                   navigator.clipboard.writeText(iframeCode).then(() => {
                     Sonner.toast.success("Iframe code copied to clipboard!");
@@ -7118,7 +7681,7 @@ if (element) {
             <div className="absolute right-0 top-1/2 -translate-y-1/2 z-[10002] flex flex-col items-center">
               <button
                 onClick={() => {
-                  const url = `/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}`;
+                  const url = `/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}&layoutMode=${layoutMode}`;
                   window.open(url, '_blank');
                 }}
                 className="group flex items-center justify-center w-12 h-12 bg-neutral-800 hover:bg-orange-600 text-neutral-300 hover:text-white rounded-l-2xl shadow-2xl transition-all border border-r-0 border-neutral-700 hover:border-orange-500 active:scale-95"
@@ -7137,12 +7700,12 @@ if (element) {
                 transform: `scale(${scale})`,
                 transformOrigin: 'center center',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                backgroundColor: frame?.bgColor || selectedDashboard?.theme_config?.canvasBg || '#ffffff'
+                backgroundColor: frame?.bgColor || selectedDashboard?.theme_config?.canvasBg || '#f8f9fa'
               }}
               className="rounded-lg overflow-hidden border border-neutral-800 relative shadow-2xl shrink-0"
             >
               <iframe
-                src={`/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}`}
+                src={`/hub?preview=true&disable_header=true&dashboardId=${selectedDashboard.id}${mainFrameId ? `&mainFrameId=${mainFrameId}` : ''}&tabId=${activeTabId}&layoutMode=${layoutMode}`}
                 className="w-full h-full border-none"
                 title="Dashboard Preview"
               />
