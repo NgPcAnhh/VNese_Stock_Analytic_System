@@ -138,12 +138,23 @@ const formatDate = (value?: string) => {
   return Number.isNaN(parsed.getTime()) ? "-" : parsed.toLocaleDateString();
 };
 
-const evaluateEChartsCode = (code: string, data: any[]): { option: any; error: string | null } => {
+const evaluateEChartsCode = (
+  code: string, 
+  data: any[], 
+  context: any = {}
+): { option: any; error: string | null } => {
   if (typeof window === 'undefined') return { option: {}, error: null };
   if (!code) return { option: {}, error: "No code provided." };
   try {
+    const safeContext = {
+      setFilter: context?.setFilter || (() => {}),
+      switchTab: context?.switchTab || (() => {}),
+      notify: context?.notify || ((msg: string) => console.log("Notify:", msg)),
+      ...context
+    };
+
     // Prevent access to dangerous globals during render
-    const evalFunc = new Function("data", "window", "document", "location", `
+    const evalFunc = new Function("data", "window", "document", "location", "context", `
       try {
         ${code}
       } catch (e) {
@@ -151,7 +162,7 @@ const evaluateEChartsCode = (code: string, data: any[]): { option: any; error: s
       }
     `);
     // Pass null for sensitive objects to prevent side-effects during render
-    const result = evalFunc(data, null, null, null);
+    const result = evalFunc(data, null, null, null, safeContext);
     
     if (result?.__error) {
       return { option: {}, error: result.__error };
@@ -2761,20 +2772,40 @@ if (element) {
     const newId = Math.random().toString(36).substr(2, 9);
     const newTab = { id: newId, name: `Tab ${dashboardTabs.length + 1}` };
 
-    // Auto-clone attached frame if in custom/floating mode
+    // Auto-clone attached frame or mainframe if in whiteboard mode
+    const framesToClone: DashboardFrame[] = [];
+
+    // 1. Check custom tab frame
     if (tabPosition === 'custom' && tabFrameId) {
       const sourceFrame = dashboardFrames.find(f => f.id === tabFrameId);
-      // Ensure the source frame belongs to the currently active tab
       if (sourceFrame && (sourceFrame.tabId === activeTabId || (!sourceFrame.tabId && activeTabId === 'default'))) {
+        framesToClone.push(sourceFrame);
+      }
+    }
+
+    // 2. Check mainframe in whiteboard layout
+    if (layoutMode === 'whiteboard' && mainFrameId) {
+      const sourceMainFrame = dashboardFrames.find(f => f.id === mainFrameId);
+      if (sourceMainFrame && (sourceMainFrame.tabId === activeTabId || (!sourceMainFrame.tabId && activeTabId === 'default'))) {
+        // Avoid duplicate if mainFrameId is the same as tabFrameId
+        if (!framesToClone.some(f => f.id === sourceMainFrame.id)) {
+          framesToClone.push(sourceMainFrame);
+        }
+      }
+    }
+
+    // Clone all identified frames to the new tab
+    if (framesToClone.length > 0) {
+      const newFrames = framesToClone.map(sourceFrame => {
         const newFrameId = Math.random().toString(36).substr(2, 9);
-        const newFrame: DashboardFrame = {
+        return {
           ...sourceFrame,
           id: newFrameId,
           tabId: newId, // Assign to new tab
           name: sourceFrame.name
         };
-        setDashboardFrames(prev => [...prev, newFrame]);
-      }
+      });
+      setDashboardFrames(prev => [...prev, ...newFrames]);
     }
 
     setDashboardTabs(prev => [...prev, newTab]);
@@ -3908,7 +3939,20 @@ if (element) {
                       const filteredData = getFilteredData(item);
                       let evaluatedOption = item.chart.echarts_option || {};
                       if (item.chart.transform_config?.code) {
-                        const evalResult = evaluateEChartsCode(item.chart.transform_config.code, filteredData);
+                        const context = {
+                          setFilter: (col: string, val: string) => {
+                            setDashboardWidgets(prev => prev.map(w => 
+                              (w.itemType === 'filter' && w.filterColumn === col) ? { ...w, activeValue: val } : w
+                            ));
+                          },
+                          switchTab: (tabId: string) => handleSelectTab(tabId),
+                          notify: (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+                            if (type === 'success') Sonner.toast.success(msg);
+                            else if (type === 'error') Sonner.toast.error(msg);
+                            else Sonner.toast(msg);
+                          }
+                        };
+                        const evalResult = evaluateEChartsCode(item.chart.transform_config.code, filteredData, context);
                         if (!evalResult.error) evaluatedOption = evalResult.option;
                       }
                       const config = {
