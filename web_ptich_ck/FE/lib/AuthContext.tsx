@@ -54,6 +54,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loadUser();
     }, []);
 
+    useEffect(() => {
+        if (!user || user.role !== 'admin') return;
+
+        // Keep admin session active by calling a protected endpoint (/me) every 5 minutes
+        // This will trigger automatic token refresh before the access token expires.
+        const intervalId = setInterval(async () => {
+            try {
+                await fetchWithAuth('http://localhost:8000/api/v1/auth/me');
+            } catch (err) {
+                // Ignore background fetch errors
+            }
+        }, 5 * 60 * 1000); // 5 minutes
+
+        return () => clearInterval(intervalId);
+    }, [user]);
+
     const login = (newUser: User) => {
         setUser(newUser);
         try {

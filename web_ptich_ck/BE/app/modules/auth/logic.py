@@ -359,6 +359,11 @@ async def refresh_access_token(db: AsyncSession, refresh_token_str: str) -> dict
     role_name = _user_role_name(user)
     new_access = create_access_token(user.id, role_name)
 
+    # Nếu user là admin → gia hạn refresh token (sliding session)
+    if role_name == "admin":
+        db_token.expires_at = get_refresh_token_expiry()
+        await db.commit()
+
     return {
         "access_token": new_access,
         "refresh_token": refresh_token_str,

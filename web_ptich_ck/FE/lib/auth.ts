@@ -24,14 +24,53 @@ export interface AuthResponse {
     user: User;
 }
 
+// Helper to decode JWT payload safely (works in browser & SSR/Node environments)
+const decodeJwt = (token: string) => {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        let rawPayload = '';
+        if (typeof window !== 'undefined') {
+            rawPayload = window.atob(base64);
+        } else {
+            rawPayload = Buffer.from(base64, 'base64').toString('binary');
+        }
+        const jsonPayload = decodeURIComponent(
+            rawPayload
+                .split('')
+                .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                .join('')
+        );
+        return JSON.parse(jsonPayload);
+    } catch {
+        return null;
+    }
+};
+
 // Lấy tokens
 export const getAccessToken = () => Cookies.get('access_token');
 export const getRefreshToken = () => Cookies.get('refresh_token');
 
 // Lưu tokens
 export const setTokens = (access: string, refresh: string) => {
-    Cookies.set('access_token', access, { secure: true, sameSite: 'strict', expires: 1 }); // 1 day (auto-refresh via refresh_token)
-    Cookies.set('refresh_token', refresh, { secure: true, sameSite: 'strict', expires: 7 }); // 7 days
+    let isAdmin = false;
+    try {
+        const payload = decodeJwt(access);
+        if (payload && payload.role === 'admin') {
+            isAdmin = true;
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    if (isAdmin) {
+        // Admin gets session cookies (no expires date)
+        Cookies.set('access_token', access, { secure: true, sameSite: 'strict' });
+        Cookies.set('refresh_token', refresh, { secure: true, sameSite: 'strict' });
+    } else {
+        Cookies.set('access_token', access, { secure: true, sameSite: 'strict', expires: 1 }); // 1 day (auto-refresh via refresh_token)
+        Cookies.set('refresh_token', refresh, { secure: true, sameSite: 'strict', expires: 7 }); // 7 days
+    }
 };
 
 export const clearTokens = () => {
