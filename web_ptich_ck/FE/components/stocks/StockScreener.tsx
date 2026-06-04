@@ -63,14 +63,14 @@ function mapApiToStockItem(item: any): StockListItem {
     weekChange52: item.weekChange52 ?? 0,
     high52w: item.high52w ?? 0,
     low52w: item.low52w ?? 0,
-    price_n_1: item.price_n_1,
-    volume_n_1: item.volume_n_1,
-    price_n_2: item.price_n_2,
-    volume_n_2: item.volume_n_2,
-    priceChange_n_1_2: item.priceChange_n_1_2,
-    priceChangePercent_n_1_2: item.priceChangePercent_n_1_2,
-    volumeChange_n_1_2: item.volumeChange_n_1_2,
-    volumeChangePercent_n_1_2: item.volumeChangePercent_n_1_2,
+    price_n_1: item.price_n_1 ?? undefined,
+    volume_n_1: item.volume_n_1 ?? undefined,
+    price_n_2: item.price_n_2 ?? undefined,
+    volume_n_2: item.volume_n_2 ?? undefined,
+    priceChange_n_1_2: item.priceChange_n_1_2 ?? undefined,
+    priceChangePercent_n_1_2: item.priceChangePercent_n_1_2 ?? undefined,
+    volumeChange_n_1_2: item.volumeChange_n_1_2 ?? undefined,
+    volumeChangePercent_n_1_2: item.volumeChangePercent_n_1_2 ?? undefined,
     beta: item.beta ?? 0,
     rsi14: item.rsi14 ?? 50,
     macdSignal: item.macdSignal ?? "Trung tính",
@@ -981,7 +981,7 @@ export default function StockScreener() {
 
                               {/* Price % n-1/n-2 */}
                               <TableCell className="text-right bg-orange-50/20">
-                                {stock.priceChangePercent_n_1_2 !== undefined ? (
+                                {stock.priceChangePercent_n_1_2 != null ? (
                                   <span className={`text-[10px] font-medium ${stock.priceChangePercent_n_1_2 >= 0 ? "text-green-600" : "text-red-600"}`}>
                                     {fmtPct(stock.priceChangePercent_n_1_2)}
                                   </span>

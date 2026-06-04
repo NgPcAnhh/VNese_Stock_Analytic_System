@@ -664,12 +664,33 @@ async def _get_stock_overview_from_mv(
         ORDER BY {sort_col} {sort_direction} NULLS LAST
         LIMIT :limit OFFSET :offset
     """)
+    summary_sql = text(f"""
+        SELECT
+            COUNT(*) AS total_stocks,
+            SUM(CASE WHEN price_change > 0 THEN 1 ELSE 0 END) AS total_up,
+            SUM(CASE WHEN price_change < 0 THEN 1 ELSE 0 END) AS total_down,
+            SUM(CASE WHEN price_change = 0 OR price_change IS NULL THEN 1 ELSE 0 END) AS total_unchanged,
+            SUM(volume) AS total_volume,
+            AVG(CASE WHEN pe > 0 AND pe < 200 THEN pe ELSE NULL END) AS avg_pe
+        FROM {SCREENER_MV}
+    """)
 
-    # ... (summary_sql remains same) ...
+    try:
+        query_params = {
+            "limit": page_size,
+            "offset": offset,
+            **params,
+        }
+        res = await db.execute(data_sql, query_params)
+        rows = res.mappings().all()
 
-    # ... (query execution remains same) ...
-    
-    # (Inside data loop)
+        summary_res = await db.execute(summary_sql)
+        summary_row = summary_res.mappings().first()
+    except Exception as exc:
+        logger.warning("stock overview MV queries error: %s", exc)
+        await db.rollback()
+        return None
+
     data = []
     for r in rows:
         sparkline_raw = r["sparkline"] or []
