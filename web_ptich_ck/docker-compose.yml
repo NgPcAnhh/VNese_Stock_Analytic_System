@@ -34,6 +34,8 @@ services:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - OPENAI_API_KEY=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
+      - OPENAI_MODEL=gpt-5.4-mini
     networks:
       - etl-network
     depends_on:

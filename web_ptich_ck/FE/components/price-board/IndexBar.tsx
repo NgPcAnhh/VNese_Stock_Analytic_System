@@ -169,28 +169,28 @@ const IndexCard = memo(function IndexCard({ symbol }: { symbol: string }) {
   };
 
   return (
-    <div className={`rounded-lg border px-3 py-2 min-w-[220px] flex-1 flex gap-2 ${bgColor}`}>
+    <div className={`rounded-lg border px-2 py-2 min-w-0 flex-1 flex gap-1 lg:gap-2 ${bgColor} overflow-hidden`}>
       {/* Left: text info */}
-      <div className="flex flex-col justify-between flex-shrink-0 min-w-[100px]">
+      <div className="flex flex-col justify-between flex-shrink-0 min-w-[85px] sm:min-w-[100px]">
         <div className="flex items-center justify-between mb-0.5">
-          <span className="text-[13px] font-bold text-white">{symbol}</span>
-          <span className={`text-[11px] ${mainColor} ml-2`}>
+          <span className="text-[12px] sm:text-[13px] font-bold text-white truncate">{symbol}</span>
+          <span className={`text-[10px] sm:text-[11px] ${mainColor} ml-1`}>
             {isUp ? "▲" : isDown ? "▼" : "—"}
           </span>
         </div>
-        <div className={`text-[18px] font-bold leading-tight ${mainColor}`}>
+        <div className={`text-[16px] sm:text-[18px] font-bold leading-tight ${mainColor}`}>
           {value > 0 ? fmtIndexValue(value) : "—"}
         </div>
-        <div className={`text-[12px] ${mainColor} mt-0.5`}>
+        <div className={`text-[11px] sm:text-[12px] ${mainColor} mt-0.5 truncate`}>
           {fmtIndexChange(change)} ({changePercent > 0 ? "+" : ""}{changePercent.toFixed(2)}%)
         </div>
-        <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400">
+        <div className="flex items-center gap-1 sm:gap-2 mt-1 text-[9px] sm:text-[10px] text-gray-400 whitespace-nowrap overflow-hidden text-ellipsis">
           <span>KL: {fmtVol(totalVolume)}</span>
-          <span>GT: {fmtVal(totalValue)}</span>
+          <span className="hidden sm:inline">GT: {fmtVal(totalValue)}</span>
         </div>
       </div>
       {/* Right: sparkline chart */}
-      <div className="flex-1 min-w-[80px] flex items-center">
+      <div className="flex-1 min-w-[40px] flex items-center opacity-70 sm:opacity-100">
         <MiniSparkline data={priceHistory} color={chartColor} height={52} />
       </div>
     </div>
@@ -345,13 +345,13 @@ export default function IndexBar() {
   return (
     <div className="flex flex-col xl:flex-row gap-2 mb-2">
       {/* Mini cards for key indices */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-2 flex-1 min-w-0">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 flex-1 min-w-0">
         {CHART_INDEX_IDS.map((id) => (
           <IndexCard key={id} symbol={id} />
         ))}
       </div>
       {/* Compact summary table for all indices */}
-      <div className="xl:w-[480px] flex-shrink-0 overflow-auto">
+      <div className="w-full xl:w-[400px] 2xl:w-[480px] flex-shrink-0 overflow-auto">
         <IndexSummaryTable />
       </div>
     </div>

@@ -1035,10 +1035,18 @@ export default function DataSourcesPage() {
                   </button>
                 </div>
               </div>
-              <textarea 
+              <textarea
                 className="w-full flex-1 bg-neutral-950 border border-neutral-800 rounded p-4 font-mono text-sm text-neutral-300 focus:outline-none focus:border-orange-500 resize-none"
                 value={sql}
                 onChange={(e) => setSql(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.ctrlKey && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (!queryLoading && selectedSourceId) {
+                      handlePreview();
+                    }
+                  }
+                }}
               />
             </div>
             

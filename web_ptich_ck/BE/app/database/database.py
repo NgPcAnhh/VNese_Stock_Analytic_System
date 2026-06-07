@@ -82,10 +82,11 @@ async def init_db() -> None:
 from sqlalchemy import text
 
 async def init_bi_db() -> None:
-    """Khởi tạo schema bi_hub, các bảng của BI, và seed workspace mặc định."""
+    """Khởi tạo schema bi_hub và system, các bảng của BI, và seed workspace mặc định."""
     async with engine.begin() as conn:
-        # 1. Tạo schema bi_hub
+        # 1. Tạo các schema cần thiết
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS bi_hub;"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS system;"))
         
         # Import toàn bộ model của BI để đăng ký vào Base.metadata
         import app.modules.bi.models.workspace

@@ -29,7 +29,14 @@ async def refresh_stock_screener_mv_once() -> None:
     use_ssl = False if any(host in dsn for host in ["localhost", "127.0.0.1", "dwh-postgres"]) else True
     conn = await asyncpg.connect(dsn=dsn, command_timeout=3600, ssl=use_ssl)
     try:
-        await conn.execute(_REFRESH_SQL)
+        try:
+            await conn.execute(_REFRESH_SQL)
+        except asyncpg.exceptions.FeatureNotSupportedError as e:
+            if "CONCURRENTLY" in str(e):
+                logger.warning("Materialized view is not populated. Refreshing non-concurrently first...")
+                await conn.execute("REFRESH MATERIALIZED VIEW hethong_phantich_chungkhoan.mv_stock_screener_base")
+            else:
+                raise
     finally:
         await conn.close()
 
