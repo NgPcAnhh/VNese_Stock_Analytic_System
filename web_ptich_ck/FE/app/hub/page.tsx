@@ -420,11 +420,17 @@ export default function BIHubPage() {
   const previewChartRef = useRef<any>(null);
   const fullsizeChartRef = useRef<any>(null);
 
-  // AI Prompt Generator state
-  const [aiPromptChartDesc, setAiPromptChartDesc] = useState("");
-  const [aiPromptFieldDesc, setAiPromptFieldDesc] = useState("");
-  const [aiPromptDesignNote, setAiPromptDesignNote] = useState("");
-  const [aiPromptCopied, setAiPromptCopied] = useState(false);
+  // AI Agent Coding state
+  const [aiAgentPrompt, setAiAgentPrompt] = useState("");
+  const [aiAgentLoading, setAiAgentLoading] = useState(false);
+  const [isFirstAiGen, setIsFirstAiGen] = useState(true);
+  // First-gen form fields (used to build initial full prompt)
+  const [aiChartDesc, setAiChartDesc] = useState("");
+  const [aiFieldDesc, setAiFieldDesc] = useState("");
+  const [aiDesignNote, setAiDesignNote] = useState("");
+  type AiMessage = { role: 'user' | 'ai'; content: string };
+  const [aiHistory, setAiHistory] = useState<AiMessage[]>([]);
+  const aiHistoryRef = useRef<HTMLDivElement>(null);
 
   // ==========================================
   // DASHBOARD BUILDER STATE
@@ -2871,6 +2877,14 @@ if (element) {
     setChartConfigTab("schema");
     setShowChartPreview(true);
 
+    // Reset AI Agent state
+    setIsFirstAiGen(true);
+    setAiHistory([]);
+    setAiChartDesc("");
+    setAiFieldDesc("");
+    setAiDesignNote("");
+    setAiAgentPrompt("");
+
     setView("edit-chart");
   };
 
@@ -2892,6 +2906,13 @@ if (element) {
     setEvaluatedOption({});
     setDatasetPreview(null);
     setShowChartPreview(false);
+    // Reset AI Agent state for fresh start
+    setIsFirstAiGen(true);
+    setAiHistory([]);
+    setAiChartDesc("");
+    setAiFieldDesc("");
+    setAiDesignNote("");
+    setAiAgentPrompt("");
     setShowSelectDatasetModal(false);
     setView("create-chart");
   };
@@ -2921,6 +2942,89 @@ if (element) {
       setShowChartPreview(true);
     }
   };
+
+  const handleAiGenCode = async () => {
+    // Build prompt based on generation stage
+    let prompt = "";
+    if (isFirstAiGen) {
+      // Build full prompt from form fields
+      const parts = [];
+      if (aiChartDesc) parts.push(`Vẽ biểu đồ: ${aiChartDesc}`);
+      if (aiFieldDesc) parts.push(`Trường dữ liệu: ${aiFieldDesc}`);
+      if (aiDesignNote) parts.push(`Thiết kế: ${aiDesignNote}`);
+      prompt = parts.join(". ") || aiAgentPrompt;
+    } else {
+      prompt = aiAgentPrompt;
+    }
+
+    if (!prompt.trim()) {
+      Sonner.toast.error("Vui lòng nhập mô tả hoặc yêu cầu cho AI.");
+      return;
+    }
+    if (!datasetPreview) {
+      Sonner.toast.error("Chưa có dữ liệu dataset. Hãy chọn dataset trước.");
+      return;
+    }
+
+    setAiAgentLoading(true);
+    const userMsgContent = isFirstAiGen
+      ? `[Lần đầu] ${prompt}`
+      : prompt;
+
+    // Add user message to history
+    setAiHistory(prev => [...prev, { role: 'user', content: userMsgContent }]);
+
+    try {
+      const result = await api.charts.aiCodeGen({
+        prompt,
+        columns: (datasetPreview.columns || []).map((c: any) => ({
+          name: c.name || c,
+          type: c.type || 'unknown',
+        })),
+        sample_rows: (datasetPreview.rows || []).slice(0, 3),
+        current_code: isFirstAiGen ? undefined : echartsCode,
+      });
+
+      // Push code into Monaco Editor
+      setEchartsCode(result.code);
+
+      // Add AI response to history
+      setAiHistory(prev => [...prev, { role: 'ai', content: `✅ Code đã được tạo (${result.code.split('\n').length} dòng)` }]);
+
+      // Auto-run the code to show preview
+      const rows = datasetPreview?.rows || [];
+      const evalResult = evaluateEChartsCode(result.code, rows);
+      if (evalResult.error) {
+        setEvalError(evalResult.error);
+        setEvalSuccess(false);
+        setAiHistory(prev => [...prev, { role: 'ai', content: `⚠️ Code có lỗi: ${evalResult.error}` }]);
+      } else {
+        setEvaluatedOption(evalResult.option);
+        setEvalError(null);
+        setEvalSuccess(true);
+        setShowChartPreview(true);
+      }
+
+      // Mark as not first gen anymore
+      setIsFirstAiGen(false);
+      // Clear prompt input for next turn
+      setAiAgentPrompt("");
+
+      // Scroll chat history to bottom
+      setTimeout(() => {
+        aiHistoryRef.current?.scrollTo({ top: aiHistoryRef.current.scrollHeight, behavior: 'smooth' });
+      }, 100);
+
+      Sonner.toast.success("AI đã tạo code thành công!");
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.detail || err?.message || "Lỗi không xác định";
+      setAiHistory(prev => [...prev, { role: 'ai', content: `❌ Lỗi: ${errMsg}` }]);
+      Sonner.toast.error(`AI lỗi: ${errMsg}`);
+    } finally {
+      setAiAgentLoading(false);
+    }
+  };
+
   const handleExportChart = (format: 'png' | 'jpeg', isFullsize = false) => {
     const chartRef = isFullsize ? fullsizeChartRef : previewChartRef;
     if (!chartRef.current) return;
@@ -5684,13 +5788,6 @@ if (element) {
                       <div className="flex flex-col gap-2">
                         <button
                           type="button"
-                          onClick={() => setShowChartPreview(false)}
-                          className="w-full flex items-center justify-center gap-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs py-2 px-4 rounded-xl transition-all cursor-pointer border border-neutral-700"
-                        >
-                          <Sparkles className="w-3.5 h-3.5 text-orange-500" /> Generate Prompt
-                        </button>
-                        <button
-                          type="button"
                           onClick={handleRunCode}
                           disabled={!datasetPreview}
                           className="w-full flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold text-sm py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-orange-600/15 cursor-pointer"
@@ -5745,6 +5842,16 @@ if (element) {
                       <h3 className="font-bold text-neutral-200 text-sm">Chart Preview</h3>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* AI Agent toggle button */}
+                      <button
+                        type="button"
+                        onClick={() => setShowChartPreview(false)}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-violet-500/10 border border-violet-500/25 hover:bg-violet-500/20 text-violet-400 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                        title="Mở AI Chart Agent"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        AI Agent
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -5782,132 +5889,273 @@ if (element) {
                   </div>
                 </>
               ) : (
-                // AI PROMPT GENERATOR MODE (RESTORED)
+                // AI AGENT CODING PANEL
                 <>
                   {/* Header */}
-                  <div className="flex justify-between items-center mb-4 shrink-0">
+                  <div className="flex justify-between items-center mb-3 shrink-0">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 to-orange-500 flex items-center justify-center shadow-md shadow-violet-500/30">
                         <Sparkles className="w-3.5 h-3.5 text-white" />
                       </div>
-                      <h3 className="font-bold text-neutral-200 text-sm">AI Prompt Generator</h3>
-                      <span className="text-[10px] bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-semibold">Gemini · ChatGPT</span>
+                      <h3 className="font-bold text-neutral-200 text-sm">AI Chart Agent</h3>
+                      <span className="text-[10px] bg-violet-500/10 border border-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full font-semibold animate-pulse">
+                        Gemini
+                      </span>
                     </div>
-                  </div>
-
-                  {/* Description label */}
-                  <p className="text-[11px] text-neutral-500 mb-4 shrink-0">Điền thông tin bên dưới để tạo prompt. Copy và dán vào <span className="text-orange-400 font-semibold">Gemini</span> hoặc <span className="text-green-400 font-semibold">ChatGPT</span> để nhận ECharts code.</p>
-
-                  {/* Input Fields */}
-                  <div className="flex flex-col gap-3 mb-4 shrink-0">
-                    <div>
-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Mô tả chart bạn muốn vẽ</label>
-                      <input
-                        type="text"
-                        placeholder="vd: biểu đồ cột thể hiện doanh thu theo tháng"
-                        value={aiPromptChartDesc}
-                        onChange={e => setAiPromptChartDesc(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Trường dữ liệu bạn muốn hiển thị</label>
-                      <input
-                        type="text"
-                        placeholder="vd: trục X là date, trục Y là close_price"
-                        value={aiPromptFieldDesc}
-                        onChange={e => setAiPromptFieldDesc(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Lưu ý thiết kế (màu sắc, font, style...)</label>
-                      <input
-                        type="text"
-                        placeholder="vd: dark theme, màu cam, không cần legend"
-                        value={aiPromptDesignNote}
-                        onChange={e => setAiPromptDesignNote(e.target.value)}
-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Generated Prompt Display */}
-                  <div className="flex-1 flex flex-col min-h-0">
-                    <div className="flex justify-between items-center mb-2 shrink-0">
-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Prompt được tạo</label>
+                    {!isFirstAiGen && (
                       <button
                         type="button"
-                        onClick={() => {
-                          const cols = datasetPreview?.columns?.map((c: any) => c.name || c).join(', ') || '(chưa load dataset)';
-                          const prompt = [
-                            `Tôi đang cấu hình Custom ECharts trong hệ thống Trực quan hóa. Hãy viết một đoạn mã JavaScript HOÀN CHỈNH để vẽ chart ${aiPromptChartDesc || 'Donut chart'} sử dụng các trường dữ liệu sau: ${cols}.`,
-                            ``,
-                            `DỮ LIỆU ĐẦU VÀO:`,
-                            `Hệ thống sẽ cung cấp một biến cục bộ tên là 'data'. Biến 'data' này là một mảng các Object (Array of Objects), trong đó mỗi Object đại diện cho một bản ghi từ SQL. Ví dụ: [{ "truong_1": 10, "truong_2": "A" }, ...]`,
-                            ``,
-                            `YÊU CẦU VỀ CODE:`,
-                            `1. KHÔNG sử dụng 'fetch' hay gọi API bên ngoài. Dữ liệu đã có sẵn trong biến 'data'.`,
-                            `2. Hãy sử dụng hàm '.map()' trên biến 'data' để trích xuất các mảng cần thiết cho xAxis.data, yAxis.data hoặc series.data. Ví dụ: const labels = data.map(item => item.name);`,
-                            `3. Yêu cầu hiển thị dữ liệu chi tiết: ${aiPromptFieldDesc || 'Hiển thị đầy đủ thông tin các trường lên Tooltip và Label'}.`,
-                            `4. Lưu ý về thiết kế: ${aiPromptDesignNote || 'Thiết kế hiện đại, màu sắc hài hòa, có hiệu ứng dark mode, bo góc nhẹ'}.`,
-                            `5. Biểu đồ phải có Tooltip trực quan (trigger: 'axis' hoặc 'item').`,
-                            `6. BẮT BUỘC đoạn mã phải kết thúc bằng lệnh "return option;" (trong đó 'option' là đối tượng cấu hình ECharts). KHÔNG giải thích, CHỈ trả về đoạn code JavaScript.`,
-                          ].join('\n');
-                          navigator.clipboard.writeText(prompt).then(() => {
-                            setAiPromptCopied(true);
-                            setTimeout(() => setAiPromptCopied(false), 2000);
-                            Sonner.toast.success("AI Prompt copied!");
-                          });
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-md shadow-orange-600/20"
+                        onClick={() => setShowChartPreview(true)}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-neutral-950 border border-neutral-800 hover:bg-neutral-800 text-xs font-semibold text-neutral-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                        title="Xem Chart Preview"
                       >
-                        {aiPromptCopied ? (
-                          <><Check className="w-3.5 h-3.5" /> Đã copy!</>
+                        <BarChart3 className="w-3 h-3 text-orange-500" />
+                        Preview
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Body: First gen form OR chat history */}
+                  <div className="flex-1 flex flex-col min-h-0 gap-3">
+                    {isFirstAiGen ? (
+                      // FIRST GENERATION: 3-field form
+                      <div className="flex flex-col gap-3 shrink-0">
+                        <p className="text-[11px] text-neutral-500 leading-relaxed">
+                          Mô tả chart bạn muốn. AI sẽ tự viết code ECharts và đẩy thẳng vào editor.
+                        </p>
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">
+                            Mô tả chart bạn muốn vẽ <span className="text-orange-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            id="ai-chart-desc"
+                            placeholder="vd: biểu đồ cột thể hiện doanh thu theo tháng"
+                            value={aiChartDesc}
+                            onChange={e => setAiChartDesc(e.target.value)}
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">
+                            Trường dữ liệu muốn hiển thị
+                          </label>
+                          <input
+                            type="text"
+                            id="ai-field-desc"
+                            placeholder="vd: trục X là date, trục Y là close_price"
+                            value={aiFieldDesc}
+                            onChange={e => setAiFieldDesc(e.target.value)}
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">
+                            Lưu ý thiết kế
+                          </label>
+                          <input
+                            type="text"
+                            id="ai-design-note"
+                            placeholder="vd: dark theme, màu cam, không cần legend"
+                            value={aiDesignNote}
+                            onChange={e => setAiDesignNote(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && !aiAgentLoading && handleAiGenCode()}
+                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
+                          />
+                        </div>
+                        {/* Dataset columns quick reference */}
+                        {datasetPreview?.columns?.length > 0 && (
+                          <div className="bg-neutral-950 border border-neutral-850 rounded-xl p-3">
+                            <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-wider block mb-1.5">
+                              Columns có sẵn
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {datasetPreview.columns.slice(0, 10).map((c: any) => (
+                                <span
+                                  key={c.name || c}
+                                  className="text-[9px] px-1.5 py-0.5 bg-neutral-900 border border-neutral-800 rounded text-sky-400 font-mono cursor-pointer hover:border-sky-500/50 transition-colors"
+                                  onClick={() => {
+                                    const name = c.name || c;
+                                    setAiFieldDesc(prev => prev ? `${prev}, ${name}` : name);
+                                  }}
+                                  title="Click để thêm vào mô tả"
+                                >
+                                  {c.name || c}
+                                </span>
+                              ))}
+                              {datasetPreview.columns.length > 10 && (
+                                <span className="text-[9px] text-neutral-600 px-1.5 py-0.5">
+                                  +{datasetPreview.columns.length - 10} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ── Prompt Preview (giống thiết kế cũ) ── */}
+                        <div className="flex-1 flex flex-col min-h-0">
+                          <div className="flex justify-between items-center mb-2 shrink-0">
+                            <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Prompt được tạo</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cols = datasetPreview?.columns?.map((c: any) => c.name || c).join(', ') || '(chưa load dataset)';
+                                const promptText = [
+                                  `Tôi đang cấu hình Custom ECharts trong hệ thống Trực quan hóa. Hãy viết một đoạn mã JavaScript HOÀN CHỈNH để vẽ chart ${aiChartDesc || 'Donut chart'} sử dụng các trường dữ liệu sau: ${cols}.`,
+                                  ``,
+                                  `DỮ LIỆU ĐẦU VÀO:`,
+                                  `Hệ thống sẽ cung cấp một biến cục bộ tên là 'data'. Biến 'data' này là một mảng các Object (Array of Objects), trong đó mỗi Object đại diện cho một bản ghi từ SQL. Ví dụ: [{ "truong_1": 10, "truong_2": "A" }, ...]`,
+                                  ``,
+                                  `YÊU CẦU VỀ CODE:`,
+                                  `1. KHÔNG sử dụng 'fetch' hay gọi API bên ngoài. Dữ liệu đã có sẵn trong biến 'data'.`,
+                                  `2. Hãy sử dụng hàm '.map()' trên biến 'data' để trích xuất các mảng cần thiết cho xAxis.data, yAxis.data hoặc series.data. Ví dụ: const labels = data.map(item => item.name);`,
+                                  `3. Yêu cầu hiển thị dữ liệu chi tiết: ${aiFieldDesc || 'Hiển thị đầy đủ thông tin các trường lên Tooltip và Label'}.`,
+                                  `4. Lưu ý về thiết kế: ${aiDesignNote || 'Thiết kế hiện đại, màu sắc hài hòa, có hiệu ứng dark mode, bo góc nhẹ'}.`,
+                                  `5. Biểu đồ phải có Tooltip trực quan (trigger: 'axis' hoặc 'item').`,
+                                  `6. RESPONSIVE: Chart phải responsive (không dùng width/height pixel cố định). Nội dung căn giữa. Legend mặc định đặt dưới cùng căn giữa: legend: { orient: 'horizontal', bottom: 0, left: 'center' }. Grid có containLabel: true.`,
+                                  `7. BẮT BUỘC đoạn mã phải kết thúc bằng lệnh "return option;" (trong đó 'option' là đối tượng cấu hình ECharts). KHÔNG giải thích, CHỈ trả về đoạn code JavaScript.`,
+                                ].join('\n');
+                                navigator.clipboard.writeText(promptText).then(() => {
+                                  Sonner.toast.success("Đã copy prompt!");
+                                });
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                            >
+                              <Copy className="w-3 h-3" /> Copy Prompt
+                            </button>
+                          </div>
+                          <div className="flex-1 min-h-[120px] bg-neutral-950 border border-neutral-800 rounded-xl p-4 overflow-auto shadow-inner">
+                            <p className="text-xs leading-relaxed font-mono text-neutral-300 whitespace-pre-wrap select-all">
+                              <span className="text-neutral-500">Tôi muốn vẽ biểu đồ </span>
+                              <span className="text-orange-400 font-semibold">{aiChartDesc || <span className="italic text-neutral-600">(mô tả loại chart)</span>}</span>
+                              <span className="text-neutral-500"> sử dụng biến </span>
+                              <span className="text-orange-400 font-semibold">data</span>
+                              <span className="text-neutral-500"> là mảng các record chứa các cột: </span>
+                              <span className="text-sky-400 font-semibold">
+                                {datasetPreview?.columns?.length > 0
+                                  ? datasetPreview.columns.map((c: any) => c.name || c).join(', ')
+                                  : <span className="italic text-neutral-600">(chưa có dataset)</span>
+                                }
+                              </span>
+                              <span className="text-neutral-500">. Chi tiết hiển thị: </span>
+                              <span className="text-emerald-400 font-semibold">{aiFieldDesc || <span className="italic text-neutral-600">(trường dữ liệu nào ở đâu)</span>}</span>
+                              <span className="text-neutral-500">. Thiết kế: </span>
+                              <span className="text-pink-400 font-semibold">{aiDesignNote || <span className="italic text-neutral-600">(màu sắc, style...)</span>}</span>
+                              <span className="text-neutral-500">. </span>
+                              <span className="text-violet-400 font-semibold">Responsive</span>
+                              <span className="text-neutral-500">: không dùng px cố định, legend dưới cùng căn giữa, containLabel: true. Bắt buộc kết thúc bằng lệnh </span>
+                              <span className="text-orange-400 font-semibold">return option;</span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                    ) : (
+                      // SUBSEQUENT GENERATIONS: Chat history
+                      <div
+                        ref={aiHistoryRef}
+                        className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1"
+                      >
+                        {aiHistory.map((msg, i) => (
+                          <div
+                            key={i}
+                            className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                          >
+                            {msg.role === 'ai' && (
+                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-orange-500 flex items-center justify-center shrink-0 mt-0.5">
+                                <Sparkles className="w-3 h-3 text-white" />
+                              </div>
+                            )}
+                            <div
+                              className={`max-w-[80%] px-3 py-2 rounded-xl text-xs leading-relaxed ${
+                                msg.role === 'user'
+                                  ? 'bg-orange-50 border border-orange-200 text-orange-900'
+                                  : 'bg-white border border-neutral-200 text-neutral-800'
+                              }`}
+                            >
+                              {msg.content}
+                            </div>
+                            {msg.role === 'user' && (
+                              <div className="w-5 h-5 rounded-full bg-neutral-200 flex items-center justify-center shrink-0 mt-0.5 text-[8px] text-neutral-700 font-bold">
+                                U
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {aiAgentLoading && (
+                          <div className="flex gap-2 justify-start">
+                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-orange-500 flex items-center justify-center shrink-0 mt-0.5">
+                              <Sparkles className="w-3 h-3 text-white" />
+                            </div>
+                            <div className="px-3 py-2 rounded-xl bg-white border border-neutral-200 flex items-center gap-2">
+                              <span className="inline-flex gap-1">
+                                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                              </span>
+                              <span className="text-[10px] text-neutral-600">Đang tạo code...</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Prompt Input Area — always visible */}
+                    <div className="shrink-0 mt-auto">
+                      {!isFirstAiGen && (
+                        <div className="flex items-center gap-2 mb-2">
+                          <textarea
+                            id="ai-agent-prompt"
+                            rows={2}
+                            placeholder="Mô tả thay đổi... (vd: đổi sang line chart, thêm data labels, màu xanh)"
+                            value={aiAgentPrompt}
+                            onChange={e => setAiAgentPrompt(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && !e.shiftKey && !aiAgentLoading) {
+                                e.preventDefault();
+                                handleAiGenCode();
+                              }
+                            }}
+                            disabled={aiAgentLoading}
+                            className="flex-1 resize-none bg-neutral-950 border border-neutral-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors disabled:opacity-50"
+                          />
+                          <button
+                            type="button"
+                            id="ai-send-btn"
+                            onClick={handleAiGenCode}
+                            disabled={aiAgentLoading || (!aiAgentPrompt.trim())}
+                            className="p-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-xl transition-all shadow-md shadow-violet-600/25 cursor-pointer shrink-0"
+                            title="Gửi (Enter)"
+                          >
+                            <Forward className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Generate Button */}
+                      <button
+                        type="button"
+                        id="ai-gen-code-btn"
+                        onClick={handleAiGenCode}
+                        disabled={aiAgentLoading || !datasetPreview || (isFirstAiGen && !aiChartDesc.trim())}
+                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-orange-600 hover:from-violet-700 hover:to-orange-700 disabled:opacity-40 text-white font-bold text-sm py-2.5 px-4 rounded-xl transition-all shadow-lg shadow-violet-600/20 cursor-pointer"
+                      >
+                        {aiAgentLoading ? (
+                          <>
+                            <span className="inline-flex gap-1">
+                              <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </span>
+                            Đang tạo code...
+                          </>
                         ) : (
-                          <><Copy className="w-3.5 h-3.5" /> Copy Prompt</>
+                          <>
+                            <Sparkles className="w-4 h-4" />
+                            {isFirstAiGen ? 'Tạo Code với AI' : 'Cập nhật Code'}
+                          </>
                         )}
                       </button>
-                    </div>
-                    <div className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl p-4 overflow-auto shadow-inner relative">
-                      <p className="text-xs leading-relaxed font-mono text-neutral-300 whitespace-pre-wrap select-all">
-                        <span className="text-neutral-500">Tôi muốn vẽ biểu đồ </span>
-                        <span className="text-orange-400 font-semibold">{aiPromptChartDesc || <span className="italic text-neutral-600">(mô tả loại chart)</span>}</span>
-                        <span className="text-neutral-500"> sử dụng biến </span>
-                        <span className="text-orange-400 font-semibold">data</span>
-                        <span className="text-neutral-500"> là mảng các record chứa các cột: </span>
-                        <span className="text-sky-400 font-semibold">
-                          {datasetPreview?.columns?.length > 0
-                            ? datasetPreview.columns.map((c: any) => c.name || c).join(', ')
-                            : <span className="italic text-neutral-600">(chưa có dataset)</span>
-                          }
-                        </span>
-                        <span className="text-neutral-500">. Chi tiết hiển thị: </span>
-                        <span className="text-emerald-400 font-semibold">{aiPromptFieldDesc || <span className="italic text-neutral-600">(trường dữ liệu nào ở đâu)</span>}</span>
-                        <span className="text-neutral-500">. Thiết kế: </span>
-                        <span className="text-pink-400 font-semibold">{aiPromptDesignNote || <span className="italic text-neutral-600">(màu sắc, style...)</span>}</span>
-                        <span className="text-neutral-500">. Bắt buộc kết thúc bằng lệnh </span>
-                        <span className="text-orange-400 font-semibold">return option;</span>
-                      </p>
-
-                      {/* AI Links */}
-                      <div className="mt-4 pt-3 border-t border-neutral-800/60 flex items-center gap-3">
-                        <span className="text-[10px] text-neutral-600 font-semibold">Mở với:</span>
-                        <a
-                          href={`https://gemini.google.com/`}
-                          target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold rounded-lg transition-colors"
-                        >
-                          Gemini
-                        </a>
-                        <a
-                          href={`https://chat.openai.com/`}
-                          target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-2.5 py-1 bg-green-600/10 border border-green-500/20 hover:bg-green-600/20 text-green-400 text-[10px] font-bold rounded-lg transition-colors"
-                        >
-                          ChatGPT
-                        </a>
-                      </div>
                     </div>
                   </div>
                 </>

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 import uuid
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 class ChartBase(BaseModel):
@@ -22,3 +22,22 @@ class ChartResponse(ChartBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── AI Chart Code Generation ────────────────────────────────────────
+
+class ColumnSchema(BaseModel):
+    name: str
+    type: str = "unknown"
+
+
+class AiCodeGenRequest(BaseModel):
+    prompt: str
+    columns: List[ColumnSchema] = []
+    sample_rows: List[Dict[str, Any]] = []
+    current_code: Optional[str] = None  # None = first gen, str = incremental
+
+
+class AiCodeGenResponse(BaseModel):
+    code: str
+    is_first_gen: bool

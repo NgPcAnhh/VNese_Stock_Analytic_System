@@ -113,6 +113,15 @@ export const api = {
     delete: async (id: string) => {
       const response = await apiClient.delete(`/charts/${id}`);
       return response.data;
+    },
+    aiCodeGen: async (data: {
+      prompt: string;
+      columns: { name: string; type?: string }[];
+      sample_rows: Record<string, any>[];
+      current_code?: string;
+    }): Promise<{ code: string; is_first_gen: boolean }> => {
+      const response = await apiClient.post('/charts/ai-code-gen', data);
+      return response.data;
     }
   },
   dashboards: {

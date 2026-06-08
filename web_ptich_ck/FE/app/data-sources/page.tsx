@@ -21,7 +21,9 @@ import {
   Search,
   Copy,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import * as Sonner from "sonner";
 
@@ -98,6 +100,62 @@ export default function DataSourcesPage() {
   const [previewZoom, setPreviewZoom] = useState(100);
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 100;
+
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [previewSortConfig, setPreviewSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleToggleComment = () => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+
+    const lines = value.split('\n');
+    let currentPos = 0;
+    const lineInfo = lines.map(line => {
+      const lineStart = currentPos;
+      const lineEnd = currentPos + line.length;
+      currentPos += line.length + 1;
+      return { line, lineStart, lineEnd };
+    });
+
+    const affectedIndices: number[] = [];
+    lineInfo.forEach((info, idx) => {
+      if (start === end) {
+        if (start >= info.lineStart && start <= info.lineEnd) {
+          affectedIndices.push(idx);
+        }
+      } else {
+        if (Math.max(start, info.lineStart) < Math.min(end, info.lineEnd)) {
+          affectedIndices.push(idx);
+        }
+      }
+    });
+
+    if (affectedIndices.length === 0) return;
+
+    const allCommented = affectedIndices.every(idx => {
+      const line = lines[idx].trim();
+      return line.length === 0 || line.startsWith('--');
+    });
+
+    const newLines = [...lines];
+    affectedIndices.forEach(idx => {
+      const line = lines[idx];
+      if (allCommented) {
+        newLines[idx] = line.replace(/^(\s*)--\s?/, '$1');
+      } else {
+        newLines[idx] = `-- ${line}`;
+      }
+    });
+
+    const newValue = newLines.join('\n');
+    setSql(newValue);
+  };
 
   // Explorer Resizing State
   const [sidebarWidth, setSidebarWidth] = useState(280);
@@ -563,8 +621,11 @@ export default function DataSourcesPage() {
     }
   }, [activeTab, selectedSchema, dbMetadata]);
 
-  const handlePreview = async () => {
+  const handlePreview = async (overrideSql?: string) => {
     if (!selectedSourceId) return;
+    const sqlToRun = overrideSql || sql;
+    if (!sqlToRun) return;
+
     setQueryLoading(true);
     setQueryError("");
     setPreviewData(null);
@@ -572,7 +633,7 @@ export default function DataSourcesPage() {
     try {
       const res = await api.queries.preview({
         data_source_id: selectedSourceId,
-        sql_text: sql,
+        sql_text: sqlToRun,
         database: selectedDatabase,
         schema_name: selectedSchema,
         limit: limit
@@ -867,10 +928,38 @@ export default function DataSourcesPage() {
 
   // Rendering Helper for Query Editor & Database Explorer
   const renderQueryEditor = () => {
+    const handleSort = (key: string) => {
+      let direction: 'asc' | 'desc' = 'asc';
+      if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+        direction = 'desc';
+      }
+      setSortConfig({ key, direction });
+    };
+
+    const getSortedRows = () => {
+      if (!previewData || !previewData.rows) return [];
+      const rows = [...previewData.rows];
+      if (sortConfig) {
+        rows.sort((a, b) => {
+          const aValue = a[sortConfig.key];
+          const bValue = b[sortConfig.key];
+
+          if (aValue === bValue) return 0;
+          if (aValue === null || aValue === undefined) return 1;
+          if (bValue === null || bValue === undefined) return -1;
+
+          const comparison = aValue < bValue ? -1 : 1;
+          return sortConfig.direction === 'asc' ? comparison : -comparison;
+        });
+      }
+      return rows;
+    };
+
     // Pagination logic
-    const totalRows = previewData?.rows?.length || 0;
+    const sortedRows = getSortedRows();
+    const totalRows = sortedRows.length;
     const totalPages = Math.ceil(totalRows / PAGE_SIZE);
-    const paginatedRows = previewData?.rows?.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE) || [];
+    const paginatedRows = sortedRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
     return (
       <div className="flex-1 flex flex-col min-h-0">
@@ -1020,7 +1109,13 @@ export default function DataSourcesPage() {
                     className="bg-neutral-950 border border-neutral-800 rounded px-3 py-1 text-sm focus:border-orange-500 outline-none text-neutral-300"
                   />
                   <button 
-                    onClick={handlePreview}
+                    onClick={() => {
+                      const textarea = textareaRef.current;
+                      const textToRun = (textarea && textarea.selectionStart !== textarea.selectionEnd) 
+                        ? textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
+                        : sql;
+                      handlePreview(textToRun);
+                    }}
                     disabled={queryLoading || !selectedSourceId}
                     className="flex items-center gap-2 bg-orange-600 hover:bg-orange-700 disabled:bg-neutral-850 disabled:opacity-50 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors"
                   >
@@ -1036,6 +1131,7 @@ export default function DataSourcesPage() {
                 </div>
               </div>
               <textarea
+                ref={textareaRef}
                 className="w-full flex-1 bg-neutral-950 border border-neutral-800 rounded p-4 font-mono text-sm text-neutral-300 focus:outline-none focus:border-orange-500 resize-none"
                 value={sql}
                 onChange={(e) => setSql(e.target.value)}
@@ -1043,8 +1139,16 @@ export default function DataSourcesPage() {
                   if (e.ctrlKey && e.key === 'Enter') {
                     e.preventDefault();
                     if (!queryLoading && selectedSourceId) {
-                      handlePreview();
+                      const textarea = textareaRef.current;
+                      const textToRun = (textarea && textarea.selectionStart !== textarea.selectionEnd) 
+                        ? textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
+                        : sql;
+                      handlePreview(textToRun);
                     }
+                  }
+                  if (e.ctrlKey && e.key === '/') {
+                    e.preventDefault();
+                    handleToggleComment();
                   }
                 }}
               />
@@ -1111,11 +1215,19 @@ export default function DataSourcesPage() {
                         {previewData.columns.map((c: any) => (
                           <th 
                             key={c.name} 
-                            className="pb-2 font-medium px-2 whitespace-nowrap cursor-pointer hover:text-orange-400 transition-colors"
-                            onClick={() => copyToClipboard(c.name)}
-                            title="Click to copy column name"
+                            className="pb-2 font-medium px-2 whitespace-nowrap cursor-pointer hover:text-orange-400 transition-colors group/th"
+                            onClick={() => handleSort(c.name)}
                           >
-                            {c.name}
+                            <div className="flex items-center gap-1">
+                              {c.name}
+                              <div className="flex flex-col opacity-0 group-hover/th:opacity-100 transition-opacity">
+                                {sortConfig?.key === c.name ? (
+                                  sortConfig?.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-orange-500" /> : <ArrowDown className="w-3 h-3 text-orange-500" />
+                                ) : (
+                                  <ArrowUp className="w-3 h-3 text-neutral-600" />
+                                )}
+                              </div>
+                            </div>
                           </th>
                         ))}
                       </tr>
@@ -1281,33 +1393,60 @@ export default function DataSourcesPage() {
                   {previewDatasetData.error}
                 </div>
               ) : previewDatasetData && previewDatasetData.rows.length > 0 ? (
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-neutral-800 text-neutral-400 pb-2">
-                      {previewDatasetData.columns.map((c: any) => (
-                        <th 
-                          key={c.name} 
-                          className="pb-2 font-medium px-2 whitespace-nowrap cursor-pointer hover:text-orange-400 transition-colors"
-                          onClick={() => copyToClipboard(c.name)}
-                          title="Click to copy column name"
-                        >
-                          {c.name}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewDatasetData.rows.map((row: any, i: number) => (
-                      <tr key={i} className="border-b border-neutral-800/50 last:border-0 hover:bg-neutral-900/50">
-                        {previewDatasetData.columns.map((c: any) => (
-                          <td key={c.name} className="py-2 px-2 text-neutral-300 whitespace-nowrap font-mono text-xs">
-                            {row[c.name]?.toString()}
-                          </td>
+                (() => {
+                  const sortedPreviewRows = [...previewDatasetData.rows].sort((a, b) => {
+                    if (!previewSortConfig) return 0;
+                    const aValue = a[previewSortConfig.key];
+                    const bValue = b[previewSortConfig.key];
+                    if (aValue === bValue) return 0;
+                    if (aValue === null || aValue === undefined) return 1;
+                    if (bValue === null || bValue === undefined) return -1;
+                    const comp = aValue < bValue ? -1 : 1;
+                    return previewSortConfig.direction === 'asc' ? comp : -comp;
+                  });
+
+                  return (
+                    <table className="w-full text-left text-sm border-collapse">
+                      <thead>
+                        <tr className="border-b border-neutral-800 text-neutral-400 pb-2">
+                          {previewDatasetData.columns.map((c: any) => (
+                            <th 
+                              key={c.name} 
+                              className="pb-2 font-medium px-2 whitespace-nowrap cursor-pointer hover:text-orange-400 transition-colors group/th"
+                              onClick={() => {
+                                let dir: 'asc' | 'desc' = 'asc';
+                                if (previewSortConfig?.key === c.name && previewSortConfig?.direction === 'asc') dir = 'desc';
+                                setPreviewSortConfig({ key: c.name, direction: dir });
+                              }}
+                            >
+                              <div className="flex items-center gap-1">
+                                {c.name}
+                                <div className="flex flex-col opacity-0 group-hover/th:opacity-100 transition-opacity">
+                                  {previewSortConfig?.key === c.name ? (
+                                    previewSortConfig?.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-orange-500" /> : <ArrowDown className="w-3 h-3 text-orange-500" />
+                                  ) : (
+                                    <ArrowUp className="w-3 h-3 text-neutral-600" />
+                                  )}
+                                </div>
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedPreviewRows.map((row: any, i: number) => (
+                          <tr key={i} className="border-b border-neutral-800/50 last:border-0 hover:bg-neutral-900/50">
+                            {previewDatasetData.columns.map((c: any) => (
+                              <td key={c.name} className="py-2 px-2 text-neutral-300 whitespace-nowrap font-mono text-xs">
+                                {row[c.name]?.toString()}
+                              </td>
+                            ))}
+                          </tr>
                         ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      </tbody>
+                    </table>
+                  );
+                })()
               ) : (
                 <div className="h-48 flex justify-center items-center text-neutral-500">
                   No data returned from query

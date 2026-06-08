@@ -5,9 +5,30 @@ import uuid
 
 from app.database.database import get_db
 from app.modules.bi.charts import schemas, service
+from app.modules.bi.charts import ai_service
 from app.modules.bi.models.chart import Chart
 
 router = APIRouter()
+
+@router.post("/ai-code-gen", response_model=schemas.AiCodeGenResponse)
+async def ai_generate_chart_code(req: schemas.AiCodeGenRequest):
+    """
+    Generate or update ECharts JavaScript code using AI.
+    - First generation: current_code is None/empty → full generation from prompt + schema
+    - Incremental: current_code is provided → update existing code based on prompt
+    """
+    try:
+        is_first_gen = not req.current_code or req.current_code.strip() == ""
+        code = await ai_service.generate_chart_code(
+            prompt=req.prompt,
+            columns=[c.model_dump() for c in req.columns],
+            sample_rows=req.sample_rows,
+            current_code=req.current_code,
+        )
+        return schemas.AiCodeGenResponse(code=code, is_first_gen=is_first_gen)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"AI code generation failed: {str(exc)}")
+
 
 @router.post("/", response_model=schemas.ChartResponse)
 async def create_chart(

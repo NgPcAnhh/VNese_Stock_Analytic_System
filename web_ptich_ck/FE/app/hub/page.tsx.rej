@@ -1,0 +1,415 @@
+diff a/web_ptich_ck/FE/app/hub/page.tsx b/web_ptich_ck/FE/app/hub/page.tsx	(rejected hunks)
+@@ -5732,186 +5869,252 @@ if (element) {
+             </div>
+ 
+             {/* Main Preview Panel / AI Prompt Generator */}
+-            <div className="flex-1 bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col shadow-lg h-[600px]">
+-              {showChartPreview ? (
+-                // CHART PREVIEW MODE
+-                <>
++            <div className="w-[450px] bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col shrink-0 shadow-lg h-[600px]">
++
+                   {/* Header */}
+-                  <div className="flex justify-between items-center mb-4 shrink-0">
++                  <div className="flex justify-between items-center mb-3 shrink-0">
+                     <div className="flex items-center gap-2">
+-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center">
+-                        <BarChart3 className="w-3.5 h-3.5 text-white" />
++                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 to-orange-500 flex items-center justify-center shadow-md shadow-violet-500/30">
++                        <Sparkles className="w-3.5 h-3.5 text-white" />
+                       </div>
+-                      <h3 className="font-bold text-neutral-200 text-sm">Chart Preview</h3>
++                      <h3 className="font-bold text-neutral-200 text-sm">AI Chart Agent</h3>
++                      <span className="text-[10px] bg-violet-500/10 border border-violet-500/20 text-violet-400 px-2 py-0.5 rounded-full font-semibold animate-pulse">
++                        Gemini
++                      </span>
+                     </div>
+-                    <div className="flex items-center gap-2">
++                    {!isFirstAiGen && (
+                       <button
+                         type="button"
+-                        onClick={() => {
+-                          try {
+-                            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(datasetPreview?.rows || [], null, 2));
+-                            const link = document.createElement('a');
+-                            link.download = `${chartName || 'chart'}_data.json`;
+-                            link.href = dataStr;
+-                            link.click();
+-                          } catch (e) { console.error(e); }
+-                        }}
+-                        disabled={!datasetPreview?.rows}
+-                        className="flex items-center gap-1 px-2.5 py-1.5 bg-neutral-950 border border-neutral-800 hover:bg-neutral-800 text-xs font-semibold text-neutral-400 hover:text-white rounded-lg transition-colors cursor-pointer disabled:opacity-40 select-none"
+-                        title="Export JSON Data"
++                        onClick={() => setShowChartPreview(true)}
++                        className="flex items-center gap-1 px-2.5 py-1 bg-neutral-950 border border-neutral-800 hover:bg-neutral-800 text-xs font-semibold text-neutral-400 hover:text-white rounded-lg transition-colors cursor-pointer"
++                        title="Xem Chart Preview"
+                       >
+-                        <Database className="w-3.5 h-3.5 text-orange-500" />
+-                        Export JSON
++                        <BarChart3 className="w-3 h-3 text-orange-500" />
++                        Preview
+                       </button>
+-                    </div>
++                    )}
+                   </div>
+ 
+-                  <div className="flex-1 bg-neutral-950 border border-neutral-850 rounded-xl p-4 overflow-hidden relative shadow-inner">
+-                    {evalSuccess && datasetPreview && datasetPreview.rows ? (
+-                      <div className="absolute inset-0 p-4">
+-                        <EChartRenderer ref={previewChartRef} config={currentChartConfig} data={datasetPreview.rows} />
++                  {/* Body: First gen form OR chat history */}
++                  <div className="flex-1 flex flex-col min-h-0 gap-3">
++                    {isFirstAiGen ? (
++                      // FIRST GENERATION: 3-field form
++                      <div className="flex flex-col gap-3 shrink-0">
++                        <p className="text-[11px] text-neutral-500 leading-relaxed">
++                          M├┤ tß║ú chart bß║ín muß╗æn. AI sß║╜ tß╗▒ viß║┐t code ECharts v├á ─æß║⌐y thß║│ng v├áo editor.
++                        </p>
++                        <div>
++                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">
++                            M├┤ tß║ú chart bß║ín muß╗æn vß║╜ <span className="text-orange-400">*</span>
++                          </label>
++                          <input
++                            type="text"
++                            id="ai-chart-desc"
++                            placeholder="vd: biß╗âu ─æß╗ô cß╗Öt thß╗â hiß╗çn doanh thu theo th├íng"
++                            value={aiChartDesc}
++                            onChange={e => setAiChartDesc(e.target.value)}
++                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
++                          />
++                        </div>
++                        <div>
++                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">
++                            Tr╞░ß╗¥ng dß╗» liß╗çu muß╗æn hiß╗ân thß╗ï
++                          </label>
++                          <input
++                            type="text"
++                            id="ai-field-desc"
++                            placeholder="vd: trß╗Ñc X l├á date, trß╗Ñc Y l├á close_price"
++                            value={aiFieldDesc}
++                            onChange={e => setAiFieldDesc(e.target.value)}
++                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
++                          />
++                        </div>
++                        <div>
++                          <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">
++                            L╞░u ├╜ thiß║┐t kß║┐
++                          </label>
++                          <input
++                            type="text"
++                            id="ai-design-note"
++                            placeholder="vd: dark theme, m├áu cam, kh├┤ng cß║ºn legend"
++                            value={aiDesignNote}
++                            onChange={e => setAiDesignNote(e.target.value)}
++                            onKeyDown={e => e.key === 'Enter' && !aiAgentLoading && handleAiGenCode()}
++                            className="w-full bg-neutral-950 border border-neutral-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
++                          />
++                        </div>
++                        {/* Dataset columns quick reference */}
++                        {datasetPreview?.columns?.length > 0 && (
++                          <div className="bg-neutral-950 border border-neutral-850 rounded-xl p-3">
++                            <span className="text-[9px] font-bold text-neutral-600 uppercase tracking-wider block mb-1.5">
++                              Columns c├│ sß║╡n
++                            </span>
++                            <div className="flex flex-wrap gap-1">
++                              {datasetPreview.columns.slice(0, 10).map((c: any) => (
++                                <span
++                                  key={c.name || c}
++                                  className="text-[9px] px-1.5 py-0.5 bg-neutral-900 border border-neutral-800 rounded text-sky-400 font-mono cursor-pointer hover:border-sky-500/50 transition-colors"
++                                  onClick={() => {
++                                    const name = c.name || c;
++                                    setAiFieldDesc(prev => prev ? `${prev}, ${name}` : name);
++                                  }}
++                                  title="Click ─æß╗â th├¬m v├áo m├┤ tß║ú"
++                                >
++                                  {c.name || c}
++                                </span>
++                              ))}
++                              {datasetPreview.columns.length > 10 && (
++                                <span className="text-[9px] text-neutral-600 px-1.5 py-0.5">
++                                  +{datasetPreview.columns.length - 10} more
++                                </span>
++                              )}
++                            </div>
++                          </div>
++                        )}
++
++                        {/* ΓöÇΓöÇ Prompt Preview (giß╗æng thiß║┐t kß║┐ c┼⌐) ΓöÇΓöÇ */}
++                        <div className="flex-1 flex flex-col min-h-0">
++                          <div className="flex justify-between items-center mb-2 shrink-0">
++                            <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Prompt ─æ╞░ß╗úc tß║ío</label>
++                            <button
++                              type="button"
++                              onClick={() => {
++                                const cols = datasetPreview?.columns?.map((c: any) => c.name || c).join(', ') || '(ch╞░a load dataset)';
++                                const promptText = [
++                                  `T├┤i ─æang cß║Ñu h├¼nh Custom ECharts trong hß╗ç thß╗æng Trß╗▒c quan h├│a. H├úy viß║┐t mß╗Öt ─æoß║ín m├ú JavaScript HO├ÇN CHß╗êNH ─æß╗â vß║╜ chart ${aiChartDesc || 'Donut chart'} sß╗¡ dß╗Ñng c├íc tr╞░ß╗¥ng dß╗» liß╗çu sau: ${cols}.`,
++                                  ``,
++                                  `Dß╗« LIß╗åU ─Éß║ªU V├ÇO:`,
++                                  `Hß╗ç thß╗æng sß║╜ cung cß║Ñp mß╗Öt biß║┐n cß╗Ñc bß╗Ö t├¬n l├á 'data'. Biß║┐n 'data' n├áy l├á mß╗Öt mß║úng c├íc Object (Array of Objects), trong ─æ├│ mß╗ùi Object ─æß║íi diß╗çn cho mß╗Öt bß║ún ghi tß╗½ SQL. V├¡ dß╗Ñ: [{ "truong_1": 10, "truong_2": "A" }, ...]`,
++                                  ``,
++                                  `Y├èU Cß║ªU Vß╗Ç CODE:`,
++                                  `1. KH├öNG sß╗¡ dß╗Ñng 'fetch' hay gß╗ìi API b├¬n ngo├ái. Dß╗» liß╗çu ─æ├ú c├│ sß║╡n trong biß║┐n 'data'.`,
++                                  `2. H├úy sß╗¡ dß╗Ñng h├ám '.map()' tr├¬n biß║┐n 'data' ─æß╗â tr├¡ch xuß║Ñt c├íc mß║úng cß║ºn thiß║┐t cho xAxis.data, yAxis.data hoß║╖c series.data. V├¡ dß╗Ñ: const labels = data.map(item => item.name);`,
++                                  `3. Y├¬u cß║ºu hiß╗ân thß╗ï dß╗» liß╗çu chi tiß║┐t: ${aiFieldDesc || 'Hiß╗ân thß╗ï ─æß║ºy ─æß╗º th├┤ng tin c├íc tr╞░ß╗¥ng l├¬n Tooltip v├á Label'}.`,
++                                  `4. L╞░u ├╜ vß╗ü thiß║┐t kß║┐: ${aiDesignNote || 'Thiß║┐t kß║┐ hiß╗çn ─æß║íi, m├áu sß║»c h├ái h├▓a, c├│ hiß╗çu ß╗⌐ng dark mode, bo g├│c nhß║╣'}.`,
++                                  `5. Biß╗âu ─æß╗ô phß║úi c├│ Tooltip trß╗▒c quan (trigger: 'axis' hoß║╖c 'item').`,
++                                  `6. RESPONSIVE: Chart phß║úi responsive (kh├┤ng d├╣ng width/height pixel cß╗æ ─æß╗ïnh). Nß╗Öi dung c─ân giß╗»a. Legend mß║╖c ─æß╗ïnh ─æß║╖t d╞░ß╗¢i c├╣ng c─ân giß╗»a: legend: { orient: 'horizontal', bottom: 0, left: 'center' }. Grid c├│ containLabel: true.`,
++                                  `7. Bß║«T BUß╗ÿC ─æoß║ín m├ú phß║úi kß║┐t th├║c bß║▒ng lß╗çnh "return option;" (trong ─æ├│ 'option' l├á ─æß╗æi t╞░ß╗úng cß║Ñu h├¼nh ECharts). KH├öNG giß║úi th├¡ch, CHß╗ê trß║ú vß╗ü ─æoß║ín code JavaScript.`,
++                                ].join('\n');
++                                navigator.clipboard.writeText(promptText).then(() => {
++                                  Sonner.toast.success("─É├ú copy prompt!");
++                                });
++                              }}
++                              className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
++                            >
++                              <Copy className="w-3 h-3" /> Copy Prompt
++                            </button>
++                          </div>
++                          <div className="flex-1 min-h-[120px] bg-neutral-950 border border-neutral-800 rounded-xl p-4 overflow-auto shadow-inner">
++                            <p className="text-xs leading-relaxed font-mono text-neutral-300 whitespace-pre-wrap select-all">
++                              <span className="text-neutral-500">T├┤i muß╗æn vß║╜ biß╗âu ─æß╗ô </span>
++                              <span className="text-orange-400 font-semibold">{aiChartDesc || <span className="italic text-neutral-600">(m├┤ tß║ú loß║íi chart)</span>}</span>
++                              <span className="text-neutral-500"> sß╗¡ dß╗Ñng biß║┐n </span>
++                              <span className="text-orange-400 font-semibold">data</span>
++                              <span className="text-neutral-500"> l├á mß║úng c├íc record chß╗⌐a c├íc cß╗Öt: </span>
++                              <span className="text-sky-400 font-semibold">
++                                {datasetPreview?.columns?.length > 0
++                                  ? datasetPreview.columns.map((c: any) => c.name || c).join(', ')
++                                  : <span className="italic text-neutral-600">(ch╞░a c├│ dataset)</span>
++                                }
++                              </span>
++                              <span className="text-neutral-500">. Chi tiß║┐t hiß╗ân thß╗ï: </span>
++                              <span className="text-emerald-400 font-semibold">{aiFieldDesc || <span className="italic text-neutral-600">(tr╞░ß╗¥ng dß╗» liß╗çu n├áo ß╗ƒ ─æ├óu)</span>}</span>
++                              <span className="text-neutral-500">. Thiß║┐t kß║┐: </span>
++                              <span className="text-pink-400 font-semibold">{aiDesignNote || <span className="italic text-neutral-600">(m├áu sß║»c, style...)</span>}</span>
++                              <span className="text-neutral-500">. </span>
++                              <span className="text-violet-400 font-semibold">Responsive</span>
++                              <span className="text-neutral-500">: kh├┤ng d├╣ng px cß╗æ ─æß╗ïnh, legend d╞░ß╗¢i c├╣ng c─ân giß╗»a, containLabel: true. Bß║»t buß╗Öc kß║┐t th├║c bß║▒ng lß╗çnh </span>
++                              <span className="text-orange-400 font-semibold">return option;</span>
++                            </p>
++                          </div>
++                        </div>
+                       </div>
++
+                     ) : (
+-                      <div className="flex flex-col h-full overflow-auto items-center justify-center">
+-                        <div className="text-center text-neutral-600">
+-                          <Play className="w-12 h-12 mb-4 mx-auto opacity-20" />
+-                          <p className="text-sm">Run code to see the chart preview</p>
+-                        </div>
++                      // SUBSEQUENT GENERATIONS: Chat history
++                      <div
++                        ref={aiHistoryRef}
++                        className="flex-1 overflow-y-auto space-y-2 min-h-0 pr-1"
++                      >
++                        {aiHistory.map((msg, i) => (
++                          <div
++                            key={i}
++                            className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
++                          >
++                            {msg.role === 'ai' && (
++                              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-orange-500 flex items-center justify-center shrink-0 mt-0.5">
++                                <Sparkles className="w-3 h-3 text-white" />
++                              </div>
++                            )}
++                            <div
++                              className={`max-w-[80%] px-3 py-2 rounded-xl text-xs leading-relaxed ${
++                                msg.role === 'user'
++                                  ? 'bg-orange-50 border border-orange-300 text-black'
++                                  : 'bg-white border border-neutral-200 text-black'
++                              }`}
++                            >
++                              {msg.content}
++                            </div>
++                            {msg.role === 'user' && (
++                              <div className="w-5 h-5 rounded-full bg-neutral-700 flex items-center justify-center shrink-0 mt-0.5 text-[8px] text-neutral-300 font-bold">
++                                U
++                              </div>
++                            )}
++                          </div>
++                        ))}
++                        {aiAgentLoading && (
++                          <div className="flex gap-2 justify-start">
++                            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-orange-500 flex items-center justify-center shrink-0 mt-0.5">
++                              <Sparkles className="w-3 h-3 text-white" />
++                            </div>
++                            <div className="px-3 py-2 rounded-xl bg-neutral-850/80 border border-neutral-800 flex items-center gap-2">
++                              <span className="inline-flex gap-1">
++                                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
++                                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
++                                <span className="w-1.5 h-1.5 bg-violet-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
++                              </span>
++                              <span className="text-[10px] text-neutral-500">─Éang tß║ío code...</span>
++                            </div>
++                          </div>
++                        )}
+                       </div>
+                     )}
+-                  </div>
+-                </>
+-              ) : (
+-                // AI PROMPT GENERATOR MODE (RESTORED)
+-                <>
+-                  {/* Header */}
+-                  <div className="flex justify-between items-center mb-4 shrink-0">
+-                    <div className="flex items-center gap-2">
+-                      <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-orange-500 to-pink-600 flex items-center justify-center">
+-                        <Sparkles className="w-3.5 h-3.5 text-white" />
+-                      </div>
+-                      <h3 className="font-bold text-neutral-200 text-sm">AI Prompt Generator</h3>
+-                      <span className="text-[10px] bg-orange-500/10 border border-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-semibold">Gemini ┬╖ ChatGPT</span>
+-                    </div>
+-                  </div>
+ 
+-                  {/* Description label */}
+-                  <p className="text-[11px] text-neutral-500 mb-4 shrink-0">─Éiß╗ün th├┤ng tin b├¬n d╞░ß╗¢i ─æß╗â tß║ío prompt. Copy v├á d├ín v├áo <span className="text-orange-400 font-semibold">Gemini</span> hoß║╖c <span className="text-green-400 font-semibold">ChatGPT</span> ─æß╗â nhß║¡n ECharts code.</p>
++                    {/* Prompt Input Area ΓÇö always visible */}
++                    <div className="shrink-0 mt-auto">
++                      {!isFirstAiGen && (
++                        <div className="flex items-center gap-2 mb-2">
++                          <textarea
++                            id="ai-agent-prompt"
++                            rows={2}
++                            placeholder="M├┤ tß║ú thay ─æß╗òi... (vd: ─æß╗òi sang line chart, th├¬m data labels, m├áu xanh)"
++                            value={aiAgentPrompt}
++                            onChange={e => setAiAgentPrompt(e.target.value)}
++                            onKeyDown={e => {
++                              if (e.key === 'Enter' && !e.shiftKey && !aiAgentLoading) {
++                                e.preventDefault();
++                                handleAiGenCode();
++                              }
++                            }}
++                            disabled={aiAgentLoading}
++                            className="flex-1 resize-none bg-neutral-950 border border-neutral-800 focus:border-violet-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors disabled:opacity-50"
++                          />
++                          <button
++                            type="button"
++                            id="ai-send-btn"
++                            onClick={handleAiGenCode}
++                            disabled={aiAgentLoading || (!aiAgentPrompt.trim())}
++                            className="p-2.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white rounded-xl transition-all shadow-md shadow-violet-600/25 cursor-pointer shrink-0"
++                            title="Gß╗¡i (Enter)"
++                          >
++                            <Forward className="w-4 h-4" />
++                          </button>
++                        </div>
++                      )}
+ 
+-                  {/* Input Fields */}
+-                  <div className="flex flex-col gap-3 mb-4 shrink-0">
+-                    <div>
+-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">M├┤ tß║ú chart bß║ín muß╗æn vß║╜</label>
+-                      <input
+-                        type="text"
+-                        placeholder="vd: biß╗âu ─æß╗ô cß╗Öt thß╗â hiß╗çn doanh thu theo th├íng"
+-                        value={aiPromptChartDesc}
+-                        onChange={e => setAiPromptChartDesc(e.target.value)}
+-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
+-                      />
+-                    </div>
+-                    <div>
+-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">Tr╞░ß╗¥ng dß╗» liß╗çu bß║ín muß╗æn hiß╗ân thß╗ï</label>
+-                      <input
+-                        type="text"
+-                        placeholder="vd: trß╗Ñc X l├á date, trß╗Ñc Y l├á close_price"
+-                        value={aiPromptFieldDesc}
+-                        onChange={e => setAiPromptFieldDesc(e.target.value)}
+-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
+-                      />
+-                    </div>
+-                    <div>
+-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1">L╞░u ├╜ thiß║┐t kß║┐ (m├áu sß║»c, font, style...)</label>
+-                      <input
+-                        type="text"
+-                        placeholder="vd: dark theme, m├áu cam, kh├┤ng cß║ºn legend"
+-                        value={aiPromptDesignNote}
+-                        onChange={e => setAiPromptDesignNote(e.target.value)}
+-                        className="w-full bg-neutral-950 border border-neutral-800 focus:border-orange-500 rounded-xl px-3 py-2 text-xs text-neutral-200 focus:outline-none transition-colors"
+-                      />
+-                    </div>
+-                  </div>
+ 
+-                  {/* Generated Prompt Display */}
+-                  <div className="flex-1 flex flex-col min-h-0">
+-                    <div className="flex justify-between items-center mb-2 shrink-0">
+-                      <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Prompt ─æ╞░ß╗úc tß║ío</label>
+-                      <button
+-                        type="button"
+-                        onClick={() => {
+-                          const cols = datasetPreview?.columns?.map((c: any) => c.name || c).join(', ') || '(ch╞░a load dataset)';
+-                          const prompt = [
+-                            `T├┤i ─æang cß║Ñu h├¼nh Custom ECharts trong hß╗ç thß╗æng Trß╗▒c quan h├│a. H├úy viß║┐t mß╗Öt ─æoß║ín m├ú JavaScript HO├ÇN CHß╗êNH ─æß╗â vß║╜ chart ${aiPromptChartDesc || 'Donut chart'} sß╗¡ dß╗Ñng c├íc tr╞░ß╗¥ng dß╗» liß╗çu sau: ${cols}.`,
+-                            ``,
+-                            `Dß╗« LIß╗åU ─Éß║ªU V├ÇO:`,
+-                            `Hß╗ç thß╗æng sß║╜ cung cß║Ñp mß╗Öt biß║┐n cß╗Ñc bß╗Ö t├¬n l├á 'data'. Biß║┐n 'data' n├áy l├á mß╗Öt mß║úng c├íc Object (Array of Objects), trong ─æ├│ mß╗ùi Object ─æß║íi diß╗çn cho mß╗Öt bß║ún ghi tß╗½ SQL. V├¡ dß╗Ñ: [{ "truong_1": 10, "truong_2": "A" }, ...]`,
+-                            ``,
+-                            `Y├èU Cß║ªU Vß╗Ç CODE:`,
+-                            `1. KH├öNG sß╗¡ dß╗Ñng 'fetch' hay gß╗ìi API b├¬n ngo├ái. Dß╗» liß╗çu ─æ├ú c├│ sß║╡n trong biß║┐n 'data'.`,
+-                            `2. H├úy sß╗¡ dß╗Ñng h├ám '.map()' tr├¬n biß║┐n 'data' ─æß╗â tr├¡ch xuß║Ñt c├íc mß║úng cß║ºn thiß║┐t cho xAxis.data, yAxis.data hoß║╖c series.data. V├¡ dß╗Ñ: const labels = data.map(item => item.name);`,
+-                            `3. Y├¬u cß║ºu hiß╗ân thß╗ï dß╗» liß╗çu chi tiß║┐t: ${aiPromptFieldDesc || 'Hiß╗ân thß╗ï ─æß║ºy ─æß╗º th├┤ng tin c├íc tr╞░ß╗¥ng l├¬n Tooltip v├á Label'}.`,
+-                            `4. L╞░u ├╜ vß╗ü thiß║┐t kß║┐: ${aiPromptDesignNote || 'Thiß║┐t kß║┐ hiß╗çn ─æß║íi, m├áu sß║»c h├ái h├▓a, c├│ hiß╗çu ß╗⌐ng dark mode, bo g├│c nhß║╣'}.`,
+-                            `5. Biß╗âu ─æß╗ô phß║úi c├│ Tooltip trß╗▒c quan (trigger: 'axis' hoß║╖c 'item').`,
+-                            `6. Bß║«T BUß╗ÿC ─æoß║ín m├ú phß║úi kß║┐t th├║c bß║▒ng lß╗çnh "return option;" (trong ─æ├│ 'option' l├á ─æß╗æi t╞░ß╗úng cß║Ñu h├¼nh ECharts). KH├öNG giß║úi th├¡ch, CHß╗ê trß║ú vß╗ü ─æoß║ín code JavaScript.`,
+-                          ].join('\n');
+-                          navigator.clipboard.writeText(prompt).then(() => {
+-                            setAiPromptCopied(true);
+-                            setTimeout(() => setAiPromptCopied(false), 2000);
+-                            Sonner.toast.success("AI Prompt copied!");
+-                          });
+-                        }}
+-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-md shadow-orange-600/20"
+-                      >
+-                        {aiPromptCopied ? (
+-                          <><Check className="w-3.5 h-3.5" /> ─É├ú copy!</>
+-                        ) : (
+-                          <><Copy className="w-3.5 h-3.5" /> Copy Prompt</>
+-                        )}
+-                      </button>
+-                    </div>
+-                    <div className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl p-4 overflow-auto shadow-inner relative">
+-                      <p className="text-xs leading-relaxed font-mono text-neutral-300 whitespace-pre-wrap select-all">
+-                        <span className="text-neutral-500">T├┤i muß╗æn vß║╜ biß╗âu ─æß╗ô </span>
+-                        <span className="text-orange-400 font-semibold">{aiPromptChartDesc || <span className="italic text-neutral-600">(m├┤ tß║ú loß║íi chart)</span>}</span>
+-                        <span className="text-neutral-500"> sß╗¡ dß╗Ñng biß║┐n </span>
+-                        <span className="text-orange-400 font-semibold">data</span>
+-                        <span className="text-neutral-500"> l├á mß║úng c├íc record chß╗⌐a c├íc cß╗Öt: </span>
+-                        <span className="text-sky-400 font-semibold">
+-                          {datasetPreview?.columns?.length > 0
+-                            ? datasetPreview.columns.map((c: any) => c.name || c).join(', ')
+-                            : <span className="italic text-neutral-600">(ch╞░a c├│ dataset)</span>
+-                          }
+-                        </span>
+-                        <span className="text-neutral-500">. Chi tiß║┐t hiß╗ân thß╗ï: </span>
+-                        <span className="text-emerald-400 font-semibold">{aiPromptFieldDesc || <span className="italic text-neutral-600">(tr╞░ß╗¥ng dß╗» liß╗çu n├áo ß╗ƒ ─æ├óu)</span>}</span>
+-                        <span className="text-neutral-500">. Thiß║┐t kß║┐: </span>
+-                        <span className="text-pink-400 font-semibold">{aiPromptDesignNote || <span className="italic text-neutral-600">(m├áu sß║»c, style...)</span>}</span>
+-                        <span className="text-neutral-500">. Bß║»t buß╗Öc kß║┐t th├║c bß║▒ng lß╗çnh </span>
+-                        <span className="text-orange-400 font-semibold">return option;</span>
+-                      </p>
+-
+-                      {/* AI Links */}
+-                      <div className="mt-4 pt-3 border-t border-neutral-800/60 flex items-center gap-3">
+-                        <span className="text-[10px] text-neutral-600 font-semibold">Mß╗ƒ vß╗¢i:</span>
+-                        <a
+-                          href={`https://gemini.google.com/`}
+-                          target="_blank" rel="noopener noreferrer"
+-                          className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-600/10 border border-blue-500/20 hover:bg-blue-600/20 text-blue-400 text-[10px] font-bold rounded-lg transition-colors"
+-                        >
+-                          Gemini
+-                        </a>
+-                        <a
+-                          href={`https://chat.openai.com/`}
+-                          target="_blank" rel="noopener noreferrer"
+-                          className="flex items-center gap-1.5 px-2.5 py-1 bg-green-600/10 border border-green-500/20 hover:bg-green-600/20 text-green-400 text-[10px] font-bold rounded-lg transition-colors"
+-                        >
+-                          ChatGPT
+-                        </a>
+-                      </div>
+                     </div>
+                   </div>
+-                </>
+-              )}
+             </div>
+           </div>
+         </div>
