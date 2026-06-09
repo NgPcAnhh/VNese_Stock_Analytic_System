@@ -55,7 +55,8 @@ import {
   ShieldCheck,
   ShieldX,
   Users,
-  Lock
+  Lock,
+  RefreshCw
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/lib/AuthContext";
@@ -603,6 +604,13 @@ export default function BIHubPage() {
   const [isTabBarCollapsed, setIsTabBarCollapsed] = useState<boolean>(false);
   const [tabBarPinned, setTabBarPinned] = useState<boolean>(false);
 
+  // Auto Reload State
+  const [showAutoReloadModal, setShowAutoReloadModal] = useState<boolean>(false);
+  const [autoReloadConfigs, setAutoReloadConfigs] = useState<Record<string, number>>({});
+  const [autoReloadTempInterval, setAutoReloadTempInterval] = useState<number>(5);
+  const [autoReloadSelectedCharts, setAutoReloadSelectedCharts] = useState<string[]>([]);
+  const [showAutoReloadChartSelect, setShowAutoReloadChartSelect] = useState<boolean>(false);
+
   // Whiteboard Layout State
   const [layoutMode, setLayoutMode] = useState<'slide' | 'whiteboard'>('slide');
   const [showIframePreview, setShowIframePreview] = useState(false);
@@ -610,6 +618,62 @@ export default function BIHubPage() {
   const zoomRef = useRef(1);
   // Keep zoomRef in sync
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  
+  // Auto Reload effect
+  const dashboardItemsRef = useRef(dashboardItems);
+  useEffect(() => {
+    dashboardItemsRef.current = dashboardItems;
+  }, [dashboardItems]);
+
+  useEffect(() => {
+    if (!selectedDashboard) return;
+    
+    const intervals: NodeJS.Timeout[] = [];
+    
+    const intervalGroups: Record<number, string[]> = {};
+    Object.entries(autoReloadConfigs).forEach(([chartId, minutes]) => {
+      if (minutes > 0) {
+        if (!intervalGroups[minutes]) intervalGroups[minutes] = [];
+        intervalGroups[minutes].push(chartId);
+      }
+    });
+
+    Object.entries(intervalGroups).forEach(([minutesStr, chartIds]) => {
+      const minutes = parseFloat(minutesStr);
+      if (isNaN(minutes) || minutes <= 0) return;
+      const intervalMs = minutes * 60 * 1000;
+
+      const intervalId = setInterval(async () => {
+        const itemsToUpdate = dashboardItemsRef.current.filter(i => i.chart?.id && chartIds.includes(i.chart.id));
+        if (itemsToUpdate.length === 0) return;
+
+        const uniqueDatasetIds = [...new Set(itemsToUpdate.map(i => i.chart.dataset_id))];
+        
+        for (const datasetId of uniqueDatasetIds) {
+          try {
+            const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, { method: "POST" });
+            const data = await res.json();
+            
+            setDashboardItems(prev => prev.map(item => {
+              if (item.chart?.dataset_id === datasetId && chartIds.includes(item.chart.id)) {
+                return { ...item, data: data.rows || [] };
+              }
+              return item;
+            }));
+          } catch (err) {
+            console.error("Auto-reload failed for dataset", datasetId, err);
+          }
+        }
+      }, intervalMs);
+
+      intervals.push(intervalId);
+    });
+
+    return () => {
+      intervals.forEach(clearInterval);
+    };
+  }, [autoReloadConfigs, selectedDashboard]);
+
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [spacePressed, setSpacePressed] = useState(false);
   const isPanningRef = useRef<{ active: boolean; startX: number; startY: number; startPanX: number; startPanY: number }>({ active: false, startX: 0, startY: 0, startPanX: 0, startPanY: 0 });
@@ -1528,6 +1592,7 @@ export default function BIHubPage() {
     setTabBarCollapseEnabled(dashboard.theme_config?.tabBarCollapseEnabled ?? false);
     setIsTabBarCollapsed(false);
     setTabBarPinned(dashboard.theme_config?.tabBarPinned ?? false);
+    setAutoReloadConfigs(dashboard.theme_config?.autoReloadConfigs || {});
     setTabBarSize(dashboard.theme_config?.tabBarSize || (dashboard.theme_config?.tabPosition === 'left' || dashboard.theme_config?.tabPosition === 'right' ? 200 : 64));
     setCustomTabRect(dashboard.theme_config?.customTabRect || { x: 40, y: 40, w: 400, h: 60 });
     setLayoutMode(dashboard.theme_config?.layoutMode || 'slide');
@@ -1727,11 +1792,12 @@ export default function BIHubPage() {
           tabBarBgColor: tabBarBgColor,
           tabBarBorderColor: tabBarBorderColor,
           tabBarCollapseEnabled: tabBarCollapseEnabled,
-          tabBarPinned: tabBarPinned
+          tabBarPinned: tabBarPinned,
+          autoReloadConfigs: autoReloadConfigs
         }
       });
       setSelectedDashboard(updated);
-      alert("Dashboard saved successfully!");
+      Sonner.toast.success("Dashboard saved successfully!");
       loadHubData();
     } catch (err) {
       console.error(err);
@@ -3665,6 +3731,7 @@ if (element) {
                             },
                             { type: 'action_filter', icon: <Filter className="w-4 h-4" />, label: 'Filter', desc: 'Add filter widget to canvas' },
                             { type: 'action_toggle_header', icon: <LayoutDashboard className="w-4 h-4" />, label: 'Toggle Headers', desc: 'Show/hide all chart headers' },
+                            { type: 'action_auto_reload', icon: <RefreshCw className="w-4 h-4" />, label: 'Auto Reload', desc: 'Set up auto data refresh' },
                           ]).map(item => (
                             <button
                               key={item.type}
@@ -3682,6 +3749,10 @@ if (element) {
                                     const areAllHidden = prev.length > 0 && prev.every(i => i.hideHeader);
                                     return prev.map(i => ({ ...i, hideHeader: !areAllHidden }));
                                   });
+                                } else if (item.type === 'action_auto_reload') {
+                                  setShowAutoReloadChartSelect(false);
+                                  setAutoReloadSelectedCharts(dashboardItems.filter(i => i.chart).map(i => i.chart.id));
+                                  setShowAutoReloadModal(true);
                                 }
                                 setShowAddElementDropdown(false);
                               }}
@@ -6364,6 +6435,173 @@ if (element) {
           </div>
         </div>
       )}
+
+      {/* ─── Auto Reload Modal ─── */}
+      {showAutoReloadModal && (() => {
+        const uniqueCharts = Array.from(new Map(dashboardItems.filter(i => i.chart).map(i => [i.chart.id, i.chart])).values());
+        return (
+          <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white border-2 border-orange-500 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-in scale-in duration-150">
+              <div className="flex items-center justify-between p-5 border-b border-orange-500 shrink-0 bg-white">
+                 <h3 className="text-lg font-bold text-black flex items-center gap-2">
+                   <RefreshCw className="w-5 h-5 text-orange-500" /> Auto Reload Settings
+                 </h3>
+                 <button onClick={() => setShowAutoReloadModal(false)} className="text-black hover:text-orange-500 transition-colors cursor-pointer">
+                   <X className="w-5 h-5" />
+                 </button>
+              </div>
+              <div className="p-5 overflow-y-auto flex-1 bg-white">
+                 <div className="mb-6 bg-white">
+                   <label className="block text-sm font-semibold text-black mb-3">Auto Reload Interval</label>
+                   <div className="flex flex-wrap gap-2 bg-white">
+                     {[1, 5, 15, 30, 60].map(val => (
+                        <button
+                          key={val}
+                          onClick={() => setAutoReloadTempInterval(val)}
+                          className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${autoReloadTempInterval === val ? 'bg-orange-50 border-2 border-orange-500 text-black font-extrabold shadow-sm' : 'bg-white border border-neutral-200 text-black hover:bg-orange-50 hover:border-orange-500'}`}
+                        >{val}m</button>
+                     ))}
+                     <div className="flex items-center gap-2 bg-white border border-orange-500 rounded-xl px-2">
+                       <input 
+                         type="number" 
+                         value={autoReloadTempInterval} 
+                         onChange={e => setAutoReloadTempInterval(Number(e.target.value))} 
+                         className="w-16 px-2 py-2 bg-transparent text-sm font-semibold text-black focus:outline-none"
+                         placeholder="Custom"
+                         min={1}
+                       />
+                       <span className="text-sm font-semibold text-black pr-2">min</span>
+                     </div>
+                   </div>
+                 </div>
+                 
+                 <div className="mb-6 relative bg-white">
+                    <label className="block text-sm font-semibold text-black mb-3">Select Charts to Reload</label>
+                    <button 
+                      onClick={() => setShowAutoReloadChartSelect(!showAutoReloadChartSelect)}
+                      className="w-full flex items-center justify-between bg-white hover:bg-orange-50 border border-orange-500 rounded-xl px-4 py-3 text-sm text-black font-semibold transition-colors cursor-pointer"
+                    >
+                      <span>{autoReloadSelectedCharts.length === uniqueCharts.length ? 'All Charts' : `${autoReloadSelectedCharts.length} Charts Selected`}</span>
+                      <ChevronDown className={`w-4 h-4 text-black transition-transform ${showAutoReloadChartSelect ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showAutoReloadChartSelect && (
+                      <div className="absolute z-10 w-full mt-2 bg-white border-2 border-orange-500 rounded-xl shadow-2xl max-h-56 overflow-y-auto">
+                         <label className="flex items-center gap-3 px-4 py-3 hover:bg-orange-50 cursor-pointer border-b border-orange-200 bg-white">
+                            <input 
+                              type="checkbox" 
+                              checked={autoReloadSelectedCharts.length === uniqueCharts.length && uniqueCharts.length > 0}
+                              onChange={e => {
+                                if (e.target.checked) setAutoReloadSelectedCharts(uniqueCharts.map(c => c.id));
+                                else setAutoReloadSelectedCharts([]);
+                              }}
+                              className="w-4 h-4 rounded border-orange-500 bg-white accent-orange-500 cursor-pointer"
+                            />
+                            <span className="text-sm font-bold text-black">Select All</span>
+                         </label>
+                         {uniqueCharts.map(chart => (
+                            <label key={chart.id} className="flex items-center gap-3 px-4 py-3 hover:bg-orange-50 cursor-pointer bg-white">
+                               <input 
+                                 type="checkbox" 
+                                 checked={autoReloadSelectedCharts.includes(chart.id)}
+                                 onChange={e => {
+                                   if (e.target.checked) setAutoReloadSelectedCharts(prev => [...prev, chart.id]);
+                                   else setAutoReloadSelectedCharts(prev => prev.filter(id => id !== chart.id));
+                                 }}
+                                 className="w-4 h-4 rounded border-orange-500 bg-white accent-orange-500 cursor-pointer"
+                               />
+                               <span className="text-sm font-semibold text-black truncate">{chart.name}</span>
+                            </label>
+                         ))}
+                      </div>
+                    )}
+                 </div>
+
+                 <button 
+                   onClick={async () => {
+                     const newConfigs = { ...autoReloadConfigs };
+                     autoReloadSelectedCharts.forEach(id => {
+                       if (autoReloadTempInterval > 0) newConfigs[id] = autoReloadTempInterval;
+                       else delete newConfigs[id];
+                     });
+                     setAutoReloadConfigs(newConfigs);
+                     Sonner.toast.success('Auto reload configuration updated');
+                     setShowAutoReloadChartSelect(false);
+                     
+                     // Immediate reload logic
+                     const itemsToUpdate = dashboardItems.filter(i => i.chart?.id && autoReloadSelectedCharts.includes(i.chart.id));
+                     if (itemsToUpdate.length > 0) {
+                        const uniqueDatasetIds = [...new Set(itemsToUpdate.map(i => i.chart.dataset_id))];
+                        for (const datasetId of uniqueDatasetIds) {
+                           if (!datasetId) continue;
+                           try {
+                             const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, { method: "POST" });
+                             const data = await res.json();
+                             setDashboardItems(prev => prev.map(item => {
+                               if (item.chart?.dataset_id === datasetId && autoReloadSelectedCharts.includes(item.chart.id)) {
+                                 return { ...item, data: data.rows || [] };
+                               }
+                               return item;
+                             }));
+                           } catch (err) {}
+                        }
+                        Sonner.toast.success('Charts data reloaded!');
+                     }
+                   }}
+                   className="w-full py-3 bg-white hover:bg-orange-50 text-black font-bold rounded-xl transition-colors mb-8 border border-orange-500 cursor-pointer"
+                 >
+                   Apply Interval to Selected Charts
+                 </button>
+
+                 <div className="bg-white">
+                    <label className="block text-sm font-semibold text-black mb-3 flex items-center justify-between">
+                       Current Configurations
+                    </label>
+                    <div className="space-y-2 bg-white">
+                       {Object.entries(autoReloadConfigs).length === 0 ? (
+                         <div className="text-sm text-black font-medium text-center py-6 bg-white rounded-xl border border-orange-500 border-dashed">No charts configured for auto reload</div>
+                       ) : (
+                         Object.entries(autoReloadConfigs).map(([id, min]) => {
+                           const chart = uniqueCharts.find(c => c.id === id);
+                           if (!chart) return null;
+                           return (
+                             <div key={id} className="flex items-center justify-between bg-white p-3 rounded-xl border border-orange-500 hover:border-orange-600 transition-colors group">
+                                <div className="flex items-center gap-3 overflow-hidden">
+                                   <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0 border border-orange-200">
+                                      <BarChart3 className="w-4 h-4 text-orange-600" />
+                                   </div>
+                                   <span className="text-sm font-semibold text-black truncate">{chart.name}</span>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                   <div className="flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-orange-500 shadow-sm">
+                                      <RefreshCw className="w-3.5 h-3.5 text-orange-500" />
+                                      <span className="text-xs text-black font-bold">{min}m</span>
+                                   </div>
+                                   <button 
+                                     onClick={() => {
+                                       const newConfigs = { ...autoReloadConfigs };
+                                       delete newConfigs[id];
+                                       setAutoReloadConfigs(newConfigs);
+                                     }}
+                                     className="text-neutral-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                     title="Remove auto reload"
+                                   >
+                                     <Trash2 className="w-4 h-4" />
+                                   </button>
+                                </div>
+                             </div>
+                           );
+                         })
+                       )}
+                    </div>
+                 </div>
+              </div>
+              <div className="p-4 border-t border-orange-500 flex justify-end gap-3 bg-white shrink-0">
+                 <button onClick={() => setShowAutoReloadModal(false)} className="px-6 py-2.5 text-sm font-bold text-black border border-orange-500 hover:bg-orange-50 rounded-xl transition-all cursor-pointer bg-white">Close</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ─── Chart Permission Modal ─── */}
       {showPermissionModal && (
