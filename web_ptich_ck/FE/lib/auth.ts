@@ -47,6 +47,15 @@ const decodeJwt = (token: string) => {
     }
 };
 
+// Helper to check if token is expired
+export const isTokenExpired = (token: string): boolean => {
+    const payload = decodeJwt(token);
+    if (!payload || !payload.exp) return true;
+    // payload.exp is in seconds, Date.now() in ms
+    // Subtract 10 seconds to allow network buffer
+    return payload.exp * 1000 < Date.now() + 10000;
+};
+
 // Lấy tokens
 export const getAccessToken = () => Cookies.get('access_token');
 export const getRefreshToken = () => Cookies.get('refresh_token');
@@ -82,7 +91,8 @@ export const clearTokens = () => {
 export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     let token = getAccessToken();
 
-    if (!token) {
+    // 1. Proactive check: if token is missing or expired
+    if (!token || isTokenExpired(token)) {
         const refresh = getRefreshToken();
         if (refresh) {
             try {
@@ -97,10 +107,15 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
                     token = data.access_token;
                 } else {
                     clearTokens();
+                    token = undefined;
                 }
             } catch (e) {
                 clearTokens();
+                token = undefined;
             }
+        } else {
+            clearTokens();
+            token = undefined;
         }
     }
 
@@ -109,5 +124,34 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
         headers.set('Authorization', `Bearer ${token}`);
     }
 
-    return fetch(url, { ...options, headers });
+    let response = await fetch(url, { ...options, headers });
+
+    // 2. Passive check: if server returns 401 Unauthorized
+    if (response.status === 401) {
+        const refresh = getRefreshToken();
+        if (refresh) {
+            try {
+                const resp = await fetch(`${API_BASE_URL}/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: refresh }),
+                });
+                if (resp.ok) {
+                    const data: AuthResponse = await resp.json();
+                    setTokens(data.access_token, data.refresh_token);
+                    token = data.access_token;
+
+                    // Retry original request
+                    headers.set('Authorization', `Bearer ${token}`);
+                    response = await fetch(url, { ...options, headers });
+                } else {
+                    clearTokens();
+                }
+            } catch (e) {
+                clearTokens();
+            }
+        }
+    }
+
+    return response;
 };

@@ -21,6 +21,7 @@ import {
 
 import { fetchWithAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { FormattedMessage } from "@/components/ui/FormattedMessage";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 const SESSION_STORAGE_KEY = "stockpro:stockpilot:session-id";
@@ -577,12 +578,17 @@ export default function StockPilotPage() {
 
                                         <div
                                             className={cn(
-                                                "max-w-none whitespace-pre-wrap text-[15px] leading-7",
+                                                "max-w-none text-[15px] leading-7",
+                                                (msg.role === "user" || msg.error) && "whitespace-pre-wrap",
                                                 msg.role === "user" && "rounded-2xl bg-muted/75 px-4 py-3",
                                                 msg.error && "rounded-xl border border-red-200 bg-red-50 p-3 text-red-700"
                                             )}
                                         >
-                                            {msg.content}
+                                            {msg.role === "assistant" && !msg.error ? (
+                                                <FormattedMessage content={msg.content} />
+                                            ) : (
+                                                msg.content
+                                            )}
                                         </div>
 
                                         {msg.pending && (

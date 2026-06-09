@@ -86,8 +86,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     // Luôn ẩn ở PriceBoardMain, hoặc ẩn ở các trang khác nếu setting autoHideSidebar bật
     const useAutoHideMode = isPriceBoardMain || autoHideSidebar;
 
-    const isBIHub = pathname === "/data-sources" || pathname === "/hub";
-    const isPriceBoard = pathname === "/price-board";
+    const isBIHub = pathname.startsWith("/data-sources") || pathname.startsWith("/hub");
+    const isPriceBoard = pathname.startsWith("/price-board");
     const isChatbot = pathname === "/stockpilot";
     const hideScrollToTop = isBIHub || isPriceBoard || isChatbot;
 
@@ -171,11 +171,11 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             </div>
 
             <div className="flex flex-col flex-1 overflow-hidden w-full transition-all duration-300">
-                {!isBIHub && <Header onMenuClick={() => setIsMobileMenuOpen(true)} />}
+                {!isBIHub && !isPriceBoard && <Header onMenuClick={() => setIsMobileMenuOpen(true)} />}
                 {pathname === "/" && <StockTicker />}
                 <main data-scroll-root="app" className="flex-1 overflow-y-auto scroll-smooth bg-muted/20">
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
-                        {isBIHub && (
+                        {(isBIHub || isPriceBoard) && (
                             <button
                                 className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-background/80 backdrop-blur border border-border rounded-full shadow-lg text-foreground hover:bg-muted"
                                 onClick={() => setIsMobileMenuOpen(true)}

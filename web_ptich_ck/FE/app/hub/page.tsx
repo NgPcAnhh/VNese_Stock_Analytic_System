@@ -86,6 +86,7 @@ interface DashboardFrame {
   boxShadow?: string;
   bgImage?: string;
   opacity?: number;
+  lockMode?: 'none' | 'movement' | 'edit';
 }
 
 // Dashboard widget types (non-chart)
@@ -130,6 +131,7 @@ interface DashboardWidget {
   filterDropdownWidth?: string;
   // Code settings
   code?: string;
+  lockMode?: 'none' | 'movement' | 'edit';
 }
 
 const formatDate = (value?: string) => {
@@ -279,6 +281,76 @@ return {
 };`;
 };
 
+const matchLike = (val: string, pattern: string, caseInsensitive: boolean) => {
+  if (!pattern) return true;
+  let escapedPattern = pattern.split('').map(char => {
+    if ('.+^${}()|[]\\\\'.includes(char)) {
+      return '\\\\' + char;
+    }
+    return char;
+  }).join('');
+  escapedPattern = escapedPattern.split('%').join('.*');
+  if (!pattern.includes('%')) {
+    if (caseInsensitive) {
+      return val.toLowerCase().includes(pattern.toLowerCase());
+    }
+    return val.includes(pattern);
+  }
+  const regex = new RegExp('^' + escapedPattern + '$', caseInsensitive ? 'i' : '');
+  return regex.test(val);
+};
+
+const applyOperator = (rowVal: any, filterVal: any, op: string): boolean => {
+  if (rowVal === undefined || rowVal === null) return false;
+  if (filterVal === undefined || filterVal === null || filterVal === "") return true;
+
+  const rowStr = String(rowVal);
+  const filterStr = String(filterVal);
+
+  switch (op) {
+    case "=":
+      return rowStr.toLowerCase() === filterStr.toLowerCase();
+    case "<": {
+      const rNum = parseFloat(rowStr);
+      const fNum = parseFloat(filterStr);
+      if (!isNaN(rNum) && !isNaN(fNum)) {
+        return rNum < fNum;
+      }
+      return rowStr.toLowerCase() < filterStr.toLowerCase();
+    }
+    case ">": {
+      const rNum = parseFloat(rowStr);
+      const fNum = parseFloat(filterStr);
+      if (!isNaN(rNum) && !isNaN(fNum)) {
+        return rNum > fNum;
+      }
+      return rowStr.toLowerCase() > filterStr.toLowerCase();
+    }
+    case "<=": {
+      const rNum = parseFloat(rowStr);
+      const fNum = parseFloat(filterStr);
+      if (!isNaN(rNum) && !isNaN(fNum)) {
+        return rNum <= fNum;
+      }
+      return rowStr.toLowerCase() <= filterStr.toLowerCase();
+    }
+    case ">=": {
+      const rNum = parseFloat(rowStr);
+      const fNum = parseFloat(filterStr);
+      if (!isNaN(rNum) && !isNaN(fNum)) {
+        return rNum >= fNum;
+      }
+      return rowStr.toLowerCase() >= filterStr.toLowerCase();
+    }
+    case "like":
+      return matchLike(rowStr, filterStr, false);
+    case "ilike":
+      return matchLike(rowStr, filterStr, true);
+    default:
+      return rowStr.toLowerCase() === filterStr.toLowerCase();
+  }
+};
+
 export default function BIHubPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -411,6 +483,7 @@ export default function BIHubPage() {
 
   // ECharts Editor state
   const [chartConfigTab, setChartConfigTab] = useState<"schema" | "code">("schema");
+  const [chartFilterConfig, setChartFilterConfig] = useState<Record<string, string>>({});
   const [echartsCode, setEchartsCode] = useState("");
   const [evalError, setEvalError] = useState<string | null>(null);
   const [evalSuccess, setEvalSuccess] = useState(false);
@@ -505,6 +578,15 @@ export default function BIHubPage() {
   const [showAddFilterModal, setShowAddFilterModal] = useState<boolean>(false);
   const [editingFilter, setEditingFilter] = useState<GlobalFilter | null>(null);
   const [activeDropdownWidgetId, setActiveDropdownWidgetId] = useState<string | null>(null);
+
+  // Right-click context menu state
+  const [contextMenu, setContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    targetId: string | null;
+    targetType: 'item' | 'widget' | 'frame' | null;
+  }>({ visible: false, x: 0, y: 0, targetId: null, targetType: null });
 
   // Dashboard Tabs State
   const [dashboardTabs, setDashboardTabs] = useState<{ id: string; name: string }[]>([]);
@@ -809,12 +891,14 @@ export default function BIHubPage() {
     );
   };
 
-  // Direct Chart Edit from Dashboard Modal State
+  // Direct ECharts Editor Modal from Dashboard State
   const [editDashboardChartItem, setEditDashboardChartItem] = useState<any | null>(null);
   const [editDashboardChartCode, setEditDashboardChartCode] = useState("");
   const [editDashboardChartEvalError, setEditDashboardChartEvalError] = useState<string | null>(null);
   const [editDashboardChartEvalSuccess, setEditDashboardChartEvalSuccess] = useState(false);
   const [editDashboardChartEvaluatedOption, setEditDashboardChartEvaluatedOption] = useState<any>({});
+  const [directEditorTab, setDirectEditorTab] = useState<"code" | "filters">("code");
+  const [directEditorFilterConfig, setDirectEditorFilterConfig] = useState<Record<string, string>>({});
 
   // Form states for Filter Modal
   const [filterNameInput, setFilterNameInput] = useState("");
@@ -1098,16 +1182,28 @@ export default function BIHubPage() {
   }, [layoutMode, isPreviewMode, activeTabId, view, dashboardItems.length, dashboardWidgets.length, dashboardFrames.length, tabPosition, tabBarSize, isTabBarCollapsed, tabBarCollapseEnabled]);
 
 
-  // Outside click listener to close custom dropdowns
+  // Outside click listener to close custom dropdowns and context menu
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('.custom-dropdown-container')) {
         setActiveDropdownWidgetId(null);
       }
+      closeContextMenu();
+    };
+    const handleInteraction = () => {
+      closeContextMenu();
     };
     window.addEventListener('click', handleOutsideClick);
-    return () => window.removeEventListener('click', handleOutsideClick);
+    window.addEventListener('contextmenu', handleInteraction);
+    window.addEventListener('wheel', handleInteraction, { passive: true });
+    window.addEventListener('resize', handleInteraction);
+    return () => {
+      window.removeEventListener('click', handleOutsideClick);
+      window.removeEventListener('contextmenu', handleInteraction);
+      window.removeEventListener('wheel', handleInteraction);
+      window.removeEventListener('resize', handleInteraction);
+    };
   }, []);
 
   // Dashboard keyboard listeners (Spacebar for panning + Ctrl+C/V/Z + Delete)
@@ -1496,7 +1592,8 @@ export default function BIHubPage() {
           pos,
           hideHeader: item.config?.hideHeader ?? false,
           zIndex: item.config?.zIndex ?? 1,
-          tabId: item.config?.tabId || fallbackTabId
+          tabId: item.config?.tabId || fallbackTabId,
+          lockMode: item.config?.lockMode || 'none'
         });
       }
 
@@ -1592,7 +1689,8 @@ export default function BIHubPage() {
         config: {
           hideHeader: item.hideHeader,
           zIndex: item.zIndex,
-          tabId: item.tabId || 'default'
+          tabId: item.tabId || 'default',
+          lockMode: item.lockMode || 'none'
         }
       }));
       const updated = await api.dashboards.update(selectedDashboard.id, {
@@ -1665,6 +1763,7 @@ export default function BIHubPage() {
     e.stopPropagation();
     const item = dashboardItems.find(i => i.id === itemId);
     if (!item) return;
+    if (item.lockMode === 'movement' || item.lockMode === 'edit') return;
 
     // Capture initial positions of all selected items
     const initialPositions: { id: string, x: number, y: number, type: 'item' | 'widget' | 'frame' }[] = [
@@ -1694,6 +1793,7 @@ export default function BIHubPage() {
     e.stopPropagation();
     const item = dashboardItems.find(i => i.id === itemId);
     if (!item) return;
+    if (item.lockMode === 'movement' || item.lockMode === 'edit') return;
     interactionRef.current = {
       type: 'resize', itemId, handle,
       startMouseX: e.clientX, startMouseY: e.clientY,
@@ -1966,6 +2066,58 @@ export default function BIHubPage() {
     }
   };
 
+  const handleContextMenu = (
+    e: React.MouseEvent,
+    id: string,
+    type: 'item' | 'widget' | 'frame'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Adjust positioning to avoid context menu clipping at viewport edges
+    const menuWidth = 192; // w-48 = 12rem = 192px
+    const menuHeight = 150; // estimate max height
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+    const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+
+    let posX = e.clientX;
+    let posY = e.clientY;
+
+    if (posX + menuWidth > viewportWidth) {
+      posX = viewportWidth - menuWidth - 8;
+    }
+    if (posY + menuHeight > viewportHeight) {
+      posY = viewportHeight - menuHeight - 8;
+    }
+    if (posX < 0) posX = 8;
+    if (posY < 0) posY = 8;
+
+    setContextMenu({
+      visible: true,
+      x: posX,
+      y: posY,
+      targetId: id,
+      targetType: type
+    });
+
+    // Automatically select the component on right click
+    if (type === 'item') {
+      setSelectedItemId(id);
+      setSelectedItemIds([id]);
+      setSelectedWidgetId(null);
+      setSelectedWidgetIds([]);
+    } else if (type === 'widget') {
+      setSelectedWidgetId(id);
+      setSelectedWidgetIds([id]);
+      setSelectedItemId(null);
+      setSelectedItemIds([]);
+    }
+  };
+
+  const closeContextMenu = () => {
+    setContextMenu(prev => prev.visible ? { ...prev, visible: false } : prev);
+  };
+
   const FRAME_SIZES = [
     { name: 'Custom', w: 800, h: 600 },
     { name: 'A4 Portrait', w: 794, h: 1123 },
@@ -2005,6 +2157,7 @@ export default function BIHubPage() {
     e.stopPropagation();
     const frame = dashboardFrames.find(f => f.id === frameId);
     if (!frame) return;
+    if (frame.lockMode === 'movement' || frame.lockMode === 'edit') return;
     
     const isCustom = frame.name === 'Custom';
     const aspectRatio = frame.pos.w / frame.pos.h;
@@ -2064,6 +2217,7 @@ export default function BIHubPage() {
     e.stopPropagation();
     const frame = dashboardFrames.find(f => f.id === frameId);
     if (!frame) return;
+    if (frame.lockMode === 'movement' || frame.lockMode === 'edit') return;
     interactionRef.current = {
       type: 'drag', itemId: `frame:${frameId}`, handle: '',
       startMouseX: e.clientX, startMouseY: e.clientY,
@@ -2288,6 +2442,7 @@ if (element) {
     e.stopPropagation();
     const widget = dashboardWidgets.find(w => w.id === widgetId);
     if (!widget) return;
+    if (widget.lockMode === 'movement' || widget.lockMode === 'edit') return;
 
     // Capture initial positions of all selected items
     const initialPositions: { id: string, x: number, y: number, type: 'item' | 'widget' | 'frame' }[] = [
@@ -2347,6 +2502,7 @@ if (element) {
     e.stopPropagation();
     const widget = dashboardWidgets.find(w => w.id === widgetId);
     if (!widget) return;
+    if (widget.lockMode === 'movement' || widget.lockMode === 'edit') return;
     interactionRef.current = {
       type: 'resize', itemId: `widget:${widgetId}`, handle,
       startMouseX: e.clientX, startMouseY: e.clientY,
@@ -2386,6 +2542,8 @@ if (element) {
     const code = item.chart.transform_config?.code ||
       `return ${JSON.stringify(item.chart.echarts_option, null, 2)};`;
     setEditDashboardChartCode(code);
+    setDirectEditorFilterConfig(item.chart.transform_config?.filter_config || {});
+    setDirectEditorTab("code");
 
     // Evaluate initial code
     const filteredData = getFilteredData(item);
@@ -2435,7 +2593,10 @@ if (element) {
       chart_type: "custom",
       encodings: {},
       echarts_option: evalResult.option,
-      transform_config: { code: editDashboardChartCode }
+      transform_config: { 
+        code: editDashboardChartCode,
+        filter_config: directEditorFilterConfig
+      }
     };
 
     try {
@@ -2542,19 +2703,23 @@ if (element) {
         if (row[targetKey] !== undefined) {
           const rowVal = row[targetKey];
           const filterVal = activeValue;
-          if (filter.operator === "equals") {
-            if (String(rowVal).toLowerCase() !== String(filterVal).toLowerCase()) return false;
-          } else if (filter.operator === "contains") {
-            if (!String(rowVal).toLowerCase().includes(String(filterVal).toLowerCase())) return false;
-          } else if (filter.operator === "greater_than") {
-            const rNum = parseFloat(rowVal);
-            const fNum = parseFloat(filterVal);
-            if (isNaN(rNum) || isNaN(fNum) || rNum < fNum) return false;
-          } else if (filter.operator === "less_than") {
-            const rNum = parseFloat(rowVal);
-            const fNum = parseFloat(filterVal);
-            if (isNaN(rNum) || isNaN(fNum) || rNum > fNum) return false;
+
+          // Check if there is a custom operator configured on the chart
+          const chartFilterConfig = item.chart?.transform_config?.filter_config || {};
+          const customOpKey = Object.keys(chartFilterConfig).find(k => k.toLowerCase() === targetKey.toLowerCase());
+
+          let op = "=";
+          if (customOpKey) {
+            op = chartFilterConfig[customOpKey];
+          } else {
+            // map legacy filter.operator to standard operators
+            if (filter.operator === "equals") op = "=";
+            else if (filter.operator === "contains") op = "ilike";
+            else if (filter.operator === "greater_than") op = ">=";
+            else if (filter.operator === "less_than") op = "<=";
           }
+
+          if (!applyOperator(rowVal, filterVal, op)) return false;
         }
       }
 
@@ -2571,34 +2736,39 @@ if (element) {
         }
 
         if (row[targetKey] !== undefined) {
-          const rowVal = String(row[targetKey]);
+          const rowVal = row[targetKey];
 
-          if (fType === 'like') {
-            if (!rowVal.toLowerCase().includes(filterVal.toLowerCase())) return false;
-          } else if (fType === 'dropdown') {
-            if (rowVal.toLowerCase() !== filterVal.toLowerCase()) return false;
-          } else if (fType === 'date') {
-            const rowDate = new Date(rowVal);
-            if (!isNaN(rowDate.getTime())) {
-              if (wFilter.dateSubtype === 'year') {
-                const yearVal = rowDate.getFullYear().toString();
-                if (yearVal !== filterVal) return false;
-              } else if (wFilter.dateSubtype === 'month') {
-                const monthVal = `${rowDate.getFullYear()}-${String(rowDate.getMonth() + 1).padStart(2, '0')}`;
-                if (monthVal !== filterVal) return false;
+          // Check if there is a custom operator configured on the chart
+          const chartFilterConfig = item.chart?.transform_config?.filter_config || {};
+          const customOpKey = Object.keys(chartFilterConfig).find(k => k.toLowerCase() === targetKey.toLowerCase());
+
+          if (customOpKey) {
+            const op = chartFilterConfig[customOpKey];
+            if (!applyOperator(rowVal, filterVal, op)) return false;
+          } else {
+            const rowValStr = String(rowVal);
+            if (fType === 'like') {
+              if (!rowValStr.toLowerCase().includes(filterVal.toLowerCase())) return false;
+            } else if (fType === 'dropdown') {
+              if (rowValStr.toLowerCase() !== filterVal.toLowerCase()) return false;
+            } else if (fType === 'date') {
+              const rowDate = new Date(rowValStr);
+              if (!isNaN(rowDate.getTime())) {
+                if (wFilter.dateSubtype === 'year') {
+                  const yearVal = rowDate.getFullYear().toString();
+                  if (yearVal !== filterVal) return false;
+                } else if (wFilter.dateSubtype === 'month') {
+                  const monthVal = `${rowDate.getFullYear()}-${String(rowDate.getMonth() + 1).padStart(2, '0')}`;
+                  if (monthVal !== filterVal) return false;
+                } else {
+                  const dateVal = rowDate.toISOString().split('T')[0];
+                  if (dateVal !== filterVal) return false;
+                }
               } else {
-                // Full date comparison (YYYY-MM-DD)
-                const dateVal = rowDate.toISOString().split('T')[0];
-                if (dateVal !== filterVal) return false;
+                if (!rowValStr.toLowerCase().includes(filterVal.toLowerCase())) return false;
               }
-            } else {
-              // Fallback string matching if not a parseable date
-              if (!rowVal.toLowerCase().includes(filterVal.toLowerCase())) return false;
             }
           }
-        } else {
-          // If the chart dataset does not contain this column at all, we don't filter it out
-          // so that the filter only affects charts containing the column.
         }
       }
 
@@ -3908,6 +4078,7 @@ if (element) {
                         }}
                         className={`group ${isEditMode ? 'cursor-move' : ''}`}
                         onMouseDown={isEditMode ? (e) => startFrameDrag(e, frame.id) : undefined}
+                        onContextMenu={isEditMode ? (e) => handleContextMenu(e, frame.id, 'frame') : undefined}
                       >
                         {/* Frame Label */}
                         {isEditMode && (
@@ -4090,6 +4261,7 @@ if (element) {
                             setSelectedWidgetIds([]);
                             if (item.hideHeader) startDrag(e, item.id);
                             } : undefined}
+                            onContextMenu={isEditMode ? (e) => handleContextMenu(e, item.id, 'item') : undefined}
                             >
                           {/* Title bar — drag handle */}
                           {!item.hideHeader && (
@@ -4250,6 +4422,7 @@ if (element) {
                             setSelectedItemIds([]);
                             startWidgetDrag(e, widget.id);
                             } : undefined}
+                            onContextMenu={isEditMode ? (e) => handleContextMenu(e, widget.id, 'widget') : undefined}
                             >
                           {/* Shape Widget (Rectangle/Circle) Text Rendering */}
                           {isShape && widget.text && (
@@ -6858,21 +7031,105 @@ if (element) {
             </div>
 
             <div className="flex-1 flex gap-6 overflow-hidden min-h-0">
-              {/* Left Code Editor */}
-              <div className="flex-1 flex bg-neutral-950 border border-neutral-850 rounded-xl overflow-hidden shadow-inner focus-within:border-orange-500/50">
-                <Editor
-                  height="100%"
-                  defaultLanguage="javascript"
-                  theme="vs-dark"
-                  value={editDashboardChartCode}
-                  onChange={(value) => setEditDashboardChartCode(value || '')}
-                  options={{
-                    minimap: { enabled: true },
-                    fontSize: 13,
-                    padding: { top: 16 },
-                    scrollBeyondLastLine: false,
-                  }}
-                />
+              {/* Left Panel */}
+              <div className="flex-1 flex flex-col bg-neutral-950 border border-neutral-850 rounded-xl overflow-hidden shadow-inner">
+                {/* Tab Switcher */}
+                <div className="flex border-b border-neutral-850 p-2 gap-1.5 shrink-0 bg-neutral-900/50">
+                  <button
+                    type="button"
+                    onClick={() => setDirectEditorTab("code")}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${directEditorTab === "code"
+                      ? "bg-orange-500/10 border border-orange-500/30 text-orange-400"
+                      : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850/50"
+                      }`}
+                  >
+                    Edit Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDirectEditorTab("filters")}
+                    className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${directEditorTab === "filters"
+                      ? "bg-orange-500/10 border border-orange-500/30 text-orange-400"
+                      : "text-neutral-400 hover:text-neutral-200 hover:bg-neutral-850/50"
+                      }`}
+                  >
+                    Filters Configuration
+                  </button>
+                </div>
+
+                {/* Tab Content */}
+                <div className="flex-1 overflow-hidden min-h-0 flex flex-col">
+                  {directEditorTab === "code" ? (
+                    <div className="flex-1 relative">
+                      <Editor
+                        height="100%"
+                        defaultLanguage="javascript"
+                        theme="vs-dark"
+                        value={editDashboardChartCode}
+                        onChange={(value) => setEditDashboardChartCode(value || '')}
+                        options={{
+                          minimap: { enabled: true },
+                          fontSize: 13,
+                          padding: { top: 16 },
+                          scrollBeyondLastLine: false,
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    // Filters Configuration Tab inside modal
+                    <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                      <p className="text-xs text-neutral-400 leading-relaxed">
+                        Configure how this chart applies filters when placed in this dashboard. If a dashboard filter targets a matching column, it uses the selected operator.
+                      </p>
+                      
+                      {editDashboardChartItem.data && editDashboardChartItem.data.length > 0 ? (
+                        <div className="space-y-3">
+                          {Object.keys(editDashboardChartItem.data[0]).map((colName) => {
+                            const currentOp = directEditorFilterConfig[colName] || "=";
+                            const sampleVal = editDashboardChartItem.data[0][colName];
+                            const colType = typeof sampleVal === "number" ? "number" : "string";
+                            
+                            return (
+                              <div key={colName} className="flex items-center justify-between p-3 bg-neutral-900 border border-neutral-850 rounded-xl hover:border-neutral-800 transition-all">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-xs text-neutral-200 font-mono font-semibold">
+                                    {colName}
+                                  </span>
+                                  <span className="text-[9px] text-neutral-500 uppercase tracking-wider">{colType}</span>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-neutral-450">Operator:</span>
+                                  <select
+                                    value={currentOp}
+                                    onChange={(e) => {
+                                      const newOp = e.target.value;
+                                      setDirectEditorFilterConfig(prev => ({
+                                        ...prev,
+                                        [colName]: newOp
+                                      }));
+                                    }}
+                                    className="bg-neutral-950 border border-neutral-800 rounded-lg px-2 py-1 text-xs text-neutral-300 focus:border-orange-500 focus:outline-none cursor-pointer"
+                                  >
+                                    <option value="=">= (Bằng)</option>
+                                    <option value="<">&lt; (Bé hơn)</option>
+                                    <option value=">">&gt; (Lớn hơn)</option>
+                                    <option value="<=">&lt;= (Bé hơn hoặc bằng)</option>
+                                    <option value=">=">&gt;= (Lớn hơn hoặc bằng)</option>
+                                    <option value="like">like (Chứa phân biệt hoa thường)</option>
+                                    <option value="ilike">ilike (Chứa không phân biệt hoa thường)</option>
+                                  </select>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center text-neutral-600 text-xs py-10">No dataset columns available to configure.</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Right Live Preview / Console Panel */}
@@ -8053,6 +8310,83 @@ if (element) {
           </div>
         );
       })()}
+
+      {contextMenu.visible && (
+        <div
+          id="dashboard-context-menu"
+          className="fixed z-[99999] w-48 bg-neutral-900/95 border border-neutral-800 rounded-xl shadow-2xl p-1.5 backdrop-blur-md animate-in fade-in zoom-in-95 duration-100"
+          style={{
+            left: contextMenu.x,
+            top: contextMenu.y,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              closeContextMenu();
+              if (contextMenu.targetId && contextMenu.targetType) {
+                const id = contextMenu.targetId;
+                if (contextMenu.targetType === 'item') {
+                  const item = dashboardItems.find(i => i.id === id);
+                  if (item) handleOpenDirectChartEditor(item);
+                } else if (contextMenu.targetType === 'widget') {
+                  setStylingWidgetId(id);
+                  setShowWidgetStyleModal(true);
+                  setShowAddChart(false);
+                  setShowTemplateSettings(false);
+                } else if (contextMenu.targetType === 'frame') {
+                  setStylingFrameId(id);
+                  setShowFrameStyleModal(true);
+                  setShowWidgetStyleModal(false);
+                  setShowTabSettings(false);
+                }
+              }
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer text-left font-medium"
+          >
+            <Settings2 className="w-4 h-4 text-orange-500" />
+            Mở cấu hình
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              closeContextMenu();
+              if (contextMenu.targetId) {
+                navigator.clipboard.writeText(contextMenu.targetId).then(() => {
+                  Sonner.toast.success("Đã sao chép ID thành phần!");
+                });
+              }
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer text-left font-medium border-t border-neutral-800/50 mt-1 pt-2"
+          >
+            <Copy className="w-4 h-4 text-neutral-400" />
+            Sao chép ID
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              closeContextMenu();
+              if (contextMenu.targetId && contextMenu.targetType) {
+                const id = contextMenu.targetId;
+                if (contextMenu.targetType === 'item') {
+                  handleRemoveChartFromDashboard(id);
+                } else if (contextMenu.targetType === 'widget') {
+                  handleRemoveWidget(id);
+                } else if (contextMenu.targetType === 'frame') {
+                  handleDeleteFrame(id);
+                }
+              }
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/35 rounded-lg transition-colors cursor-pointer text-left font-medium border-t border-neutral-800/50 mt-1 pt-2"
+          >
+            <Trash2 className="w-4 h-4 text-red-500" />
+            Xóa thành phần
+          </button>
+        </div>
+      )}
     </div>
   );
 }

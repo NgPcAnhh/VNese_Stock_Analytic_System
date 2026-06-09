@@ -49,8 +49,8 @@ async def validate_sql(sql_text: str):
     # 3. Ensure it starts with SELECT (or a comment followed by SELECT)
     # Strip whitespace and common comment patterns for initial check
     stripped_sql = re.sub(r'/\*.*?\*/', '', sql_lower, flags=re.DOTALL).strip()
-    if not stripped_sql.startswith('select'):
-         raise ValueError("SQL must be a SELECT statement.")
+    if not (stripped_sql.startswith('select') or stripped_sql.startswith('with')):
+         raise ValueError("SQL must be a SELECT or WITH statement.")
 
 async def execute_preview(db: AsyncSession, req: QueryPreviewRequest) -> QueryPreviewResponse:
     try:

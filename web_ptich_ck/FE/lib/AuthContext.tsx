@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { User, getAccessToken, clearTokens, fetchWithAuth } from './auth';
 
 const JUST_LOGGED_IN_KEY = 'stockpro:auth:just-logged-in';
@@ -22,6 +23,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    const pathname = usePathname();
 
     useEffect(() => {
         const loadUser = async () => {
@@ -55,11 +57,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     useEffect(() => {
-        if (!user || user.role !== 'admin') return;
+        if (!user) return;
 
-        // Keep admin session active by calling a protected endpoint (/me) every 5 minutes
-        // This will trigger automatic token refresh before the access token expires.
-        const intervalId = setInterval(async () => {
+        let lastActivity = Date.now();
+
+        const updateActivity = () => {
+            lastActivity = Date.now();
+        };
+
+        const events = ['mousemove', 'keydown', 'scroll', 'click', 'touchstart'];
+        events.forEach(event => window.addEventListener(event, updateActivity, { passive: true }));
+
+        // Kiểm tra mỗi 10 giây: nếu không thao tác trong 5 phút (300,000 ms) thì auto logout
+        const checkInactivity = setInterval(() => {
+            // Không áp dụng quy tắc 5 phút cho trang bảng điện
+            if (pathname.startsWith('/price-board')) {
+                return;
+            }
+
+            if (Date.now() - lastActivity > 5 * 60 * 1000) {
+                // Tự động gọi API đăng xuất và xoá token
+                const refresh = typeof window !== 'undefined' && document.cookie.split('; ').find(row => row.startsWith('refresh_token='))?.split('=')[1];
+                if (refresh) {
+                    fetch('http://localhost:8000/api/v1/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ refresh_token: refresh })
+                    }).catch(() => {});
+                }
+                clearTokens();
+                setUser(null);
+            }
+        }, 10000);
+
+        // Giữ phiên làm việc của người dùng hoạt động bằng cách gọi endpoint (/me) sau mỗi 5 phút
+        // Gọi định kỳ để kích hoạt tự động refresh token trong auth.ts
+        const keepAlive = setInterval(async () => {
             try {
                 await fetchWithAuth('http://localhost:8000/api/v1/auth/me');
             } catch (err) {
@@ -67,8 +100,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
         }, 5 * 60 * 1000); // 5 minutes
 
-        return () => clearInterval(intervalId);
-    }, [user]);
+        return () => {
+            events.forEach(event => window.removeEventListener(event, updateActivity));
+            clearInterval(checkInactivity);
+            clearInterval(keepAlive);
+        };
+    }, [user, pathname]);
 
     const login = (newUser: User) => {
         setUser(newUser);
