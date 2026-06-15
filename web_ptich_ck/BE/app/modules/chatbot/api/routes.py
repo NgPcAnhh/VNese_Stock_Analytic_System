@@ -12,6 +12,7 @@ from app.modules.chatbot.sql.executor import execute_sql
 from app.modules.chatbot.sql.formatter import rows_to_markdown_table
 from app.modules.chatbot.agents.analyst_agent import run_analyst_agent
 from app.modules.chatbot.llm.client import model_choice_ctx
+from app.modules.chatbot.router.prompt_refiner import refine_prompt
 
 router = APIRouter(prefix="/chat", tags=["AI Chatbot"])
 
@@ -130,8 +131,11 @@ async def ask_chatbot(req: ChatRequest):
     model_choice_ctx.set(req.model_choice)
 
     try:
+        # ── Bước 2.0: Refine prompt đầu vào ─────────────────────────────
+        refined_message = await _run("refine_prompt", refine_prompt(req.message), timeout=None)
+
         # ── Bước 2.1: Select role ─────────────────────────────────────
-        detected_mode = detect_mode(req.message, req.mode)
+        detected_mode = detect_mode(refined_message, req.mode)
 
         # ── Bước 2.2: Confirm nếu auto detect ra analysis ─────────────
         if detected_mode == "analysis" and req.mode == "auto":
@@ -150,12 +154,12 @@ async def ask_chatbot(req: ChatRequest):
             )
 
         # ── Bước 3a: Fast Entity extraction ───────────────────────────
-        entities = _quick_entities(req.message)
-        metric_text = " ".join(entities.get("metrics") or []) or req.message
+        entities = _quick_entities(refined_message)
+        metric_text = " ".join(entities.get("metrics") or []) or refined_message
 
         # ── Bước 3b: Fast path (search, 1 chỉ tiêu, không cần RAG) ───
         if detected_mode == "search":
-            fast = _build_fast_search_sql(req.message, entities)
+            fast = _build_fast_search_sql(refined_message, entities)
             if fast:
                 rows = await _run("execute_fast_sql", execute_sql(fast["sql"]), timeout=12.0)
                 return ChatResponse(
@@ -170,7 +174,7 @@ async def ask_chatbot(req: ChatRequest):
         # ── Bước 3c: RAG retrieval (context + schema) ─────────────────
         schema_context, ind_code_matches = await asyncio.gather(
             _run("vector_search_metadata", vector_search(
-                query=req.message, doc_type="metadata", top_k=3,
+                query=refined_message, doc_type="metadata", top_k=3,
             ), timeout=None),
             _run("lookup_ind_code", lookup_ind_code(metric_text, top_k=3), timeout=None),
         )
@@ -180,7 +184,7 @@ async def ask_chatbot(req: ChatRequest):
             sql_payload = await _run(
                 "generate_search_sql",
                 generate_search_sql(
-                    message=req.message,
+                    message=refined_message,
                     entities=entities,
                     rag_context=schema_context,
                     ind_code_matches=ind_code_matches,
@@ -216,7 +220,7 @@ async def ask_chatbot(req: ChatRequest):
 
         else:
             result = await run_analyst_agent(
-                message=req.message,
+                message=refined_message,
                 entities=entities,
                 schema_context=schema_context,
                 ind_code_matches=ind_code_matches,
