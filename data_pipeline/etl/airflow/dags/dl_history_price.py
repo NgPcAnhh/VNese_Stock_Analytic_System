@@ -24,7 +24,7 @@ MINIO_CONN_ID = "minio_finance"
     catchup=False,
     tags=["vnstock", "finance", "price"],
     params={
-        "start_date": "2026-01-01",  # Ngày bắt đầu lấy dữ liệu
+        "start_date": "2026-01-01",  # Ngày bắt đầu lấy dữ liệu (hoặc 'auto' để tự động tối ưu hóa)
         "end_date": None,  # None = đến hôm nay
     },
 )
@@ -34,17 +34,25 @@ def history_price_dag():
         from logic.list_macp import get_ticker_batches
 
         # Lấy start_date và end_date từ params
-        start_date = context["params"].get("start_date", "2020-01-01")
+        start_date = context["params"].get("start_date", "2026-01-01")
         end_date = context["params"].get("end_date")
 
-        # Batch nhỏ để tránh rate limit
+        # Nếu là scheduled run (chạy định kỳ hàng ngày), hoặc nếu start_date là 'auto'
+        # Chỉ lấy 3 ngày qua để tránh tải toàn bộ lịch sử gây nghẽn và vượt rate limit
+        run_type = context["dag_run"].run_type
+        if run_type == "scheduled" or start_date == "auto":
+            start_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
+            print(f"[history_price] Scheduled or auto run. Optimizing start_date to last 3 days: {start_date}")
+
+        # Tăng batch_size lên 500 để giảm số lượng mapped tasks từ 75 xuống còn ~3 tasks
+        # Giúp loại bỏ hoàn toàn chi phí lập lịch/startup overhead của Airflow
         return [
             {
                 "symbols": batch,
                 "start_date": start_date,
                 "end_date": end_date,
             }
-            for batch in get_ticker_batches(batch_size=20)
+            for batch in get_ticker_batches(batch_size=500)
         ]
 
     batches = get_batches()
@@ -56,7 +64,7 @@ def history_price_dag():
         bucket_name=MINIO_BUCKET,
         object_path="history_price/{{ ds }}/batch_{{ ti.map_index }}.csv",
         conn_id=MINIO_CONN_ID,
-        max_active_tis_per_dagrun=3,  # Chạy 4 batch đồng thời
+        max_active_tis_per_dagrun=3,  # Chạy đồng thời tối đa 3 task song song
     ).expand(op_kwargs=batches)
 
     chain(batches, ingest_history)

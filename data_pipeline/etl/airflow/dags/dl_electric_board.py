@@ -25,40 +25,16 @@ MINIO_CONN_ID = "minio_finance"
     description="Lấy dữ liệu bảng giá giao dịch cuối ngày và lưu vào MinIO",
 )
 def electric_board_daily_dag():
-    @task
-    def get_batches(**context):
-        from logic.list_macp import get_ticker_batches
-
-        # Lấy ngày hiện tại từ execution date
-        trading_date = context["ds"]  # Format: YYYY-MM-DD
-
-        print(f"[ELECTRIC_BOARD] Lấy dữ liệu bảng giá cho ngày {trading_date}")
-
-        # Batch size lớn hơn vì price_board hỗ trợ lấy nhiều mã cùng lúc
-        batches = [
-            {
-                "symbols": batch,
-                "trading_date": trading_date,
-            }
-            for batch in get_ticker_batches(batch_size=50)
-        ]
-
-        print(f"[ELECTRIC_BOARD] Tổng số batches: {len(batches)}")
-        return batches
-
-    batches = get_batches()
-
     # Sử dụng DfToCsvOperator để lấy dữ liệu và upload lên MinIO
-    ingest_electric_board = DfToCsvOperator.partial(
+    ingest_electric_board = DfToCsvOperator(
         task_id="ingest_electric_board",
         logic_file="electric_board",
-        df_name="get_price_board_batch",
+        df_name="get_electric_board_all",
         bucket_name=MINIO_BUCKET,
-        object_path="electric_board_per_day/{{ ds }}/batch_{{ ti.map_index }}.csv",
+        object_path="electric_board_per_day/{{ ds }}/all_prices.csv",
         conn_id=MINIO_CONN_ID,
-    ).expand(op_kwargs=batches)
-
-    chain(batches, ingest_electric_board)
+        op_kwargs={"target_date": "{{ ds }}"},
+    )
 
 
 electric_board_daily_dag()

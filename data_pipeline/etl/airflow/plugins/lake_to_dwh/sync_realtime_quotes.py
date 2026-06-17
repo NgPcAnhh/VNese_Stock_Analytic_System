@@ -147,7 +147,13 @@ def transform_realtime_quotes(df: pd.DataFrame) -> pd.DataFrame:
     df.columns = df.columns.str.lower().str.strip()
 
     # 2. Convert timestamp
-    if "ts" in df.columns:
+    # Prefer timestamp_iso (ISO-8601 string) as the source for df["ts"] if present
+    if "timestamp_iso" in df.columns:
+        df["ts"] = pd.to_datetime(df["timestamp_iso"], errors="coerce")
+        # Convert to Vietnam timezone then drop tz info for naive TIMESTAMP if it has timezone info
+        if df["ts"].dt.tz is not None:
+            df["ts"] = df["ts"].dt.tz_convert("Asia/Ho_Chi_Minh").dt.tz_localize(None)
+    elif "ts" in df.columns:
         # Check if ts values look like millisecond epochs (large numbers)
         sample_ts = df["ts"].dropna().iloc[0] if len(df["ts"].dropna()) > 0 else None
         if sample_ts is not None and isinstance(sample_ts, (int, float)) and sample_ts > 1e12:
@@ -163,6 +169,7 @@ def transform_realtime_quotes(df: pd.DataFrame) -> pd.DataFrame:
             # Already datetime or string → try parsing directly
             df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
 
+    if "ts" in df.columns:
         # Round to microseconds to prevent duplicate values due to nanosecond resolution truncation in Postgres
         df["ts"] = df["ts"].dt.round("us")
 

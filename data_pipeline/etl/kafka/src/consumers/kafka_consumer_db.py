@@ -20,6 +20,30 @@ from src.common import config
 DB_POOL: asyncpg.Pool | None = None
 
 
+def parse_quote_time(r: Dict[str, Any]) -> datetime | None:
+    """
+    Parse quote time from timestamp_iso (Vietnam timezone) or fallback to ts (ms epoch)
+    Returns naive datetime in Vietnam timezone
+    """
+    iso_val = r.get("timestamp_iso")
+    if iso_val:
+        try:
+            dt = datetime.fromisoformat(iso_val)
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(VN_TZ)
+            return dt.replace(tzinfo=None)
+        except Exception:
+            pass
+
+    ts_val = r.get("ts")
+    if ts_val:
+        try:
+            return datetime.fromtimestamp(ts_val / 1000, tz=VN_TZ).replace(tzinfo=None)
+        except Exception:
+            pass
+    return None
+
+
 async def insert_batch_quotes(records: List[Dict[str, Any]]) -> None:
     """
     Insert batch of quote records into PostgreSQL
@@ -86,7 +110,7 @@ async def insert_batch_quotes(records: List[Dict[str, Any]]) -> None:
     values = [
         (
             r.get("symbol"),
-            datetime.fromtimestamp(r.get("ts") / 1000, tz=VN_TZ).replace(tzinfo=None) if r.get("ts") else None,  # Convert ms to Vietnam naive TIMESTAMP
+            parse_quote_time(r),
             r.get("last_price"), r.get("avg_price"),
             r.get("last_volume"), r.get("total_volume"), r.get("total_value"),
             r.get("foreign_buy_qty"), r.get("foreign_sell_qty"),

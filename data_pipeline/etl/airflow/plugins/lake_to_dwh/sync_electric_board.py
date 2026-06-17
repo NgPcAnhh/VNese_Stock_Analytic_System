@@ -14,8 +14,9 @@ from lake_to_dwh.utils import (
 )
 
 
-# Column mapping from CSV to DB
+# Column mapping from CSV to DB (supports both old prefix-based format and new flat format from vnstock 4.0+)
 COLUMN_MAPPING = {
+    # Old names
     'listing_symbol': 'ticker',
     'listing_exchange': 'exchange',
     'listing_ref_price': 'ref_price',
@@ -37,6 +38,30 @@ COLUMN_MAPPING = {
     'bid_ask_ask_2_volume': 'ask_2_volume',
     'bid_ask_ask_3_price': 'ask_3_price',
     'bid_ask_ask_3_volume': 'ask_3_volume',
+    
+    # New names (vnstock 4.0+)
+    'symbol': 'ticker',
+    'exchange': 'exchange',
+    'reference_price': 'ref_price',
+    'close_price': 'match_price',
+    'volume_accumulated': 'accumulated_volume',
+    'high_price': 'highest_price',
+    'low_price': 'lowest_price',
+    'foreign_buy_volume': 'foreign_buy_volume',
+    'foreign_sell_volume': 'foreign_sell_volume',
+    'bid_price_1': 'bid_1_price',
+    'bid_vol_1': 'bid_1_volume',
+    'bid_price_2': 'bid_2_price',
+    'bid_vol_2': 'bid_2_volume',
+    'bid_price_3': 'bid_3_price',
+    'bid_vol_3': 'bid_3_volume',
+    'ask_price_1': 'ask_1_price',
+    'ask_vol_1': 'ask_1_volume',
+    'ask_price_2': 'ask_2_price',
+    'ask_vol_2': 'ask_2_volume',
+    'ask_price_3': 'ask_3_price',
+    'ask_vol_3': 'ask_3_volume',
+    
     'trading_date': 'trading_date',
 }
 
@@ -225,7 +250,7 @@ def sync_electric_board_to_db(
             with conn.cursor() as cur:
                 # Build dynamic column list for UPDATE (exclude key columns)
                 update_cols = [col for col in available_cols 
-                              if col not in ['ticker', 'exchange', 'trading_date']]
+                              if col not in ['ticker', 'trading_date']]
                 update_set = ', '.join([f"{col} = EXCLUDED.{col}" for col in update_cols])
                 
                 # UPSERT with ON CONFLICT
@@ -233,7 +258,7 @@ def sync_electric_board_to_db(
                     INSERT INTO {schema}.{table}
                     ({', '.join(available_cols)})
                     VALUES %s
-                    ON CONFLICT (ticker, exchange, trading_date)
+                    ON CONFLICT (ticker, trading_date)
                     DO UPDATE SET
                         {update_set};
                 """
