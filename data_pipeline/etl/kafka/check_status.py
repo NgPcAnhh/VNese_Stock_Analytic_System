@@ -1,10 +1,17 @@
 import os
 from kafka import KafkaConsumer
 from boto3 import client
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load .env
+env_path = Path(__file__).parent.parent / ".env"
+load_dotenv(env_path)
 
 def check_kafka():
+    bootstrap_servers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     try:
-        consumer = KafkaConsumer(bootstrap_servers='localhost:9092')
+        consumer = KafkaConsumer(bootstrap_servers=bootstrap_servers)
         topics = consumer.topics()
         print(f"[KAFKA] Connected successfully! Topics available: {topics}")
         if 'market.quotes.raw' in topics:
@@ -17,9 +24,9 @@ def check_kafka():
 
 def check_minio():
     MINIO_ENDPOINT = "http://localhost:9000"
-    MINIO_ACCESS_KEY = "admin"
-    MINIO_SECRET_KEY = "12345678"
-    MINIO_BUCKET = "thongtin-congty-va-bctc"
+    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
+    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
+    MINIO_BUCKET = os.getenv("MINIO_BUCKET", "thongtin-congty-va-bctc")
 
     try:
         s3_client = client(

@@ -5,7 +5,10 @@ Consumes from Kafka topics and writes to PostgreSQL database
 import asyncio
 import json
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# Vietnam timezone (UTC+7)
+VN_TZ = timezone(timedelta(hours=7))
 
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
@@ -83,7 +86,7 @@ async def insert_batch_quotes(records: List[Dict[str, Any]]) -> None:
     values = [
         (
             r.get("symbol"),
-            datetime.fromtimestamp(r.get("ts") / 1000) if r.get("ts") else None,  # Convert ms to TIMESTAMP
+            datetime.fromtimestamp(r.get("ts") / 1000, tz=VN_TZ).replace(tzinfo=None) if r.get("ts") else None,  # Convert ms to Vietnam naive TIMESTAMP
             r.get("last_price"), r.get("avg_price"),
             r.get("last_volume"), r.get("total_volume"), r.get("total_value"),
             r.get("foreign_buy_qty"), r.get("foreign_sell_qty"),

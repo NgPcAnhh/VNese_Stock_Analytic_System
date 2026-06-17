@@ -342,12 +342,18 @@ services:
     build: 
       context: ./kafka
     container_name: realtime-producer
+    restart: always
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     depends_on:
       kafka:
         condition: service_healthy
     env_file: .env
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9093
+      PYTHONUNBUFFERED: "1"
     volumes:
       - ./kafka/src:/app/src
     command: python src/producers/kafka_producer.py
@@ -358,6 +364,11 @@ services:
     build:
       context: ./kafka
     container_name: minio-sink-consumer
+    restart: always
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
     depends_on:
       kafka:
         condition: service_healthy
@@ -369,6 +380,7 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       BATCH_SIZE: 2
       FLUSH_INTERVAL: 120
+      PYTHONUNBUFFERED: "1"
     volumes:
       - ./kafka/src:/app/src
     command: python src/consumers/minio_sink_consumer.py

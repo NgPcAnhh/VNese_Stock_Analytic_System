@@ -1,4 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+# Vietnam timezone (UTC+7)
+VN_TZ = timezone(timedelta(hours=7))
 from airflow.decorators import dag, task
 from airflow.models import Variable
 import logging
@@ -61,8 +64,8 @@ def archive_realtime_quotes():
         logger.info(f"Connecting to database: {DB_URL}")
         engine = create_engine(DB_URL)
         
-        # Calculate cutoff date
-        cutoff_date = datetime.now() - timedelta(days=RETENTION_DAYS)
+        # Calculate cutoff date in Vietnam timezone as naive timestamp
+        cutoff_date = (datetime.now(VN_TZ) - timedelta(days=RETENTION_DAYS)).replace(tzinfo=None)
         logger.info(f"Extracting data older than: {cutoff_date}")
         
         # Query to extract old data
@@ -88,17 +91,17 @@ def archive_realtime_quotes():
                         "message": "No data older than 3 days found"
                     }
                 
-                # Convert timestamp columns to appropriate format
-                if 'timestamp' in df.columns:
-                    df['timestamp'] = pd.to_datetime(df['timestamp'])
+                # Convert timestamp columns to appropriate format (column name is 'ts')
+                if 'ts' in df.columns:
+                    df['ts'] = pd.to_datetime(df['ts'])
                 
                 # Return metadata along with the DataFrame
                 return {
                     "status": "success",
                     "records_count": len(df),
                     "data": df,
-                    "min_date": df['timestamp'].min() if 'timestamp' in df.columns else None,
-                    "max_date": df['timestamp'].max() if 'timestamp' in df.columns else None
+                    "min_date": df['ts'].min() if 'ts' in df.columns else None,
+                    "max_date": df['ts'].max() if 'ts' in df.columns else None
                 }
                 
         except Exception as e:
@@ -176,12 +179,12 @@ def archive_realtime_quotes():
         logger.info("Deleting archived data from realtime_quotes table")
         engine = create_engine(DB_URL)
         
-        # Calculate cutoff date
-        cutoff_date = datetime.now() - timedelta(days=RETENTION_DAYS)
+        # Calculate cutoff date in Vietnam timezone as naive timestamp
+        cutoff_date = (datetime.now(VN_TZ) - timedelta(days=RETENTION_DAYS)).replace(tzinfo=None)
         
         delete_query = text(f"""
             DELETE FROM {SCHEMA}.realtime_quotes
-            WHERE timestamp < :cutoff_date
+            WHERE ts < :cutoff_date
         """)
         
         try:

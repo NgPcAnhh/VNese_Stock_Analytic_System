@@ -5,7 +5,10 @@ Connects to Simplize WebSocket and streams data to Kafka topics
 import asyncio
 import json
 from typing import List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# Vietnam timezone (UTC+7)
+VN_TZ = timezone(timedelta(hours=7))
 
 from websockets.asyncio.client import connect
 from vnstock import Listing
@@ -39,7 +42,7 @@ def minute_bucket_from_ts(ts_ms: int) -> tuple[int, datetime]:
     Returns: (minute_key, bucket_time)
     """
     minute_key = ts_ms // 60000
-    dt = datetime.utcfromtimestamp(ts_ms / 1000)
+    dt = datetime.fromtimestamp(ts_ms / 1000, tz=VN_TZ).replace(tzinfo=None)
     bucket_time = dt.replace(second=0, microsecond=0)
     return minute_key, bucket_time
 
@@ -151,7 +154,7 @@ def handle_quotes(payload: dict) -> None:
         quote_record = {
             "symbol": symbol,
             "ts": ts,
-            "timestamp_iso": datetime.utcfromtimestamp(ts / 1000).isoformat() if ts else None,
+            "timestamp_iso": datetime.fromtimestamp(ts / 1000, tz=VN_TZ).isoformat() if ts else None,
             "is_index": is_index,
             "last_price": last_price,
             "avg_price": avg_price,
@@ -324,15 +327,29 @@ async def main() -> None:
     """
     global quote_producer, candle_producer
 
+    print("🚀 Starting Realtime Stock Producer...")
+
     # Load symbols
     syms = load_vietnam_symbols(limit=config.SYMBOL_LIMIT)
     print(f"🔎 Loaded {len(syms)} symbols (examples: {syms[:10]})")
 
-    # Initialize Kafka producers
+    # Initialize Kafka producers with retries
     print("🔧 Initializing Kafka producers...")
-    quote_producer = KafkaProducer(**config.PRODUCER_CONFIG)
-    candle_producer = KafkaProducer(**config.PRODUCER_CONFIG)
-    print("✅ Kafka producers initialized")
+    max_retries = 12
+    retry_delay = 5
+    for attempt in range(1, max_retries + 1):
+        try:
+            quote_producer = KafkaProducer(**config.PRODUCER_CONFIG)
+            candle_producer = KafkaProducer(**config.PRODUCER_CONFIG)
+            print("✅ Kafka producers initialized")
+            break
+        except Exception as e:
+            if attempt == max_retries:
+                print(f"❌ Failed to initialize Kafka producers after {max_retries} attempts: {e}")
+                raise
+            print(f"⚠️ Kafka not ready (attempt {attempt}/{max_retries}): {e}. Retrying in {retry_delay}s...")
+            await asyncio.sleep(retry_delay)
+
 
     try:
         # Start listening to WebSocket

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api-client";
 import * as XLSX from "xlsx";
 import { 
@@ -40,7 +41,21 @@ export default function DataSourcesPage() {
   };
 
   // Tabs & Views state
-  const [activeTab, setActiveTab] = useState<"connections" | "sql-editor" | "datasets">("sql-editor");
+  const searchParams = useSearchParams();
+  const urlTab = searchParams.get("tab") as "connections" | "sql-editor" | "datasets" | null;
+  const [activeTab, setActiveTab] = useState<"connections" | "sql-editor" | "datasets">(
+    urlTab === "connections" || urlTab === "sql-editor" || urlTab === "datasets" 
+      ? urlTab 
+      : "sql-editor"
+  );
+
+  // Sync tab selection from query params
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab === "connections" || tab === "sql-editor" || tab === "datasets") {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   // Search State
   const [connectionSearch, setConnectionSearch] = useState("");
@@ -71,6 +86,15 @@ export default function DataSourcesPage() {
   const [copiedQueryIndex, setCopiedQueryIndex] = useState<number | null>(null);
   const [editingDatasetId, setEditingDatasetId] = useState<string | null>(null);
   const [editingQueryId, setEditingQueryId] = useState<string | null>(null);
+
+  // Datasets Pagination State
+  const [datasetsPage, setDatasetsPage] = useState(1);
+  const DATASETS_PAGE_SIZE = 10;
+
+  // Reset datasets page when search query changes
+  useEffect(() => {
+    setDatasetsPage(1);
+  }, [datasetSearch]);
 
   // Excel Import State (UI only)
   const excelWorkbookRef = useRef<XLSX.WorkBook | null>(null);
@@ -809,6 +833,16 @@ export default function DataSourcesPage() {
              (source?.name || "").toLowerCase().includes(datasetSearch.toLowerCase());
     });
 
+    const totalDatasets = filteredDatasets.length;
+    const totalDatasetsPages = Math.ceil(totalDatasets / DATASETS_PAGE_SIZE);
+    
+    // Bounds-safe current page determination
+    const currentDatasetsPage = Math.max(1, Math.min(datasetsPage, totalDatasetsPages || 1));
+    const paginatedDatasets = filteredDatasets.slice(
+      (currentDatasetsPage - 1) * DATASETS_PAGE_SIZE,
+      currentDatasetsPage * DATASETS_PAGE_SIZE
+    );
+
     return (
       <div>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -876,7 +910,7 @@ export default function DataSourcesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredDatasets.map((dataset) => {
+                {paginatedDatasets.map((dataset) => {
                   const source = dataSources.find(ds => ds.id === dataset.data_source_id);
                   return (
                     <tr key={dataset.id} className="border-b border-neutral-800/50 last:border-0 hover:bg-neutral-850/10">
@@ -894,21 +928,21 @@ export default function DataSourcesPage() {
                         <div className="flex justify-end gap-2">
                           <button 
                             onClick={() => handlePreviewDataset(dataset.id)}
-                            className="flex items-center gap-1 bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1 rounded transition-colors text-xs"
+                            className="flex items-center gap-1 bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1 rounded transition-colors text-xs shadow-sm cursor-pointer"
                             title="Preview data"
                           >
                             <Eye className="w-3.5 h-3.5" /> Preview
                           </button>
                           <button 
                             onClick={() => handleEditDataset(dataset)}
-                            className="flex items-center gap-1 bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1 rounded transition-colors text-xs"
+                            className="flex items-center gap-1 bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1 rounded transition-colors text-xs shadow-sm cursor-pointer"
                             title="Edit dataset"
                           >
                             <Edit className="w-3.5 h-3.5" /> Edit
                           </button>
                           <button 
                             onClick={() => handleDeleteDataset(dataset.id)}
-                            className="bg-neutral-800 hover:bg-red-950/30 text-neutral-400 hover:text-red-400 p-1.5 rounded transition-colors"
+                            className="bg-neutral-800 hover:bg-red-950/30 text-neutral-400 hover:text-red-400 p-1.5 rounded transition-colors cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -920,6 +954,35 @@ export default function DataSourcesPage() {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {totalDatasetsPages > 1 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-t border-neutral-800 bg-neutral-900/50 gap-4 select-none">
+                <span className="text-xs text-neutral-550 font-medium">
+                  Hiển thị <span className="text-neutral-300">{(currentDatasetsPage - 1) * DATASETS_PAGE_SIZE + 1}</span> - <span className="text-neutral-300">{Math.min(currentDatasetsPage * DATASETS_PAGE_SIZE, totalDatasets)}</span> trong số <span className="text-neutral-300">{totalDatasets}</span> dataset
+                </span>
+                
+                <div className="flex items-center gap-3 bg-neutral-955 border border-neutral-800 rounded-lg px-2 py-1">
+                  <button
+                    onClick={() => setDatasetsPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentDatasetsPage === 1}
+                    className="p-1 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent rounded text-neutral-450 hover:text-orange-500 transition-all cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4.5 h-4.5" />
+                  </button>
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-tighter whitespace-nowrap">
+                    Trang <span className="text-orange-500">{currentDatasetsPage}</span> / {totalDatasetsPages}
+                  </span>
+                  <button
+                    onClick={() => setDatasetsPage(prev => Math.min(totalDatasetsPages, prev + 1))}
+                    disabled={currentDatasetsPage === totalDatasetsPages}
+                    className="p-1 hover:bg-neutral-800 disabled:opacity-30 disabled:hover:bg-transparent rounded text-neutral-455 hover:text-orange-500 transition-all cursor-pointer"
+                  >
+                    <ChevronRight className="w-4.5 h-4.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

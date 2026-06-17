@@ -28,6 +28,11 @@ MINIO_BUCKET = os.getenv("MINIO_BUCKET", "thongtin-congty-va-bctc")
 TARGET_BATCH_SIZE = 20000
 FLUSH_INTERVAL_SECONDS = 600  # 10 phút
 
+
+
+# Vietnam timezone (UTC+7)
+VN_TZ = timezone(timedelta(hours=7))
+
 # MinIO Client
 s3_client = client(
     's3',
@@ -67,7 +72,7 @@ def upload_to_minio(buffer_data):
         parquet_buffer = io.BytesIO()
         pq.write_table(table, parquet_buffer)
         
-        now = datetime.now()
+        now = datetime.now(VN_TZ)
         date_str = now.strftime("%Y-%m-%d") # Format yyyy-mm-dd
         
         key = f"realtime/{date_str}/quotes_{int(time.time()*1000)}.parquet"
@@ -84,19 +89,35 @@ def upload_to_minio(buffer_data):
 def run_consumer():
     ensure_bucket_exists()
     
-    consumer = KafkaConsumer(
-        KAFKA_TOPIC,
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-        group_id=KAFKA_GROUP_ID,
-        auto_offset_reset='earliest',
-        value_deserializer=lambda m: json.loads(m.decode('utf-8'))
-    )
+    # Initialize Kafka consumer with retries
+    logger.info("🔧 Initializing Kafka consumer...")
+    max_retries = 12
+    retry_delay = 5
+    consumer = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            consumer = KafkaConsumer(
+                KAFKA_TOPIC,
+                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                group_id=KAFKA_GROUP_ID,
+                auto_offset_reset='earliest',
+                value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+            )
+            logger.info("✅ Kafka consumer initialized successfully")
+            break
+        except Exception as e:
+            if attempt == max_retries:
+                logger.error(f"❌ Failed to initialize Kafka consumer after {max_retries} attempts: {e}")
+                raise
+            logger.warning(f"⚠️ Kafka not ready (attempt {attempt}/{max_retries}): {e}. Retrying in {retry_delay}s...")
+            time.sleep(retry_delay)
+
     
     buffer = []
     last_flush_time = time.time()
     
     # Thiết lập Múi giờ Việt Nam (UTC+7)
-    vn_tz = timezone(timedelta(hours=7))
+    vn_tz = VN_TZ
     
     logger.info(f"Starting MinIO Sink Consumer for topic: {KAFKA_TOPIC}")
     logger.info(f"Chế độ ghi file: Đợi đủ {TARGET_BATCH_SIZE} bản ghi HOẶC quá 10 phút.")
