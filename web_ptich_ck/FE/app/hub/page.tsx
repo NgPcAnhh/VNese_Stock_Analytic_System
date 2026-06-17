@@ -386,7 +386,7 @@ export default function BIHubPage() {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
   const [selectedWidgetIds, setSelectedWidgetIds] = useState<string[]>([]);
   const [selectionBox, setSelectionBox] = useState<{ x1: number, y1: number, x2: number, y2: number } | null>(null);
-  const [interactionMode, setInteractionMode] = useState<"select" | "pan">("select");
+  const [interactionMode, setInteractionMode] = useState<"select" | "pan">("pan");
 
   // History for Undo
   const [history, setHistory] = useState<{ items: any[], widgets: any[], frames: any[] }[]>([]);
@@ -532,7 +532,33 @@ export default function BIHubPage() {
     initialPositions: []
   });
   const [showAddChart, setShowAddChart] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState<'add' | 'manage'>('add');
+  const [sidebarTab, setSidebarTab] = useState<'add' | 'manage' | 'datasets'>('add');
+  const [showDatasetModal, setShowDatasetModal] = useState(false);
+  const [selectedEditingDataset, setSelectedEditingDataset] = useState<any | null>(null);
+
+  const uniqueDatasets = useMemo(() => {
+    const list: any[] = [];
+    const seenIds = new Set<string>();
+    dashboardItems.forEach(item => {
+      if (item.chart?.dataset_id) {
+        const id = item.chart.dataset_id;
+        if (!seenIds.has(id)) {
+          seenIds.add(id);
+          const found = datasets.find(d => d.id === id);
+          if (found) {
+            list.push(found);
+          } else {
+            list.push({
+              id,
+              name: item.chart.dataset_name || `Dataset ${id.slice(0, 8)}`,
+              description: "Dataset used in dashboard chart"
+            });
+          }
+        }
+      }
+    });
+    return list;
+  }, [dashboardItems, datasets]);
 
   // Permission system state
   const [chartPermissions, setChartPermissions] = useState<Record<string, number[]>>({}); 
@@ -651,8 +677,7 @@ export default function BIHubPage() {
         
         for (const datasetId of uniqueDatasetIds) {
           try {
-            const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, { method: "POST" });
-            const data = await res.json();
+            const data = await api.datasets.preview(datasetId);
             
             setDashboardItems(prev => prev.map(item => {
               if (item.chart?.dataset_id === datasetId && chartIds.includes(item.chart.id)) {
@@ -3588,7 +3613,7 @@ if (element) {
           ` }} />
           {/* Dashboard Header */}
           {!isHeaderDisabled && !isPreviewMode && (
-            <div className="h-20 border-b border-neutral-800 bg-neutral-900/60 flex items-center justify-between px-8 backdrop-blur-md sticky top-0 z-20 shrink-0">
+            <div className="h-20 border-b border-neutral-800 bg-neutral-900/60 flex items-center justify-between px-8 backdrop-blur-md sticky top-0 z-40 shrink-0">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => {
@@ -3696,18 +3721,6 @@ if (element) {
                       <Palette className="w-4 h-4 text-pink-400" /> Template
                     </button>
 
-                    <button
-                      onClick={() => {
-                        setShowAddChart(true);
-                        setShowTemplateSettings(false);
-                        setShowWidgetStyleModal(false);
-                        setShowTabSettings(false);
-                      }}
-                      className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-neutral-300 hover:text-neutral-50 px-4 py-2 rounded-xl text-sm font-semibold transition-colors cursor-pointer"
-                    >
-                      <BarChart3 className="w-4 h-4" /> Add Chart
-                    </button>
-
                     {/* Add Element Dropdown */}
                     <div className="relative" ref={addElementDropdownRef}>
                       <button
@@ -3718,11 +3731,17 @@ if (element) {
                         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAddElementDropdown ? 'rotate-180' : ''}`} />
                       </button>
                       {showAddElementDropdown && (
-                        <div className="absolute right-0 top-full mt-2 w-52 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="absolute right-0 top-full mt-2 w-56 max-h-[350px] overflow-y-auto bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl z-[9999] animate-in fade-in slide-in-from-top-1 duration-150 custom-scrollbar">
                           <div className="px-3 py-2 border-b border-neutral-800">
                             <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Dashboard Actions</span>
                           </div>
                           {([
+                            { 
+                              type: 'action_chart', 
+                              icon: <BarChart3 className="w-4 h-4" />, 
+                              label: 'Add Chart', 
+                              desc: 'Add interactive chart to canvas' 
+                            },
                             { 
                               type: 'action_tab', 
                               icon: <LayoutDashboard className="w-4 h-4" />, 
@@ -3736,7 +3755,12 @@ if (element) {
                             <button
                               key={item.type}
                               onClick={() => {
-                                if (item.type === 'action_tab') {
+                                if (item.type === 'action_chart') {
+                                  setShowAddChart(true);
+                                  setShowTemplateSettings(false);
+                                  setShowWidgetStyleModal(false);
+                                  setShowTabSettings(false);
+                                } else if (item.type === 'action_tab') {
                                   if (dashboardTabs.length > 1) {
                                     setShowTabSettings(true);
                                   } else {
@@ -5049,7 +5073,7 @@ if (element) {
 
           {/* Tab Settings Drawer */}
           {showTabSettings && (
-            <div className="fixed inset-y-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200">
+            <div className={`fixed ${isHeaderDisabled || isPreviewMode ? 'top-0' : 'top-20'} bottom-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200`}>
               <div className="flex justify-between items-center p-6 border-b border-neutral-800 shrink-0">
                 <h3 className="font-bold text-lg flex items-center gap-2">
                   <LayoutDashboard className="w-5 h-5 text-orange-500" /> Tab Settings
@@ -5525,7 +5549,7 @@ if (element) {
           )}
 
           {showAddChart && (
-            <div ref={addChartRef} className="fixed inset-y-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200">
+            <div ref={addChartRef} className={`fixed ${isHeaderDisabled || isPreviewMode ? 'top-0' : 'top-20'} bottom-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-30 flex flex-col animate-in slide-in-from-right duration-200`}>
               {/* Sidebar Header */}
               <div className="flex justify-between items-center p-4 border-b border-neutral-800 shrink-0">
                 <h3 className="font-bold text-base flex items-center gap-2">
@@ -5537,19 +5561,25 @@ if (element) {
                 </button>
               </div>
 
-              {/* 2-Tab Switcher */}
+              {/* 3-Tab Switcher */}
               <div className="flex border-b border-neutral-800 shrink-0">
                 <button
                   onClick={() => { setSidebarTab('add'); setSelectedManagedCharts([]); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition-all ${sidebarTab === 'add' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+                  className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] font-bold transition-all ${sidebarTab === 'add' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-neutral-500 hover:text-neutral-300'}`}
                 >
-                  <Plus className="w-3.5 h-3.5" /> Add Chart
+                  <Plus className="w-3 h-3" /> Add Chart
                 </button>
                 <button
                   onClick={() => { setSidebarTab('manage'); setSelectedManagedCharts([]); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition-all ${sidebarTab === 'manage' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+                  className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] font-bold transition-all ${sidebarTab === 'manage' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-neutral-500 hover:text-neutral-300'}`}
                 >
-                  <Settings2 className="w-3.5 h-3.5" /> Manage Charts
+                  <Settings2 className="w-3.5 h-3.5" /> Manage
+                </button>
+                <button
+                  onClick={() => { setSidebarTab('datasets'); setSelectedManagedCharts([]); }}
+                  className={`flex-1 flex items-center justify-center gap-1 py-2.5 text-[11px] font-bold transition-all ${sidebarTab === 'datasets' ? 'border-b-2 border-orange-500 text-orange-400' : 'text-neutral-500 hover:text-neutral-300'}`}
+                >
+                  <Database className="w-3 h-3" /> Datasets
                 </button>
               </div>
 
@@ -5733,6 +5763,50 @@ if (element) {
                           </div>
                         );
                       })
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ─── Tab 3: Datasets ─── */}
+              {sidebarTab === 'datasets' && (
+                <div className="flex-1 flex flex-col p-4 min-h-0">
+                  <div className="flex items-center justify-between mb-3 shrink-0">
+                    <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">
+                      {uniqueDatasets.length} datasets in dashboard
+                    </span>
+                  </div>
+                  <div className="flex-1 overflow-auto space-y-2 pr-1 custom-scrollbar">
+                    {uniqueDatasets.length === 0 ? (
+                      <div className="text-center text-neutral-500 mt-10 text-xs">
+                        No datasets used in this dashboard.
+                      </div>
+                    ) : (
+                      uniqueDatasets.map((ds) => (
+                        <div
+                          key={ds.id}
+                          onClick={() => {
+                            setSelectedEditingDataset(ds);
+                            setShowDatasetModal(true);
+                          }}
+                          className="p-3 bg-neutral-950 border border-neutral-800 hover:border-orange-500/50 rounded-xl transition-all cursor-pointer group flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-500 shrink-0">
+                              <Database className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-neutral-200 group-hover:text-orange-400 transition-colors truncate">
+                                {ds.name}
+                              </div>
+                              <div className="text-[9px] text-neutral-500 truncate">
+                                {ds.description || "No description"}
+                              </div>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-neutral-600 group-hover:text-orange-500 transition-colors shrink-0" />
+                        </div>
+                      ))
                     )}
                   </div>
                 </div>
@@ -5995,6 +6069,30 @@ if (element) {
                 ) : (
                   // ECharts Code Editor Tab
                   <div className="flex-1 flex flex-col min-h-0 gap-4">
+                    {/* Compact Dataset Info Card */}
+                    <div className="bg-neutral-950 border border-neutral-850 rounded-xl p-3 flex items-center justify-between shrink-0 text-xs gap-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Database className="w-4 h-4 text-orange-500 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider leading-none mb-1">Active Dataset</div>
+                          <div className="font-semibold text-neutral-200 truncate" title={datasets.find(ds => ds.id === selectedDatasetId)?.name || "Unknown Dataset"}>
+                            {datasets.find(ds => ds.id === selectedDatasetId)?.name || "Unknown Dataset"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-3 shrink-0">
+                        <div className="text-right">
+                          <div className="text-[9px] text-neutral-500 font-bold uppercase tracking-wider leading-none mb-1">Rows</div>
+                          <div className="font-bold text-orange-400 font-mono">{datasetPreview?.rows?.length || 0}</div>
+                        </div>
+                        <div className="border-l border-neutral-800 self-stretch my-1" />
+                        <div className="text-right">
+                          <div className="text-[9px] text-neutral-500 font-bold uppercase tracking-wider leading-none mb-1">Cols</div>
+                          <div className="font-bold text-orange-400 font-mono">{datasetPreview?.columns?.length || 0}</div>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="flex-1 flex flex-col min-h-0">
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-bold text-neutral-450 uppercase tracking-wider">ECharts Javascript Code</label>
@@ -6837,6 +6935,46 @@ if (element) {
         </div>
       )}
 
+      {/* Manage Dataset Modal */}
+      {showDatasetModal && selectedEditingDataset && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-11/12 h-[85vh] bg-neutral-950 border border-neutral-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex justify-between items-center p-5 border-b border-neutral-800 bg-neutral-900/60 backdrop-blur-md shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-neutral-50 flex items-center gap-2">
+                    Manage Dataset: {selectedEditingDataset.name}
+                  </h3>
+                  <p className="text-xs text-neutral-500">Edit queries, columns, and data settings</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowDatasetModal(false);
+                  setSelectedEditingDataset(null);
+                  loadHubData();
+                }} 
+                className="p-2 hover:bg-neutral-800 rounded-xl text-neutral-400 hover:text-neutral-50 transition-colors cursor-pointer"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            {/* Iframe Container */}
+            <div className="flex-1 bg-neutral-950 relative">
+              <iframe
+                src={`/data-sources?tab=sql-editor&datasetId=${selectedEditingDataset.id}&preview=true`}
+                className="w-full h-full border-none"
+                title={`Dataset Query Editor - ${selectedEditingDataset.name}`}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Dashboard Modal */}
       {showCreateDashModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
@@ -7058,6 +7196,11 @@ if (element) {
               <h3 className="font-bold text-xl text-neutral-50 flex items-center gap-2">
                 <Maximize2 className="text-orange-400 w-5 h-5" />
                 Fullscreen ECharts Code Editor
+                <span className="text-xs font-normal text-neutral-455 bg-neutral-950 border border-neutral-850 px-3 py-1 rounded-xl ml-4 flex items-center gap-2 font-mono">
+                  <Database className="w-3.5 h-3.5 text-orange-500" />
+                  Dataset: <span className="font-bold text-neutral-300">{datasets.find(ds => ds.id === selectedDatasetId)?.name || "Unknown Dataset"}</span> 
+                  ({datasetPreview?.rows?.length || 0} rows, {datasetPreview?.columns?.length || 0} cols)
+                </span>
               </h3>
               <button
                 onClick={() => setShowMaximizeCodeModal(false)}
@@ -7255,11 +7398,27 @@ if (element) {
       {editDashboardChartItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="w-[90vw] h-[85vh] bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl p-6 relative flex flex-col animate-in scale-in duration-150">
-            <div className="flex justify-between items-center mb-4 shrink-0">
-              <h3 className="font-bold text-xl text-neutral-50 flex items-center gap-2">
-                <PenTool className="text-orange-400 w-5 h-5" />
-                Edit Code for: {editDashboardChartItem.chart.name}
-              </h3>
+            <div className="flex justify-between items-center mb-4 shrink-0 border-b border-neutral-800 pb-3">
+              <div>
+                <h3 className="font-bold text-xl text-neutral-50 flex items-center gap-2">
+                  <PenTool className="text-orange-400 w-5 h-5" />
+                  Edit Code for: {editDashboardChartItem.chart.name}
+                </h3>
+                {(() => {
+                  const dataset = datasets.find(ds => ds.id === editDashboardChartItem.chart.dataset_id);
+                  const rowsCount = editDashboardChartItem.data?.length || 0;
+                  const colsCount = dataset?.columns_schema?.length || (editDashboardChartItem.data?.[0] ? Object.keys(editDashboardChartItem.data[0]).length : 0);
+                  return (
+                    <p className="text-xs text-neutral-400 mt-1.5 flex items-center gap-2 font-medium">
+                      <span className="font-semibold text-orange-400">Dataset:</span> {dataset?.name || "Unknown Dataset"}
+                      <span className="text-neutral-600">•</span>
+                      <span className="font-semibold text-orange-400">Bản ghi:</span> {rowsCount.toLocaleString()} dòng
+                      <span className="text-neutral-600">•</span>
+                      <span className="font-semibold text-orange-400">Cột:</span> {colsCount} cột
+                    </p>
+                  );
+                })()}
+              </div>
               <button
                 onClick={() => setEditDashboardChartItem(null)}
                 className="text-neutral-400 hover:text-neutral-200 transition-colors p-1.5 hover:bg-neutral-800 rounded-xl cursor-pointer"
@@ -7628,7 +7787,7 @@ if (element) {
 
       {/* Widget Style Editor Sidebar */}
       {showWidgetStyleModal && stylingWidgetId && (
-        <div className="fixed inset-y-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
+        <div className={`fixed ${isHeaderDisabled || isPreviewMode ? 'top-0' : 'top-20'} bottom-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden`}>
           {(() => {
             const widget = dashboardWidgets.find(w => w.id === stylingWidgetId);
             if (!widget) return null;
@@ -8249,7 +8408,7 @@ if (element) {
 
       {/* Frame Style Editor Sidebar */}
       {showFrameStyleModal && stylingFrameId && (
-        <div className="fixed inset-y-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden">
+        <div className={`fixed ${isHeaderDisabled || isPreviewMode ? 'top-0' : 'top-20'} bottom-0 right-0 w-96 bg-neutral-900 border-l border-neutral-800 shadow-2xl z-35 flex flex-col animate-in slide-in-from-right duration-200 overflow-hidden`}>
           {(() => {
             const frame = dashboardFrames.find(f => f.id === stylingFrameId);
             if (!frame) return null;

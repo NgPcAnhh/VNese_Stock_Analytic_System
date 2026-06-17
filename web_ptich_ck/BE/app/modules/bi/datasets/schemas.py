@@ -3,6 +3,21 @@ import uuid
 from typing import List, Dict, Any
 from datetime import datetime
 
+class FolderBase(BaseModel):
+    name: str
+    parent_id: uuid.UUID | None = None
+
+class FolderCreate(FolderBase):
+    workspace_id: uuid.UUID
+
+class FolderResponse(FolderBase):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
 class DatasetBase(BaseModel):
     name: str
     description: str | None = None
@@ -10,6 +25,7 @@ class DatasetBase(BaseModel):
     data_source_id: uuid.UUID | None = None
     refresh_mode: str = 'live'
     cache_ttl_seconds: int = 300
+    folder_id: uuid.UUID | None = None
 
 class DatasetCreate(DatasetBase):
     workspace_id: uuid.UUID
@@ -23,6 +39,7 @@ class DatasetUpdate(BaseModel):
     refresh_mode: str | None = None
     cache_ttl_seconds: int | None = None
     columns_schema: List[Dict[str, Any]] | None = None
+    folder_id: uuid.UUID | None = None
 
 class DatasetResponse(DatasetBase):
     id: uuid.UUID
@@ -30,8 +47,10 @@ class DatasetResponse(DatasetBase):
     columns_schema: List[Dict[str, Any]]
     created_at: datetime
     updated_at: datetime
+    folder_path: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class DatasetPreviewResponse(BaseModel):
     columns: List[Dict[str, str]]

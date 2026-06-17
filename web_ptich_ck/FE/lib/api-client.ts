@@ -97,6 +97,21 @@ export const api = {
       return response.data;
     }
   },
+  folders: {
+    list: async (workspaceId: string) => {
+      const response = await apiClient.get(`/datasets/folders/workspace/${workspaceId}`);
+      return response.data;
+    },
+    create: async (data: { name: string; workspace_id: string; parent_id: string | null }) => {
+      const response = await apiClient.post('/datasets/folders', data);
+      return response.data;
+    },
+    delete: async (id: string) => {
+      const response = await apiClient.delete(`/datasets/folders/${id}`);
+      return response.data;
+    }
+  },
+
   charts: {
     list: async (workspaceId: string) => {
       const response = await apiClient.get(`/charts/workspace/${workspaceId}`);

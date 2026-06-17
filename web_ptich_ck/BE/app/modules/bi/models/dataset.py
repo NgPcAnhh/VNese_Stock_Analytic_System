@@ -17,6 +17,9 @@ class Dataset(BIBaseModel):
     refresh_mode: Mapped[str] = mapped_column(String, nullable=False, default='live')
     cache_ttl_seconds: Mapped[int] = mapped_column(Integer, nullable=True, default=300)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=True)
+    folder_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("bi_hub.dataset_folders.id", ondelete="SET NULL"), nullable=True)
 
     query = relationship("Query")
     data_source = relationship("DataSource")
+    folder = relationship("DatasetFolder")
+

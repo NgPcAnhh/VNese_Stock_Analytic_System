@@ -93,14 +93,29 @@ async def init_bi_db() -> None:
         import app.modules.bi.models.data_source
         import app.modules.bi.models.query
         import app.modules.bi.models.dataset
+        import app.modules.bi.models.dataset_folder
         import app.modules.bi.models.chart
         import app.modules.bi.models.dashboard
         import app.modules.bi.models.permission
         
         # 2. Tạo bảng
         await conn.run_sync(Base.metadata.create_all)
+
+        # 2.1. Kiểm tra cột folder_id trong bảng bi_hub.datasets, nếu chưa có thì ALTER TABLE
+        check_col = text("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema='bi_hub' AND table_name='datasets' AND column_name='folder_id'
+        """)
+        res_col = await conn.execute(check_col)
+        if not res_col.fetchone():
+            await conn.execute(text("""
+                ALTER TABLE bi_hub.datasets 
+                ADD COLUMN folder_id UUID REFERENCES bi_hub.dataset_folders(id) ON DELETE SET NULL;
+            """))
         
         # 3. Seed default workspace '00000000-0000-0000-0000-000000000000' nếu chưa có
+
         default_ws_id = "00000000-0000-0000-0000-000000000000"
         check_query = text("SELECT id FROM bi_hub.workspaces WHERE id = :id")
         result = await conn.execute(check_query, {"id": default_ws_id})
