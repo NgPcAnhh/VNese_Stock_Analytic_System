@@ -34,8 +34,6 @@ interface PageHeaderProps {
   periods?: string[];
   selectedPeriod: string | null;
   onPeriodChange: (p: string | null) => void;
-  unit: number;
-  onUnitChange: (u: number) => void;
 }
 
 function PageHeader({
@@ -45,8 +43,6 @@ function PageHeader({
   periods,
   selectedPeriod,
   onPeriodChange,
-  unit,
-  onUnitChange
 }: PageHeaderProps) {
   const subTabs: { id: SubTab; icon: string; label: string }[] = [
     { id: "balance", icon: "📊", label: "Bảng Cân Đối Kế Toán" },
@@ -83,17 +79,6 @@ function PageHeader({
                 {periods?.map(p => (
                     <option key={p} value={p}>{p}</option>
                 ))}
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Đơn vị</span>
-            <select
-              className="text-sm font-semibold text-foreground bg-transparent border-none cursor-pointer focus:outline-none"
-              value={String(unit)}
-              onChange={(e) => onUnitChange(Number(e.target.value))}
-            >
-              <option value="1000000000">Tỷ VND</option>
-              <option value="1000000">Triệu VND</option>
             </select>
           </div>
         </div>
@@ -461,7 +446,6 @@ export default function BalanceSheetTab() {
         selectedPeriod={selectedPeriod}
         onPeriodChange={setSelectedPeriod}
         unit={unit}
-        onUnitChange={setUnit}
       />
     );
   }
@@ -478,7 +462,6 @@ export default function BalanceSheetTab() {
         selectedPeriod={selectedPeriod}
         onPeriodChange={setSelectedPeriod}
         unit={unit}
-        onUnitChange={setUnit}
       />
     );
   }
@@ -495,7 +478,6 @@ export default function BalanceSheetTab() {
         selectedPeriod={selectedPeriod}
         onPeriodChange={setSelectedPeriod}
         unit={unit}
-        onUnitChange={setUnit}
       />
     );
   }
@@ -509,8 +491,6 @@ export default function BalanceSheetTab() {
         periods={periods}
         selectedPeriod={selectedPeriod}
         onPeriodChange={setSelectedPeriod}
-        unit={unit}
-        onUnitChange={setUnit}
       />
       
       {/* Pass transformed view data (casted to Record<string, unknown> to satisfy prop type) */}

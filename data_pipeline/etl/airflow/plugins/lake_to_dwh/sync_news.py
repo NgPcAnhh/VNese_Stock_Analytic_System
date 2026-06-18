@@ -84,8 +84,8 @@ def sync_news_to_db(
                 # Create unique constraint if not exists to support ON CONFLICT
                 try:
                     create_idx_sql = f"""
-                        CREATE UNIQUE INDEX IF NOT EXISTS {table}_source_title_link_idx 
-                        ON {schema}.{table} (source, title, link);
+                        CREATE UNIQUE INDEX IF NOT EXISTS {table}_link_idx 
+                        ON {schema}.{table} (link);
                     """
                     with conn.cursor() as cur:
                         cur.execute(create_idx_sql)
@@ -98,8 +98,10 @@ def sync_news_to_db(
                     INSERT INTO {schema}.{table}
                     (source, title, link, published, summary)
                     VALUES %s
-                    ON CONFLICT (source, title, link)
+                    ON CONFLICT (link)
                     DO UPDATE SET
+                        source = EXCLUDED.source,
+                        title = EXCLUDED.title,
                         published = EXCLUDED.published,
                         summary = EXCLUDED.summary;
                 """

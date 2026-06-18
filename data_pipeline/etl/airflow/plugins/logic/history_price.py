@@ -3,7 +3,28 @@ import time
 from datetime import datetime
 
 import pandas as pd
-from vnstock import Quote
+from vnstock import Quote, Trading
+
+
+def _retry_price_board(symbols: list, retries: int = 3, base_delay: float = 3.0) -> pd.DataFrame:
+    """Call vnstock Trading.price_board with retry logic for rate limit and errors."""
+    for attempt in range(retries):
+        try:
+            trading = Trading(symbol='VN30F1M')
+            df = trading.price_board(symbols_list=symbols)
+            if df is not None and isinstance(df, pd.DataFrame) and not df.empty:
+                return df
+            time.sleep(base_delay)
+        except Exception as exc:
+            msg = str(exc)
+            if "429" in msg or "Too Many Requests" in msg:
+                wait = base_delay * (attempt + 1)
+                print(f"[HISTORY_PRICE] 429 Too Many Requests, retry {attempt + 1}/{retries} in {wait:.1f}s")
+                time.sleep(wait)
+                continue
+            print(f"[HISTORY_PRICE] Error: {exc}")
+            time.sleep(base_delay)
+    return pd.DataFrame()
 
 
 # === RATE LIMIT CONFIG ===
@@ -51,7 +72,7 @@ def _retry_price(symbol: str, start_date: str, end_date: str, retries: int = 3, 
         DataFrame with price data or empty DataFrame on failure
     """
     if sources is None:
-        sources = ["VCI", "TCBS"]
+        sources = ["kbs", "vci"]
     
     # Retryable error keywords
     RETRYABLE_ERRORS = [
@@ -74,7 +95,7 @@ def _retry_price(symbol: str, start_date: str, end_date: str, retries: int = 3, 
     for source in sources:
         for attempt in range(retries):
             try:
-                quote = Quote(symbol=symbol, source=source)
+                quote = Quote(symbol=symbol, source=source.lower())
                 df = quote.history(start=start_date, end=end_date)
                 if df is not None and isinstance(df, pd.DataFrame) and not df.empty:
                     return df
@@ -135,18 +156,65 @@ def _normalize_price_df(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     return df[cols].dropna(subset=["trading_date"])
 
 
-def get_history_price_batch(symbols: list, start_date: str | None = None, end_date: str | None = None) -> pd.DataFrame:
+def get_history_price_batch(
+    symbols: list,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    use_price_board: bool = False
+) -> pd.DataFrame:
     """Fetch daily historical prices for a batch of symbols.
     
-    Rate limit: vnstock Guest tier = 20 requests/minute.
-    With RATE_LIMIT_DELAY=3.5s: 20 symbols × 3.5s = 70s → ~17 req/min (safe).
+    If use_price_board is True, fetches using fast Trading.price_board API.
+    Otherwise, downloads historical prices in parallel using ThreadPoolExecutor.
     """
-    start = start_date or "2026-01-01"  # theo yêu cầu: lấy từ 2008 trở đi
+    start = start_date or "2026-01-01"
     end = end_date or datetime.utcnow().strftime("%Y-%m-%d")
-
-    frames: list[pd.DataFrame] = []
     total = len(symbols)
 
+    if use_price_board:
+        print(f"⚡ [history_price] Fetching current daily prices for {total} symbols using price_board...")
+        # Split into batches of 300 to avoid payload size limits
+        batch_size = 300
+        batches = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
+        frames = []
+        for idx, batch in enumerate(batches, 1):
+            print(f"  -> Fetching batch {idx}/{len(batches)} (size={len(batch)})...")
+            raw_df = _retry_price_board(batch)
+            if not raw_df.empty:
+                # Rename columns to match history_price schema
+                column_rename = {
+                    'symbol': 'ticker',
+                    'open_price': 'open',
+                    'high_price': 'high',
+                    'low_price': 'low',
+                    'close_price': 'close',
+                    'volume_accumulated': 'volume'
+                }
+                raw_df = raw_df.rename(columns=column_rename)
+                # Scale price columns by dividing by 1000.0
+                price_cols = ['open', 'high', 'low', 'close']
+                for col in price_cols:
+                    if col in raw_df.columns:
+                        raw_df[col] = pd.to_numeric(raw_df[col], errors='coerce') / 1000.0
+                raw_df['trading_date'] = start
+                
+                required_cols = ['ticker', 'trading_date', 'open', 'high', 'low', 'close', 'volume']
+                available_cols = [c for c in required_cols if c in raw_df.columns]
+                norm_df = raw_df[available_cols].dropna(subset=['ticker', 'trading_date'])
+                if not norm_df.empty:
+                    frames.append(norm_df)
+            if idx < len(batches):
+                time.sleep(1.0)
+        
+        print(f"📊 [history_price] Price board fetch complete: {len(frames)} batches successful")
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+    # Backfill/History flow using optimized sequential loop with safe delay
+    print(f"🔄 [history_price] Starting sequential historical download for {total} symbols...")
+    frames = []
+    
+    # Safe delay between requests to stay well within KBS/VCI api rate limits
+    delay = 1.0
     for idx, symbol in enumerate(symbols, 1):
         sym = str(symbol).upper().strip()
         print(f"[{idx}/{total}] Fetching {sym}...")
@@ -158,10 +226,9 @@ def get_history_price_batch(symbols: list, start_date: str | None = None, end_da
             print(f"  ✓ {sym}: {len(norm_df)} rows")
         else:
             print(f"  ⚠ {sym}: no data")
-        
-        # Rate limit: chờ giữa mỗi symbol để tránh vượt 20 req/phút
+            
         if idx < total:
-            time.sleep(RATE_LIMIT_DELAY)
+            time.sleep(delay)
 
     print(f"\n📊 Batch complete: {len(frames)}/{total} symbols successful")
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()

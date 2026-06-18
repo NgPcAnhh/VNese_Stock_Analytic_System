@@ -27,7 +27,6 @@ RSS_SOURCES = {
     "VnExpress_KHCN": "https://vnexpress.net/rss/khoa-hoc-cong-nghe.rss",
     "VnExpress_BatDongSan": "https://vnexpress.net/rss/bat-dong-san.rss",
     "VnExpress_ThoiSu": "https://vnexpress.net/rss/thoi-su.rss",
-    "VnExpress_GiaiTri": "https://vnexpress.net/rss/giai-tri.rss",
     "VnExpress_TheGioi": "https://vnexpress.net/rss/the-gioi.rss",
     "Vietstock_ViMo": "https://vietstock.vn/761/kinh-te/vi-mo.rss",
     "Vietstock_KinhTeDauTu": "https://vietstock.vn/768/kinh-te/kinh-te-dau-tu.rss",

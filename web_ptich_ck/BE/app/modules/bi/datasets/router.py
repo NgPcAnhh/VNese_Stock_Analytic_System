@@ -33,6 +33,17 @@ async def preview_dataset(
 ):
     return await service.preview_dataset(db, dataset_id)
 
+@router.post("/{dataset_id}/export", response_model=schemas.DatasetPreviewResponse)
+async def export_dataset(
+    dataset_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        return await service.export_dataset(db, dataset_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.put("/{dataset_id}", response_model=schemas.DatasetResponse)
 async def update_dataset(
     dataset_id: uuid.UUID,

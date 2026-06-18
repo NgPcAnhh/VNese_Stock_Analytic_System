@@ -18,15 +18,20 @@ def sync_daily_price_to_db(
     bucket: str,
     minio_conn_id: str = "minio_finance",
     folder_prefix: str = "daily_price/",
-    table: str = "history_price"
+    table: str = "history_price",
+    target_partition: str = None
 ) -> str:
     print("=" * 70)
     print("📊 SYNC DAILY PRICE TO DATABASE")
     print("=" * 70)
     
     # Step 1: Find latest partition
-    print("\n[1/4] Finding latest partition...")
-    latest_partition = get_latest_partition(bucket, folder_prefix, minio_conn_id)
+    if target_partition:
+        print(f"\n[1/4] Using specified partition: {target_partition}")
+        latest_partition = target_partition
+    else:
+        print("\n[1/4] Finding latest partition...")
+        latest_partition = get_latest_partition(bucket, folder_prefix, minio_conn_id)
     
     if not latest_partition:
         return "❌ No partition found"

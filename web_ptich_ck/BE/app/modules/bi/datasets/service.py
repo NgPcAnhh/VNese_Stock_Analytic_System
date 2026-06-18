@@ -31,7 +31,14 @@ async def resolve_folder_path(db: AsyncSession, workspace_id: uuid.UUID, folder_
         result = await db.execute(query)
         folder = result.scalars().first()
         if not folder:
-            raise ValueError(f"Thư mục '{part}' không tồn tại")
+            # Create folder automatically if not exists
+            folder = DatasetFolder(
+                workspace_id=workspace_id,
+                name=part,
+                parent_id=current_parent_id
+            )
+            db.add(folder)
+            await db.flush()
         
         current_parent_id = folder.id
         
@@ -198,6 +205,44 @@ async def preview_dataset(db: AsyncSession, dataset_id: uuid.UUID) -> DatasetPre
     return DatasetPreviewResponse(columns=preview.columns, rows=preview.rows, error=preview.error)
 
 async def delete_dataset(db: AsyncSession, dataset_obj: Dataset) -> None:
+    # 1. Fetch the associated Query if any
+    query_obj = None
+    if dataset_obj.query_id:
+        query_obj = await db.get(Query, dataset_obj.query_id)
+        
+    # 2. Check if it's an Excel import
+    if query_obj and query_obj.database_name == "import excel":
+        # Extract table name from sql_text
+        import re
+        match = re.search(r'FROM\s+"import\s+excel"\."([^"]+)"', query_obj.sql_text, re.IGNORECASE)
+        if match:
+            table_name = match.group(1)
+            
+            # Fetch data source credentials
+            ds = await db.get(DataSource, query_obj.data_source_id)
+            if ds:
+                try:
+                    password = decrypt_password(ds.encrypted_password) if ds.encrypted_password else None
+                    conn = await asyncpg.connect(
+                        user=ds.username,
+                        password=password,
+                        database=ds.database_name,
+                        host=ds.host,
+                        port=ds.port or 5432,
+                        timeout=15
+                    )
+                    try:
+                        safe_table = table_name.replace('"', '""')
+                        await conn.execute(f'DROP TABLE IF EXISTS "import excel"."{safe_table}"')
+                    finally:
+                        await conn.close()
+                except Exception as e:
+                    print(f"Warning: Failed to drop physical table '{table_name}' from PostgreSQL: {e}")
+
+        # Delete the associated Query object
+        await db.delete(query_obj)
+
+    # 3. Delete the Dataset object
     await db.delete(dataset_obj)
     await db.commit()
 
@@ -222,7 +267,8 @@ async def import_excel(db: AsyncSession, req: schemas.ExcelImportRequest) -> Dat
         timeout=30
     )
     
-    schema_name = req.schema_name or "public"
+    # Force schema_name to be "import excel"
+    schema_name = "import excel"
     safe_schema = schema_name.replace('"', '""')
     schema_prefix = f'"{safe_schema}".'
     
@@ -281,32 +327,107 @@ async def import_excel(db: AsyncSession, req: schemas.ExcelImportRequest) -> Dat
     finally:
         await conn.close()
         
+    # Get or create a DataSource named "import excel" for this workspace
+    q_ds = select(DataSource).where(
+        DataSource.workspace_id == req.workspace_id,
+        DataSource.name == "import excel"
+    )
+    res_ds = await db.execute(q_ds)
+    import_excel_ds = res_ds.scalars().first()
+    
+    if not import_excel_ds:
+        import_excel_ds = DataSource(
+            workspace_id=req.workspace_id,
+            name="import excel",
+            type="postgres",
+            host=ds.host,
+            port=ds.port,
+            database_name=ds.database_name, # keep original database name for connection
+            username=ds.username,
+            encrypted_password=ds.encrypted_password,
+            ssl_config=ds.ssl_config,
+            extra_config=ds.extra_config
+        )
+        db.add(import_excel_ds)
+        await db.flush()
+    else:
+        # Sync database credentials just in case they've changed
+        import_excel_ds.host = ds.host
+        import_excel_ds.port = ds.port
+        import_excel_ds.database_name = ds.database_name
+        import_excel_ds.username = ds.username
+        import_excel_ds.encrypted_password = ds.encrypted_password
+        import_excel_ds.ssl_config = ds.ssl_config
+        import_excel_ds.extra_config = ds.extra_config
+        db.add(import_excel_ds)
+        await db.flush()
+        
     # 3. Create the Query model in metadata db
     sql_text = f'SELECT * FROM {schema_prefix}"{safe_table}"'
     query_obj = Query(
         workspace_id=req.workspace_id,
-        data_source_id=req.data_source_id,
+        data_source_id=import_excel_ds.id,
         name=f"Query for {req.dataset_name}",
         description=f"Generated query for Excel import of table {req.table_name}",
         sql_text=sql_text,
-        database_name=req.database_name or ds.database_name,
-        schema_name=schema_name
+        database_name="import excel",
+        schema_name="import excel"
     )
     db.add(query_obj)
     await db.flush()
     
     # 4. Create the Dataset model
+    name = req.dataset_name.strip()
+    folder_id = None
+    
+    if "/" in name:
+        parts = name.split("/")
+        dataset_name = parts[-1].strip()
+        folder_path = "/".join(parts[:-1]).strip()
+        
+        if not dataset_name:
+            raise ValueError("Tên dataset không hợp lệ")
+            
+        resolved_folder_id = await resolve_folder_path(db, req.workspace_id, folder_path)
+        folder_id = resolved_folder_id
+        name = dataset_name
+    else:
+        folder_id = await get_or_create_general_folder(db, req.workspace_id)
+
     dataset_obj = Dataset(
         workspace_id=req.workspace_id,
         query_id=query_obj.id,
-        data_source_id=req.data_source_id,
-        name=req.dataset_name,
+        data_source_id=import_excel_ds.id,
+        name=name,
         description=f"Imported Excel dataset: {req.table_name}",
         columns_schema=req.columns,
-        refresh_mode='live'
+        refresh_mode='live',
+        folder_id=folder_id
     )
     db.add(dataset_obj)
     await db.commit()
     await db.refresh(dataset_obj)
     
     return dataset_obj
+
+
+async def export_dataset(db: AsyncSession, dataset_id: uuid.UUID) -> DatasetPreviewResponse:
+    dataset = await db.get(Dataset, dataset_id)
+    if not dataset or not dataset.query_id:
+        return DatasetPreviewResponse(columns=[], rows=[], error="Dataset or associated query not found")
+        
+    query_obj = await db.get(Query, dataset.query_id)
+    if not query_obj:
+        return DatasetPreviewResponse(columns=[], rows=[], error="Associated query not found")
+        
+    req = QueryPreviewRequest(
+        data_source_id=query_obj.data_source_id, 
+        sql_text=query_obj.sql_text,
+        database=query_obj.database_name,
+        schema_name=query_obj.schema_name,
+        limit=100000
+    )
+    preview = await execute_preview(db, req)
+    
+    return DatasetPreviewResponse(columns=preview.columns, rows=preview.rows, error=preview.error)
+

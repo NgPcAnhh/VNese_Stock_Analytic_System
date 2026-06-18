@@ -82,10 +82,11 @@ async def get_market_heatmap(
     exchange_filter = ""
     params: Dict[str, Any] = {}
     if exchange != "all":
-        exchange_map = {"HOSE": "HSX", "HNX": "HNX", "UPCOM": "UPCOM"}
-        eb_code = exchange_map.get(exchange, exchange)
-        exchange_filter = "AND eb.exchange = :exchange"
-        params["exchange"] = eb_code
+        if exchange in ("HOSE", "HSX"):
+            exchange_filter = "AND eb.exchange IN ('HOSE', 'HSX')"
+        else:
+            exchange_filter = "AND eb.exchange = :exchange"
+            params["exchange"] = exchange
 
     sql = text(f"""
         SELECT sector, ticker, price, volume, p_change

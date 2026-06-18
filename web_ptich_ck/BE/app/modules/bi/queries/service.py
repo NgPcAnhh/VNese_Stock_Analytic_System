@@ -65,10 +65,15 @@ async def execute_preview(db: AsyncSession, req: QueryPreviewRequest) -> QueryPr
     if ds.type == 'postgres':
         try:
             password = decrypt_password(ds.encrypted_password) if ds.encrypted_password else None
+            
+            db_name = req.database
+            if db_name == "import excel":
+                db_name = ds.database_name
+                
             conn = await asyncpg.connect(
                 user=ds.username,
                 password=password,
-                database=req.database or ds.database_name,
+                database=db_name or ds.database_name,
                 host=ds.host,
                 port=ds.port or 5432,
                 timeout=15

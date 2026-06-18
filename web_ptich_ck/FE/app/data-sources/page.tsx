@@ -86,6 +86,7 @@ export default function DataSourcesPage() {
   const [datasetsLoading, setDatasetsLoading] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewDatasetData, setPreviewDatasetData] = useState<{columns: any[], rows: any[], error?: string}|null>(null);
+  const [previewingDataset, setPreviewingDataset] = useState<any | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [copiedQueryIndex, setCopiedQueryIndex] = useState<number | null>(null);
   const [editingDatasetId, setEditingDatasetId] = useState<string | null>(null);
@@ -316,12 +317,13 @@ export default function DataSourcesPage() {
     }
   };
 
-  const handlePreviewDataset = async (id: string) => {
+  const handlePreviewDataset = async (dataset: any) => {
+    setPreviewingDataset(dataset);
     setPreviewLoading(true);
     setPreviewDatasetData(null);
     setShowPreviewModal(true);
     try {
-      const res = await api.datasets.preview(id);
+      const res = await api.datasets.preview(dataset.id);
       setPreviewDatasetData(res);
     } catch (error: any) {
       setPreviewDatasetData({
@@ -331,6 +333,30 @@ export default function DataSourcesPage() {
       });
     }
     setPreviewLoading(false);
+  };
+
+  const handleExportExcel = async (dataset: any) => {
+    const toastId = Sonner.toast.loading(`Đang tải dữ liệu cho dataset "${dataset.name}"...`);
+    try {
+      const res = await api.datasets.exportData(dataset.id);
+      if (res.error) {
+        throw new Error(res.error);
+      }
+      if (!res.rows || res.rows.length === 0) {
+        Sonner.toast.warning("Không có dữ liệu trong dataset này để xuất.");
+        Sonner.toast.dismiss(toastId);
+        return;
+      }
+
+      const ws = XLSX.utils.json_to_sheet(res.rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Dữ liệu");
+      XLSX.writeFile(wb, `${dataset.name}.xlsx`);
+      Sonner.toast.success(`Xuất Excel dataset "${dataset.name}" thành công!`, { id: toastId });
+    } catch (error: any) {
+      console.error("Failed to export dataset to Excel", error);
+      Sonner.toast.error(error.message || error.response?.data?.detail || "Lỗi khi xuất file Excel.", { id: toastId });
+    }
   };
 
   const handleEditDataset = async (dataset: any) => {
@@ -1132,7 +1158,7 @@ export default function DataSourcesPage() {
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex justify-end gap-2">
                               <button 
-                                onClick={() => handlePreviewDataset(dataset.id)}
+                                onClick={() => handlePreviewDataset(dataset)}
                                 className="flex items-center gap-1 bg-orange-600 hover:bg-orange-700 text-white px-2.5 py-1 rounded transition-colors text-xs shadow-sm cursor-pointer"
                                 title="Xem trước dữ liệu"
                               >
@@ -1739,10 +1765,21 @@ export default function DataSourcesPage() {
               )}
             </div>
             
-            <div className="p-4 border-t border-neutral-800 flex justify-end bg-neutral-900/50">
+            <div className="p-4 border-t border-neutral-800 flex justify-between bg-neutral-900/50">
+              <button
+                onClick={() => {
+                  if (previewingDataset) {
+                    handleExportExcel(previewingDataset);
+                  }
+                }}
+                disabled={!previewDatasetData || previewDatasetData.rows.length === 0}
+                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-neutral-850 disabled:opacity-50 text-white px-4 py-2 rounded text-sm font-medium transition-colors cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> Xuất Excel (Toàn bộ)
+              </button>
               <button 
                 onClick={() => setShowPreviewModal(false)}
-                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded text-sm transition-colors text-neutral-300"
+                className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 rounded text-sm transition-colors text-neutral-300 cursor-pointer"
               >
                 Close
               </button>

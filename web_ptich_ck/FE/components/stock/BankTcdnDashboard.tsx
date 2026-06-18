@@ -24,7 +24,6 @@ interface BankTcdnDashboardProps {
   selectedPeriod: string | null;
   onPeriodChange: (value: string | null) => void;
   unit: number;
-  onUnitChange: (value: number) => void;
 }
 
 /* ================================================================
@@ -275,7 +274,6 @@ export default function BankTcdnDashboard({
   selectedPeriod,
   onPeriodChange,
   unit,
-  onUnitChange,
 }: BankTcdnDashboardProps) {
   const [screen, setScreen] = useState<BankScreen>("balance");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -1445,13 +1443,7 @@ export default function BankTcdnDashboard({
                 </>
               )}
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Đơn vị</span>
-              <select className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium bg-card focus:ring-2 focus:ring-orange-500/30 focus:outline-none" value={String(unit)} onChange={(e) => onUnitChange(Number(e.target.value))}>
-                <option value="1000000000">Tỷ VND</option>
-                <option value="1000000">Triệu VND</option>
-              </select>
-            </div>
+
           </div>
         </div>
 

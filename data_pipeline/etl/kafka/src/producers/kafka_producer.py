@@ -352,8 +352,14 @@ async def main() -> None:
 
 
     try:
-        # Start listening to WebSocket
-        await listen(syms)
+        retry_delay = 5
+        while True:
+            try:
+                await listen(syms)
+                print(f"⚠️ WebSocket connection closed. Reconnecting in {retry_delay}s...")
+            except Exception as e:
+                print(f"⚠️ WebSocket error: {e}. Reconnecting in {retry_delay}s...")
+            await asyncio.sleep(retry_delay)
     except KeyboardInterrupt:
         print("\n⚠️ Shutting down...")
     finally:

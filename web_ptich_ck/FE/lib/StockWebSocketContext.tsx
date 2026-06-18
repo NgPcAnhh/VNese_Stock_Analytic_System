@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
-import { useAuth } from "./AuthContext";
 import { marketEvents } from "./socketEvents";
 import { INDEX_CODES, CHART_INDEX_IDS } from "./priceBoardData";
 import { safeFloat } from "./priceBoardUtils";
@@ -22,7 +21,6 @@ interface StockWebSocketContextType {
 export const StockWebSocketContext = createContext<StockWebSocketContextType | undefined>(undefined);
 
 export function StockWebSocketProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
@@ -174,27 +172,10 @@ export function StockWebSocketProvider({ children }: { children: React.ReactNode
     return indexStatesRef.current;
   }, []);
 
-  // Manage WS connection based on auth state
+  // Manage WS connection
   useEffect(() => {
-    if (isLoading) return;
-
-    if (isAuthenticated) {
-      alive.current = true;
-      connect();
-    } else {
-      alive.current = false;
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      setConnected(false);
-      // Clear data on logout
-      indexHistoriesRef.current = {};
-      indexStatesRef.current = {};
-      subscriptionsRef.current.clear();
-      subscribedSetRef.current.clear();
-    }
+    alive.current = true;
+    connect();
 
     return () => {
       alive.current = false;
@@ -204,7 +185,7 @@ export function StockWebSocketProvider({ children }: { children: React.ReactNode
         wsRef.current = null;
       }
     };
-  }, [isAuthenticated, isLoading, connect]);
+  }, [connect]);
 
   return (
     <StockWebSocketContext.Provider

@@ -17,7 +17,6 @@ export interface FincoTcdnDashboardProps {
   selectedPeriod: string | null;
   onPeriodChange: (p: string | null) => void;
   unit: number;
-  onUnitChange: (u: number) => void;
 }
 
 type FincoScreen = "balance" | "asset_quality" | "efficiency" | "income" | "liquidity";
@@ -160,7 +159,6 @@ export default function FincoTcdnDashboard({
   selectedPeriod,
   onPeriodChange,
   unit,
-  onUnitChange,
 }: FincoTcdnDashboardProps) {
   const [screen, setScreen] = useState<FincoScreen>("balance");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -929,13 +927,7 @@ export default function FincoTcdnDashboard({
                 </>
               )}
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Đơn vị</span>
-              <select className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium bg-card focus:ring-2 focus:ring-orange-500/30 focus:outline-none" value={String(unit)} onChange={(e) => onUnitChange(Number(e.target.value))}>
-                <option value="1000000000">Tỷ VND</option>
-                <option value="1000000">Triệu VND</option>
-              </select>
-            </div>
+
           </div>
         </div>
 

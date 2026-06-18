@@ -18,7 +18,6 @@ interface InsuranceTcdnDashboardProps {
   selectedPeriod: string | null;
   onPeriodChange: (value: string | null) => void;
   unit: number;
-  onUnitChange: (value: number) => void;
 }
 
 const INSURANCE_SCREENS: Array<{ id: InsuranceScreen; label: string }> = [
@@ -222,7 +221,6 @@ export default function InsuranceTcdnDashboard({
   selectedPeriod,
   onPeriodChange,
   unit,
-  onUnitChange,
 }: InsuranceTcdnDashboardProps) {
   const [screen, setScreen] = useState<InsuranceScreen>("position");
   const [framework, setFramework] = useState<CapitalFramework>("LOCAL_VN");
@@ -640,17 +638,7 @@ export default function InsuranceTcdnDashboard({
                 <option value="LIFE">LIFE</option>
               </select>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Đơn vị</span>
-              <select
-                className="rounded-md border border-border px-2 py-1 text-sm bg-card focus:ring-2 focus:ring-orange-500/30 focus:outline-none"
-                value={String(unit)}
-                onChange={(e) => onUnitChange(Number(e.target.value))}
-              >
-                <option value="1000000000">Tỷ VND</option>
-                <option value="1000000">Triệu VND</option>
-              </select>
-            </div>
+
           </div>
         </div>
 

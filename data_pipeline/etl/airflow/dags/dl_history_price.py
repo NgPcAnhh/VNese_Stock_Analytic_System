@@ -37,12 +37,17 @@ def history_price_dag():
         start_date = context["params"].get("start_date", "2026-01-01")
         end_date = context["params"].get("end_date")
 
-        # Nếu là scheduled run (chạy định kỳ hàng ngày), hoặc nếu start_date là 'auto'
-        # Chỉ lấy 3 ngày qua để tránh tải toàn bộ lịch sử gây nghẽn và vượt rate limit
+        # Xác định dùng price_board (chạy nhanh) cho các run tự động hoặc auto
         run_type = context["dag_run"].run_type
-        if run_type == "scheduled" or start_date == "auto":
-            start_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
-            print(f"[history_price] Scheduled or auto run. Optimizing start_date to last 3 days: {start_date}")
+        use_price_board = (run_type == "scheduled" or start_date == "auto")
+
+        if use_price_board:
+            target_date = datetime.now().strftime("%Y-%m-%d")
+            start_date = target_date
+            end_date = target_date
+            print(f"[history_price] Scheduled or auto run. Using fast price_board logic for target_date: {target_date}")
+        else:
+            print(f"[history_price] Manual run (backfill). Fetching history from {start_date} to {end_date or 'today'} via ThreadPool...")
 
         # Tăng batch_size lên 500 để giảm số lượng mapped tasks từ 75 xuống còn ~3 tasks
         # Giúp loại bỏ hoàn toàn chi phí lập lịch/startup overhead của Airflow
@@ -51,6 +56,7 @@ def history_price_dag():
                 "symbols": batch,
                 "start_date": start_date,
                 "end_date": end_date,
+                "use_price_board": use_price_board,
             }
             for batch in get_ticker_batches(batch_size=500)
         ]

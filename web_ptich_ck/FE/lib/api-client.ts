@@ -92,6 +92,10 @@ export const api = {
       const response = await apiClient.post(`/datasets/${id}/preview`);
       return response.data;
     },
+    exportData: async (id: string) => {
+      const response = await apiClient.post(`/datasets/${id}/export`);
+      return response.data;
+    },
     importExcel: async (data: any) => {
       const response = await apiClient.post('/datasets/import-excel', data);
       return response.data;
