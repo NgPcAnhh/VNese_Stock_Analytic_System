@@ -29,6 +29,8 @@ export interface SidebarNavItem {
     href: string;
     iconName: string;
     enabled: boolean;
+    isCustom?: boolean;
+    dashboardId?: string;
 }
 
 export const DEFAULT_SIDEBAR_ITEMS: SidebarNavItem[] = [
@@ -47,8 +49,13 @@ export const DEFAULT_SIDEBAR_ITEMS: SidebarNavItem[] = [
 function reconcileSidebarItems(savedItems: SidebarNavItem[]): SidebarNavItem[] {
     const defaultById = new Map(DEFAULT_SIDEBAR_ITEMS.map((item) => [item.id, item]));
     const merged: SidebarNavItem[] = savedItems
-        .filter((item) => defaultById.has(item.id))
-        .map((item) => ({ ...defaultById.get(item.id)!, ...item }));
+        .filter((item) => defaultById.has(item.id) || item.isCustom)
+        .map((item) => {
+            if (item.isCustom) {
+                return item;
+            }
+            return { ...defaultById.get(item.id)!, ...item };
+        });
 
     const findInsertIndex = (defaultIndex: number): number => {
         for (let i = defaultIndex - 1; i >= 0; i--) {
@@ -89,6 +96,8 @@ interface SettingsContextType {
     moveSidebarItem: (fromIndex: number, toIndex: number) => void;
     toggleSidebarItem: (id: string) => void;
     resetSidebarItems: () => void;
+    addCustomSidebarItem: (name: string, dashboardId: string, iconName: string) => void;
+    removeCustomSidebarItem: (id: string) => void;
 }
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -173,6 +182,33 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
     const resetSidebarItems = () => setSidebarItems([...DEFAULT_SIDEBAR_ITEMS]);
 
+    const addCustomSidebarItem = (name: string, dashboardId: string, iconName: string) => {
+        const id = `custom-dash-${dashboardId}-${Date.now()}`;
+        const href = `/hub?preview=true&disable_header=true&dashboardId=${dashboardId}&sidebar=true`;
+        const newItem: SidebarNavItem = {
+            id,
+            name,
+            href,
+            iconName,
+            enabled: true,
+            isCustom: true,
+            dashboardId,
+        };
+        const settingsIndex = sidebarItems.findIndex(item => item.id === "settings");
+        const updated = [...sidebarItems];
+        if (settingsIndex !== -1) {
+            updated.splice(settingsIndex, 0, newItem);
+        } else {
+            updated.push(newItem);
+        }
+        setSidebarItems(updated);
+    };
+
+    const removeCustomSidebarItem = (id: string) => {
+        const updated = sidebarItems.filter(item => item.id !== id);
+        setSidebarItems(updated);
+    };
+
     return (
         <SettingsContext.Provider
             value={{
@@ -187,6 +223,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 moveSidebarItem,
                 toggleSidebarItem,
                 resetSidebarItems,
+                addCustomSidebarItem,
+                removeCustomSidebarItem,
             }}
         >
             {children}

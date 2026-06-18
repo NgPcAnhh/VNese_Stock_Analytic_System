@@ -77,7 +77,8 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         }
     }, [pathname, showPopupForCurrentLogin]);
 
-    const hideSidebarFromUrl = searchParams.get("hideSidebar") === "true" || searchParams.get("preview") === "true";
+    const hasSidebarOverride = searchParams.get("sidebar") === "true";
+    const hideSidebarFromUrl = (searchParams.get("hideSidebar") === "true" || searchParams.get("preview") === "true") && !hasSidebarOverride;
     const hideHeaderFromUrl = searchParams.get("disable_header") === "true" || searchParams.get("preview") === "true";
     const isPriceBoardIframe = pathname === "/price-board" && hideSidebarFromUrl;
     const isPriceBoardMain = pathname === "/price-board" && !hideSidebarFromUrl;
@@ -106,7 +107,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
         setHoverTimeout(timeout);
     };
 
-    if (isPriceBoardIframe || (isBIHub && isPreviewMode)) {
+    if (isPriceBoardIframe || (isBIHub && isPreviewMode && !hasSidebarOverride)) {
         const isSlideMode = layoutModeParam === 'slide';
         return (
             <div className="flex h-screen overflow-hidden bg-background">

@@ -355,6 +355,7 @@ const applyOperator = (rowVal: any, filterVal: any, op: string): boolean => {
 export default function BIHubPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isSidebarEmbedded = searchParams.get('sidebar') === 'true';
   const { user: currentUser } = useAuth();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isHeaderDisabled, setIsHeaderDisabled] = useState(false);
@@ -1051,6 +1052,39 @@ export default function BIHubPage() {
     });
   }, []);
 
+  // Listen to searchParams changes to support routing between dashboards in preview mode
+  useEffect(() => {
+    const isPreview = searchParams.get('preview') === 'true';
+    const dashId = searchParams.get('dashboardId');
+    const isHeaderDisabledParam = searchParams.get('disable_header') === 'true';
+
+    if (isHeaderDisabledParam) {
+      setIsHeaderDisabled(true);
+    } else {
+      setIsHeaderDisabled(false);
+    }
+
+    if (isPreview && dashId) {
+      if (dashboards.length > 0) {
+        const dashboard = dashboards.find((d: any) => d.id === dashId);
+        if (dashboard) {
+          setIsPreviewMode(true);
+          const urlOverrides = {
+            mainFrameId: searchParams.get('mainFrameId'),
+            tabId: searchParams.get('tabId')
+          };
+          handleOpenDashboard(dashboard, urlOverrides);
+          setIsEditMode(false);
+          setView("edit-dashboard");
+        }
+      }
+    } else if (view === "edit-dashboard" && isPreviewMode) {
+      setIsPreviewMode(false);
+      setView("list");
+      setSelectedDashboard(null);
+    }
+  }, [searchParams, dashboards]);
+
   // ==========================================
   // DASHBOARD LAYOUT & VIEW LOGIC
   // ==========================================
@@ -1353,7 +1387,7 @@ export default function BIHubPage() {
   // In whiteboard + pan mode, or slide + Ctrl:
   //   - Always zooms (existing behaviour)
   const handleWheel = (e: React.WheelEvent) => {
-    if (isPreviewMode && mainFrameId) return;
+    if (isPreviewMode) return;
 
     const isWhiteboardSelect = layoutMode === 'whiteboard' && interactionMode === 'select';
     const isSlideCtrl = layoutMode === 'slide' && e.ctrlKey;
@@ -1401,7 +1435,7 @@ export default function BIHubPage() {
 
   // Background panning & selection (click-drag on empty space, or spacebar+drag)
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (isPreviewMode && mainFrameId) return;
+    if (isPreviewMode) return;
 
     const rect = gridContainerRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -3599,7 +3633,7 @@ if (element) {
           ========================================== */}
       {view === "edit-dashboard" && selectedDashboard && (
         <div 
-          className={`flex-1 flex flex-col ${(isPreviewMode && layoutMode === 'whiteboard') ? 'fixed inset-0 z-[100]' : ''}`}
+          className={`flex-1 flex flex-col ${(isPreviewMode && layoutMode === 'whiteboard' && !isSidebarEmbedded) ? 'fixed inset-0 z-[100]' : ''}`}
           style={isPreviewMode ? {
             backgroundColor: (mainFrameId 
               ? (dashboardFrames.find(f => f.id === mainFrameId)?.bgColor || dashboardWidgets.find(w => w.id === mainFrameId)?.bgColor || selectedDashboard?.theme_config?.canvasBg || '#f8f9fa') 
@@ -3609,7 +3643,7 @@ if (element) {
           {/* Hide the global scroll-to-top button which overlaps with dashboard controls */}
           <style dangerouslySetInnerHTML={{ __html: `
             .scroll-to-top-button { display: none !important; }
-            ${(isPreviewMode && layoutMode === 'whiteboard') ? 'body { overflow: hidden !important; }' : ''}
+            ${(isPreviewMode && layoutMode === 'whiteboard' && !isSidebarEmbedded) ? 'body { overflow: hidden !important; }' : ''}
           ` }} />
           {/* Dashboard Header */}
           {!isHeaderDisabled && !isPreviewMode && (
