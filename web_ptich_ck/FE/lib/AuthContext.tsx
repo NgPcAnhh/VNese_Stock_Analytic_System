@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
 
             try {
-                const res = await fetchWithAuth('http://localhost:8000/api/v1/auth/me');
+                const res = await fetchWithAuth('/api/v1/auth/me');
                 if (res.ok) {
                     const userData = await res.json();
                     setUser(userData);
@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 // Tự động gọi API đăng xuất và xoá token
                 const refresh = typeof window !== 'undefined' && document.cookie.split('; ').find(row => row.startsWith('refresh_token='))?.split('=')[1];
                 if (refresh) {
-                    fetch('http://localhost:8000/api/v1/auth/logout', {
+                    fetch('/api/v1/auth/logout', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ refresh_token: refresh })
@@ -94,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Gọi định kỳ để kích hoạt tự động refresh token trong auth.ts
         const keepAlive = setInterval(async () => {
             try {
-                await fetchWithAuth('http://localhost:8000/api/v1/auth/me');
+                await fetchWithAuth('/api/v1/auth/me');
             } catch (err) {
                 // Ignore background fetch errors
             }
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (refresh) {
             try {
-                await fetch('http://localhost:8000/api/v1/auth/logout', {
+                await fetch('/api/v1/auth/logout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ refresh_token: refresh })

@@ -7,7 +7,7 @@ import { fetchWithAuth } from "@/lib/auth";
 import { X, LogIn, Clock, Search, TrendingUp, Shield, Key } from "lucide-react";
 import { toast } from "sonner";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 interface UserDetailModalProps {
     userId: number;

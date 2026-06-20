@@ -12,7 +12,7 @@ import { AdminCreateRoleModal } from "./AdminCreateRoleModal";
 import { DEFAULT_SIDEBAR_ITEMS } from "@/lib/SettingsContext";
 import { Checkbox } from "@/components/ui/checkbox";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 const ROLE_COLORS: Record<string, string> = {
     admin: "bg-red-500/10 text-red-500 border-red-500/30",

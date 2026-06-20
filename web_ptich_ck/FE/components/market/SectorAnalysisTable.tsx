@@ -15,7 +15,7 @@ import Link from "next/link";
 import { slugify } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface SectorTableRow {
     name: string;

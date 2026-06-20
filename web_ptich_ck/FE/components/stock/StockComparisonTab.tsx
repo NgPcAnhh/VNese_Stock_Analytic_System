@@ -20,7 +20,7 @@ import {
     RefreshCw,
 } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 const CHART_COLORS = ["#3B82F6", "#EF4444", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6"];
 
 const fmt = (v: number | null | undefined) => (v != null ? v.toLocaleString("vi-VN") : "N/A");

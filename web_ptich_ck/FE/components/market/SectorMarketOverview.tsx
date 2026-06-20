@@ -16,7 +16,7 @@ import { RefreshCw, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface SectorOverviewItem {
     name: string;

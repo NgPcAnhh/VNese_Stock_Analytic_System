@@ -5,7 +5,7 @@ import MarketIndicesTable from "@/components/indices/MarketIndicesTable";
 import { MarketIndex } from "@/lib/indicesData";
 import { Loader2, AlertCircle } from "lucide-react";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 export const MarketIndicesOverview = () => {
     const [marketData, setMarketData] = useState<MarketIndex[]>([]);

@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const API = "http://localhost:8000/api/v1/auth";
+const API = "/api/v1/auth";
 
 // ─── Plan data ───────────────────────────────────────────────────────────────
 const PLANS = [

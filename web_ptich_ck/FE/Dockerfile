@@ -8,6 +8,10 @@ RUN apk add --no-cache libc6-compat
 COPY package*.json ./
 RUN npm ci || npm install
 
+# Nhận NEXT_PUBLIC_API_URL lúc build (vì NEXT_PUBLIC_* là biến build-time)
+ARG NEXT_PUBLIC_API_URL=/api/v1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 # Copy source code và build
 COPY . .
 RUN npm run build

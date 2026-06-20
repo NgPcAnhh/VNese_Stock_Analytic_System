@@ -30,7 +30,7 @@ export function AuthModal() {
         setError('');
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/v1/auth/login', {
+            const res = await fetch('/api/v1/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -63,7 +63,7 @@ export function AuthModal() {
         setError('');
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/v1/auth/login/2fa', {
+            const res = await fetch('/api/v1/auth/login/2fa', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ temp_token: tempToken, otp }),
@@ -93,7 +93,7 @@ export function AuthModal() {
             return;
         }
         try {
-            const res = await fetch('http://localhost:8000/api/v1/auth/register', {
+            const res = await fetch('/api/v1/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password, full_name: fullName }),
@@ -118,7 +118,7 @@ export function AuthModal() {
         setSuccessMsg('');
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/v1/auth/forgot-password', {
+            const res = await fetch('/api/v1/auth/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
