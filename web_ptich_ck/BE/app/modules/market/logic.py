@@ -354,30 +354,32 @@ async def get_sector_analysis(db: AsyncSession) -> List[Dict[str, Any]]:
             SELECT ticker, year, quarter, ind_code, value
             FROM {SCHEMA}.bctc
             WHERE ind_code IN (
-                'cp_pho_thong',
-                'vcsh',
-                'lnst_cua_co_dong_cong_ty_me'
+                'BS_COMMON_STOCK',
+                'BS_CHARTER_CAPITAL',
+                'BS_EQUITY',
+                'IS_NPAT_PARENT'
             ) AND value IS NOT NULL AND value != 0
         ),
         shares AS (
             SELECT DISTINCT ON (ticker)
                 ticker, value / 10000.0 AS shares
             FROM bctc_data
-            WHERE ind_code = 'cp_pho_thong' AND value > 0
-            ORDER BY ticker, year DESC, quarter DESC
+            WHERE ind_code IN ('BS_COMMON_STOCK', 'BS_CHARTER_CAPITAL') AND value > 0
+            ORDER BY ticker, year DESC, quarter DESC,
+                     CASE WHEN ind_code = 'BS_COMMON_STOCK' THEN 1 ELSE 2 END
         ),
         equity AS (
             SELECT DISTINCT ON (ticker)
                 ticker, value AS equity
             FROM bctc_data
-            WHERE ind_code = 'vcsh' AND value > 0
+            WHERE ind_code = 'BS_EQUITY' AND value > 0
             ORDER BY ticker, year DESC, quarter DESC
         ),
         ranked_ni AS (
             SELECT ticker, value,
                 ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY year DESC, quarter DESC) AS rn
             FROM bctc_data
-            WHERE ind_code = 'lnst_cua_co_dong_cong_ty_me'
+            WHERE ind_code = 'IS_NPAT_PARENT'
         ),
         ttm_ni AS (
             SELECT ticker, SUM(value) AS ttm_ni

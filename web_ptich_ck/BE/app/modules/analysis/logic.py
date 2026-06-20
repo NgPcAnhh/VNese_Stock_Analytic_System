@@ -179,6 +179,7 @@ async def _query_annual_bctc(db: AsyncSession, ticker: str, years: int = 5) -> D
     all_codes = set()
     for mapping in (IS_CODES, BS_CODES, CF_CODES):
         all_codes.update(mapping.values())
+    all_codes.add("BS_FA_LT_INV")
 
     sql = text(f"""
         SELECT year, quarter, ind_code, value
@@ -197,6 +198,12 @@ async def _query_annual_bctc(db: AsyncSession, ticker: str, years: int = 5) -> D
         if key not in pivot:
             pivot[key] = {}
         pivot[key][r["ind_code"]] = _safe_float(r["value"])
+
+    for key, data in pivot.items():
+        nca_val = data.get("BS_NONCUR_ASSETS", 0.0)
+        if nca_val == 0.0 or nca_val is None:
+            nca_val = data.get("BS_FA_LT_INV", 0.0)
+        data["BS_NONCUR_ASSETS"] = nca_val
 
     return pivot
 

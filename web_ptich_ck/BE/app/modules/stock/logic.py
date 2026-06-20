@@ -1855,6 +1855,7 @@ async def get_financial_reports(
     all_codes: set = set()
     for mapping in (IS_CODES, BS_CODES, CF_CODES, IS_BANK_FALLBACKS):
         all_codes.update(mapping.values())
+    all_codes.add("BS_FA_LT_INV")
     if is_bank:
         all_codes.update(IS_BANK_EXTRA_CODES.values())
         all_codes.update(BS_BANK_EXTRA_CODES.values())
@@ -1901,6 +1902,12 @@ async def get_financial_reports(
         normalized_name = _normalize_ind_name(str(r.get("ind_name") or ""))
         if normalized_name:
             pivot_ind_name[key][normalized_name] = _safe_float(r["value"])
+
+    for key, data in pivot.items():
+        nca_val = data.get("BS_NONCUR_ASSETS", 0.0)
+        if nca_val == 0.0 or nca_val is None:
+            nca_val = data.get("BS_FA_LT_INV", 0.0)
+        data["BS_NONCUR_ASSETS"] = nca_val
 
     # Sort periods descending, take latest N
     # If year is filtered, we probably want all quarters of that year, not limited by 'periods' 
@@ -2091,6 +2098,38 @@ async def get_financial_reports(
             row_store["_section"] = section_key
             row_store["_sectionLabel"] = section_label
             row_store["_sectionOrder"] = section_order
+
+        # Fallback for BS_NONCUR_ASSETS from BS_FA_LT_INV in bucket_rows
+        bs_bucket = bucket_rows.get("balanceSheet", {})
+        nca_row = bs_bucket.get("BS_NONCUR_ASSETS")
+        nca_values_all_zero = nca_row is None or all(v == 0.0 for v in nca_row.get("values", []))
+        if nca_values_all_zero:
+            lt_inv_row = bs_bucket.get("BS_FA_LT_INV")
+            if lt_inv_row:
+                if nca_row is None:
+                    nca_row = {
+                        "indCode": "BS_NONCUR_ASSETS",
+                        "label": "Tài sản dài hạn",
+                        "values": list(lt_inv_row["values"]),
+                        "_seen": [True for _ in period_labels],
+                        "_section": "",
+                        "_sectionLabel": "",
+                        "_sectionOrder": 999,
+                    }
+                    bs_bucket["BS_NONCUR_ASSETS"] = nca_row
+                else:
+                    nca_row["values"] = list(lt_inv_row["values"])
+                
+                # Update section info
+                section_key, section_label, section_order = _resolve_layout_section(
+                    report_layout=report_layout,
+                    stmt_type="balanceSheet",
+                    ind_code="BS_NONCUR_ASSETS",
+                    label=nca_row["label"],
+                )
+                nca_row["_section"] = section_key
+                nca_row["_sectionLabel"] = section_label
+                nca_row["_sectionOrder"] = section_order
 
         income_order = list(dict.fromkeys(list(IS_CODES.values()) + list(IS_BANK_EXTRA_CODES.values()) + list(IS_BANK_FALLBACKS.values())))
         balance_order = list(dict.fromkeys(list(BS_CODES.values()) + list(BS_BANK_EXTRA_CODES.values())))
@@ -2848,6 +2887,7 @@ async def _query_annual_bctc(db: AsyncSession, ticker: str, years: int = 5, end_
     all_codes = set()
     for mapping in (IS_CODES, BS_CODES, CF_CODES):
         all_codes.update(mapping.values())
+    all_codes.add("BS_FA_LT_INV")
 
     params = {"ticker": ticker, "codes": list(all_codes)}
     year_filter = ""
@@ -2872,6 +2912,12 @@ async def _query_annual_bctc(db: AsyncSession, ticker: str, years: int = 5, end_
         if key not in pivot:
             pivot[key] = {}
         pivot[key][r["ind_code"]] = _safe_float(r["value"])
+
+    for key, data in pivot.items():
+        nca_val = data.get("BS_NONCUR_ASSETS", 0.0)
+        if nca_val == 0.0 or nca_val is None:
+            nca_val = data.get("BS_FA_LT_INV", 0.0)
+        data["BS_NONCUR_ASSETS"] = nca_val
 
     return pivot
 
@@ -4325,7 +4371,7 @@ async def _query_valuation_ratios(db: AsyncSession, ticker: str) -> List[Dict]:
 
 
 async def _query_valuation_bctc(db: AsyncSession, ticker: str) -> Dict:
-    codes = list(set(IS_CODES.values()) | set(CF_CODES.values()) | set(BS_CODES.values()))
+    codes = list(set(IS_CODES.values()) | set(CF_CODES.values()) | set(BS_CODES.values()) | {"BS_FA_LT_INV"})
     sql = text(f"""
         SELECT year, quarter, ind_code, value
         FROM {SCHEMA}.bctc
@@ -4341,6 +4387,13 @@ async def _query_valuation_bctc(db: AsyncSession, ticker: str) -> Dict:
         if key not in pivot:
             pivot[key] = {}
         pivot[key][r["ind_code"]] = _safe_float(r["value"])
+
+    for key, data in pivot.items():
+        nca_val = data.get("BS_NONCUR_ASSETS", 0.0)
+        if nca_val == 0.0 or nca_val is None:
+            nca_val = data.get("BS_FA_LT_INV", 0.0)
+        data["BS_NONCUR_ASSETS"] = nca_val
+
     return pivot
 
 

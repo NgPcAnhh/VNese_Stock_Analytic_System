@@ -1,5 +1,6 @@
 import json
-from app.modules.chatbot.llm.client import chat_completion
+from typing import AsyncGenerator
+from app.modules.chatbot.llm.client import chat_completion, chat_completion_stream
 from app.modules.chatbot.llm.prompt_loader import load_prompt
 from app.modules.chatbot.sql.formatter import format_analysis_context
 from app.modules.chatbot.llm.response_formatter import format_llm_response
@@ -33,3 +34,32 @@ Hãy viết bản phân tích hoàn thiện.
         max_tokens=2000,
     )
     return format_llm_response(raw_response)
+
+
+async def run_insight_agent_stream(
+    user_message: str,
+    query_results: list[dict],
+    citations: list[dict],
+) -> AsyncGenerator[str, None]:
+    """
+    Streaming variant: yields text tokens as they arrive from the LLM.
+    """
+    system_prompt = load_prompt("subagent_insight.txt")
+    data_context = format_analysis_context(query_results)
+
+    prompt = f"""Câu hỏi user:
+{user_message}
+
+Dữ liệu đã truy vấn:
+{data_context}
+
+Hãy viết bản phân tích hoàn thiện.
+"""
+
+    async for token in chat_completion_stream(
+        user_prompt=prompt,
+        system_prompt=system_prompt,
+        temperature=0.5,
+        max_tokens=2000,
+    ):
+        yield token

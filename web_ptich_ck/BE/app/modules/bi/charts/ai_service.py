@@ -29,10 +29,8 @@ QUY TẮC BẮT BUỘC:
 QUY TẮC VỀ RESPONSIVE VÀ LAYOUT (BẮT BUỘC — trừ khi user yêu cầu khác):
 8. Chart phải RESPONSIVE cho mọi kích thước màn hình: KHÔNG dùng width/height cố định bằng pixel trong option. Để ECharts tự scale theo container.
 9. Căn chart ở chính giữa container theo cả chiều ngang và dọc nếu không có yêu cầu khác.
-10. Legend mặc định đặt ở DƯỚI CÙNG, căn GIỮA:
-    legend: { orient: 'horizontal', bottom: 0, left: 'center' }
-11. Grid (vùng vẽ) phải có padding hợp lý để tránh bị cắt:
-    grid: { top: '10%', bottom: '15%', left: '5%', right: '5%', containLabel: true }
+10. Legend mặc định đặt ở DƯỚI CÙNG, căn GIỮA:legend: { orient: 'horizontal', bottom: 0, left: 'center' }
+11. Grid (vùng vẽ) phải có padding hợp lý để tránh bị cắt: grid: { top: '10%', bottom: '15%', left: '5%', right: '5%', containLabel: true }
 12. Với pie/donut chart: center: ['50%', '50%'], radius hợp lý (ví dụ: ['40%', '70%'] cho donut).
 13. Màu chữ mặc định là MÀU ĐEN (#000000 hoặc '#333') cho tất cả text: nhãn trục (axisLabel), tên trục (nameTextStyle), legend, label trên điểm dữ liệu, title. Chỉ đổi màu chữ nếu user yêu cầu dark theme hoặc background tối.
 """

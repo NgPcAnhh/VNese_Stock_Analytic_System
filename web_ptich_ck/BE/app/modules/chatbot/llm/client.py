@@ -1,16 +1,16 @@
 """
 LLM client:
-- chat_completion → OpenAI (httpx thuần)
-- embed_text      → OpenAI text-embedding-3-small
+- chat_completion        → OpenAI (non-streaming)
+- chat_completion_stream → OpenAI Responses API (streaming)
+- embed_text             → OpenAI text-embedding-3-small
 """
 
 import httpx
 import logging
 import asyncio
-from typing import Type, TypeVar
+from typing import AsyncGenerator, Type, TypeVar
 from pydantic import BaseModel
 from openai import AsyncOpenAI
-import google.generativeai as genai
 from app.core.config import get_settings
 from contextvars import ContextVar
 import os
@@ -70,39 +70,6 @@ async def chat_completion(
     
     choice = model_choice_ctx.get()
     
-    # Route Choice 2 & 3 to Google Gemini SDK
-    if choice in ["2", "3", "secondary"]:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        if choice == "3":
-            model_name = os.getenv("GEMINI_MODEL_3") or "gemini-1.5-pro"
-        else:
-            model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
-            
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=system_prompt if system_prompt else None
-        )
-        
-        for attempt in range(max(1, retries)):
-            try:
-                res = await model.generate_content_async(
-                    contents=user_prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=temperature,
-                        max_output_tokens=max_tokens,
-                    )
-                )
-                if not res.text:
-                    raise ValueError("Gemini returned empty text response")
-                return res.text
-            except Exception as exc:
-                if attempt < retries - 1:
-                    logger.warning(f"Gemini request error: {exc}. Retry {attempt+1}/{retries}")
-                    await asyncio.sleep(5)
-                    continue
-                raise
-        raise RuntimeError("Gemini chat completion failed after retries")
-
     # Default to OpenAI execution path
     api_key, base_url, model = get_dynamic_model_config(choice)
     
@@ -118,14 +85,31 @@ async def chat_completion(
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": user_prompt})
 
-            res = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_completion_tokens=max_tokens,
-            )
+            try:
+                # Try the new OpenAI Responses API first with stream=True
+                stream = await client.responses.create(
+                    model=model,
+                    input=messages,
+                    stream=True,
+                )
+                accumulated = []
+                async for event in stream:
+                    if event.type == "response.output_text.delta":
+                        accumulated.append(event.delta)
+                content = "".join(accumulated)
+            except Exception as responses_exc:
+                logger.warning(
+                    f"client.responses.create failed: {responses_exc}. "
+                    f"Falling back to client.chat.completions.create..."
+                )
+                res = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_completion_tokens=max_tokens,
+                )
+                content = res.choices[0].message.content
             
-            content = res.choices[0].message.content
             if content is None:
                 raise ValueError("LLM returned None content")
             return content
@@ -139,6 +123,81 @@ async def chat_completion(
     raise RuntimeError("LLM chat completion failed after retries")
 
 
+async def chat_completion_stream(
+    user_prompt: str,
+    system_prompt: str = "",
+    temperature: float = 0.0,
+    max_tokens: int = 2000,
+) -> AsyncGenerator[str, None]:
+    """
+    Streaming variant of chat_completion.
+    Yields text tokens/chunks as they arrive from the LLM.
+    - OpenAI: uses responses.create(stream=True)
+    """
+    logger = logging.getLogger(__name__)
+    
+    choice = model_choice_ctx.get()
+    
+    # ── OpenAI streaming (Responses API) ──────────────────────────────
+    api_key, base_url, model = get_dynamic_model_config(choice)
+    
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url=base_url
+    )
+
+    try:
+        # Build input messages for Responses API
+        input_messages = []
+        if system_prompt:
+            input_messages.append({"role": "system", "content": system_prompt})
+        input_messages.append({"role": "user", "content": user_prompt})
+
+        stream = await client.responses.create(
+            model=model,
+            input=input_messages,
+            stream=True,
+        )
+        
+        async for event in stream:
+            if event.type == "response.output_text.delta":
+                yield event.delta
+                
+    except Exception as exc:
+        logger.warning(
+            f"OpenAI Responses API streaming failed: {exc}. "
+            f"Falling back to chat.completions.create streaming..."
+        )
+        # Fallback: use chat.completions.create with stream=True
+        try:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": user_prompt})
+            
+            stream = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_completion_tokens=max_tokens,
+                stream=True,
+            )
+            async for chunk in stream:
+                content = chunk.choices[0].delta.content
+                if content is not None:
+                    yield content
+        except Exception as fallback_exc:
+            logger.error(f"All streaming attempts failed: {fallback_exc}")
+            # Last resort: non-streaming fallback
+            result = await chat_completion(
+                user_prompt=user_prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            yield result
+
+
 T = TypeVar("T", bound=BaseModel)
 
 async def chat_completion_structured(
@@ -150,47 +209,12 @@ async def chat_completion_structured(
     retries: int = 3,
 ) -> T:
     """
-    Standard structured output utilizing OpenAI parsing or Gemini schema features.
+    Standard structured output utilizing OpenAI parsing.
     """
     logger = logging.getLogger(__name__)
     
     choice = model_choice_ctx.get()
     
-    # Route Choice 2 & 3 to Google Gemini SDK (Structured Output)
-    if choice in ["2", "3", "secondary"]:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        if choice == "3":
-            model_name = os.getenv("GEMINI_MODEL_3") or "gemini-1.5-pro"
-        else:
-            model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
-            
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            system_instruction=system_prompt if system_prompt else None
-        )
-        
-        for attempt in range(max(1, retries)):
-            try:
-                res = await model.generate_content_async(
-                    contents=user_prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        response_mime_type="application/json",
-                        response_schema=response_format,
-                        temperature=temperature,
-                        max_output_tokens=max_tokens,
-                    )
-                )
-                if not res.text:
-                    raise ValueError("Gemini returned empty structured text")
-                return response_format.model_validate_json(res.text)
-            except Exception as exc:
-                if attempt < retries - 1:
-                    logger.warning(f"Gemini structured request error: {exc}. Retry {attempt+1}/{retries}")
-                    await asyncio.sleep(5)
-                    continue
-                raise
-        raise RuntimeError("Gemini structured chat completion failed after retries")
-
     # Default to OpenAI execution path
     api_key, base_url, model = get_dynamic_model_config(choice)
     

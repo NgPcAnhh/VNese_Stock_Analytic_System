@@ -16,6 +16,7 @@ import {
     Square,
     Trash2,
     UserCircle2,
+    X,
     Zap,
 } from "lucide-react";
 
@@ -152,82 +153,93 @@ export default function StockPilotPage() {
     const [selectedMode, setSelectedMode] = useState<ChatMode>("auto");
     const [selectedModel, setSelectedModel] = useState<string>("1");
     const [showAnalystConfirm, setShowAnalystConfirm] = useState(false);
+    const [activeDetailMessage, setActiveDetailMessage] = useState<Message | null>(null);
+    const [sidebarWidth, setSidebarWidth] = useState(33.33); // percent
+    const isDraggingRef = useRef(false);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        isDraggingRef.current = true;
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+        
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            if (!isDraggingRef.current) return;
+            const newWidthPct = ((window.innerWidth - moveEvent.clientX) / window.innerWidth) * 100;
+            const clamped = Math.max(20, Math.min(70, newWidthPct));
+            setSidebarWidth(clamped);
+        };
+
+        const handleMouseUp = () => {
+            isDraggingRef.current = false;
+            document.body.style.cursor = "";
+            document.body.style.userSelect = "";
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+        };
+
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+    }, []);
 
     const endRef = useRef<HTMLDivElement | null>(null);
 
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
+    const loadSessionMessages = useCallback(async (sessionId: string) => {
         try {
-            const historyRaw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
-            const loadedSessions: ChatSession[] = historyRaw ? JSON.parse(historyRaw) : [];
-            setSessions(loadedSessions);
-
-            const activeId = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
-            if (activeId) {
-                setCurrentSessionId(activeId);
-                const activeSession = loadedSessions.find((s) => s.id === activeId);
-                if (activeSession) {
-                    setMessages(activeSession.messages);
-                }
-            } else {
-                const newId = `chat-${crypto.randomUUID()}`;
-                window.sessionStorage.setItem(SESSION_STORAGE_KEY, newId);
-                setCurrentSessionId(newId);
+            const res = await fetchWithAuth(`${API}/chat/sessions/${sessionId}/messages`);
+            if (res.ok) {
+                const data = await res.json();
+                const loadedMessages = data.map((m: any) => ({
+                    id: m.id,
+                    role: m.role,
+                    content: m.content,
+                    meta: m.meta || undefined,
+                }));
+                setMessages(loadedMessages);
             }
         } catch (error) {
-            console.error("Failed to load StockPilot history", error);
+            console.error(`Failed to load messages for session ${sessionId}`, error);
         }
     }, []);
 
-    useEffect(() => {
-        if (typeof window === "undefined" || !currentSessionId) {
-            return;
-        }
+    const fetchSessions = useCallback(async () => {
+        try {
+            const res = await fetchWithAuth(`${API}/chat/sessions`);
+            if (res.ok) {
+                const data = await res.json();
+                const loadedSessions = data.map((s: any) => ({
+                    id: s.id,
+                    title: s.title,
+                    messages: [],
+                    createdAt: new Date(s.created_at).getTime(),
+                    updatedAt: new Date(s.updated_at).getTime(),
+                }));
+                setSessions(loadedSessions);
 
-        setSessions((prev) => {
-            const now = Date.now();
-            const firstUserMessage = messages.find((m) => m.role === "user");
-            const title = firstUserMessage ? `${firstUserMessage.content.slice(0, 42)}...` : "New Chat";
-            const next = [...prev];
-            const idx = next.findIndex((s) => s.id === currentSessionId);
-
-            if (messages.length === 0) {
-                if (idx >= 0) {
-                    next[idx] = {
-                        ...next[idx],
-                        messages: [],
-                        updatedAt: now,
-                    };
+                const activeId = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+                if (activeId && loadedSessions.some((s: any) => s.id === activeId)) {
+                    setCurrentSessionId(activeId);
+                    await loadSessionMessages(activeId);
+                } else if (loadedSessions.length > 0) {
+                    const firstSessionId = loadedSessions[0].id;
+                    window.sessionStorage.setItem(SESSION_STORAGE_KEY, firstSessionId);
+                    setCurrentSessionId(firstSessionId);
+                    await loadSessionMessages(firstSessionId);
+                } else {
+                    const newId = crypto.randomUUID();
+                    window.sessionStorage.setItem(SESSION_STORAGE_KEY, newId);
+                    setCurrentSessionId(newId);
+                    setMessages([]);
                 }
-                window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
-                return next;
             }
+        } catch (error) {
+            console.error("Failed to load chat sessions from backend", error);
+        }
+    }, [loadSessionMessages]);
 
-            if (idx >= 0) {
-                next[idx] = {
-                    ...next[idx],
-                    title,
-                    messages,
-                    updatedAt: now,
-                };
-            } else {
-                next.unshift({
-                    id: currentSessionId,
-                    title,
-                    messages,
-                    createdAt: now,
-                    updatedAt: now,
-                });
-            }
-
-            const pruned = next.slice(0, 30);
-            window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(pruned));
-            return pruned;
-        });
-    }, [messages, currentSessionId]);
+    useEffect(() => {
+        fetchSessions();
+    }, [fetchSessions]);
 
     useEffect(() => {
         endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -246,7 +258,7 @@ export default function StockPilotPage() {
     const canSubmit = question.trim().length > 1 && !isSubmitting;
 
     const createNewChat = () => {
-        const newId = `chat-${crypto.randomUUID()}`;
+        const newId = crypto.randomUUID();
         window.sessionStorage.setItem(SESSION_STORAGE_KEY, newId);
         setCurrentSessionId(newId);
         setMessages([]);
@@ -254,30 +266,37 @@ export default function StockPilotPage() {
     };
 
     const loadSession = (sessionId: string) => {
-        const session = sessions.find((s) => s.id === sessionId);
-        if (!session) {
-            return;
-        }
-
         window.sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
         setCurrentSessionId(sessionId);
-        setMessages(session.messages);
+        loadSessionMessages(sessionId);
         setIsHistoryOpen(false);
     };
 
-    const deleteSession = (sessionId: string) => {
-        setSessions((prev) => {
-            const next = prev.filter((s) => s.id !== sessionId);
-            window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next));
-            return next;
-        });
+    const deleteSession = async (sessionId: string) => {
+        try {
+            const res = await fetchWithAuth(`${API}/chat/sessions/${sessionId}`, {
+                method: "DELETE",
+            });
+            if (res.ok) {
+                const next = sessions.filter((s) => s.id !== sessionId);
+                setSessions(next);
 
-        // Nếu đang xóa session hiện tại → tạo chat mới
-        if (sessionId === currentSessionId) {
-            const newId = `chat-${crypto.randomUUID()}`;
-            window.sessionStorage.setItem(SESSION_STORAGE_KEY, newId);
-            setCurrentSessionId(newId);
-            setMessages([]);
+                if (sessionId === currentSessionId) {
+                    if (next.length > 0) {
+                        const firstId = next[0].id;
+                        window.sessionStorage.setItem(SESSION_STORAGE_KEY, firstId);
+                        setCurrentSessionId(firstId);
+                        loadSessionMessages(firstId);
+                    } else {
+                        const newId = crypto.randomUUID();
+                        window.sessionStorage.setItem(SESSION_STORAGE_KEY, newId);
+                        setCurrentSessionId(newId);
+                        setMessages([]);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Failed to delete session ${sessionId}`, error);
         }
     };
     const [pendingConfirmMessage, setPendingConfirmMessage] = useState<string | null>(null);
@@ -336,7 +355,7 @@ export default function StockPilotPage() {
         const pendingMsg: Message = {
             id: pendingId,
             role: "assistant",
-            content: "Dang xu ly...",
+            content: "",
             pending: true,
         };
 
@@ -360,7 +379,7 @@ export default function StockPilotPage() {
                 context: {},
             };
 
-            const response = await fetchWithAuth(`${API}/chat/ask`, {
+            const response = await fetchWithAuth(`${API}/chat/ask/stream`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -369,24 +388,156 @@ export default function StockPilotPage() {
                 signal: controller.signal,
             });
 
-            const data = await response.json();
             if (!response.ok) {
-                const detail = typeof data?.detail?.error === "string"
-                    ? data.detail.error
-                    : typeof data?.detail === "string"
-                        ? data.detail
+                const errorData = await response.json().catch(() => null);
+                const detail = typeof errorData?.detail?.error === "string"
+                    ? errorData.detail.error
+                    : typeof errorData?.detail === "string"
+                        ? errorData.detail
                         : "Không thể gọi Trợ lý ảo";
                 throw new Error(detail);
             }
 
-            const assistantMsg: Message = {
-                id: pendingId,
-                role: "assistant",
-                content: (data as ChatResponse).answer,
-                meta: data as ChatResponse,
-            };
+            // ── Parse SSE stream ─────────────────────────────────────
+            const reader = response.body?.getReader();
+            if (!reader) {
+                throw new Error("Không thể đọc stream response");
+            }
 
-            setMessages((prev) => prev.map((msg) => (msg.id === pendingId ? assistantMsg : msg)));
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let accumulatedContent = "";
+            let streamMeta: ChatResponse | null = null;
+
+            let currentEvent = "";
+            let currentData = "";
+
+            while (true) {
+                const { done, value: chunk } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(chunk, { stream: true });
+
+                // Parse SSE events from buffer
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (line.startsWith("event: ")) {
+                        currentEvent = line.slice(7).trim();
+                    } else if (line.startsWith("data: ")) {
+                        currentData = line.slice(6);
+                    } else if (line === "" && currentEvent) {
+                        // Empty line = end of event
+                        try {
+                            const parsed = JSON.parse(currentData);
+
+                            if (currentEvent === "metadata") {
+                                streamMeta = {
+                                    mode_used: parsed.mode_used || "",
+                                    action_required: parsed.action_required || null,
+                                    answer: "",
+                                    thought_process: parsed.thought_process || null,
+                                    data_tables: (parsed.data_tables || []).map(
+                                        (t: { title: string; rows: Array<Record<string, unknown>> }) => ({
+                                            title: t.title,
+                                            rows: t.rows,
+                                        })
+                                    ),
+                                    citations: parsed.citations || [],
+                                    sql_used: parsed.sql_used || [],
+                                    confidence: parsed.confidence ?? null,
+                                    data_freshness: parsed.data_freshness ?? null,
+                                    trace_id: parsed.trace_id ?? null,
+                                };
+
+                                // Update message with metadata immediately
+                                setMessages((prev) =>
+                                    prev.map((msg) =>
+                                        msg.id === pendingId
+                                            ? {
+                                                  ...msg,
+                                                  content: accumulatedContent || "Đang tạo câu trả lời...",
+                                                  pending: true,
+                                                  meta: streamMeta ? { ...streamMeta, answer: accumulatedContent } : undefined,
+                                              }
+                                            : msg
+                                    )
+                                );
+                            } else if (currentEvent === "delta") {
+                                const text = parsed.text || "";
+                                accumulatedContent += text;
+
+                                // Update message with new content
+                                setMessages((prev) =>
+                                    prev.map((msg) =>
+                                        msg.id === pendingId
+                                            ? {
+                                                  ...msg,
+                                                  content: accumulatedContent,
+                                                  pending: true,
+                                                  meta: streamMeta
+                                                      ? { ...streamMeta, answer: accumulatedContent }
+                                                      : undefined,
+                                              }
+                                            : msg
+                                    )
+                                );
+                            } else if (currentEvent === "done") {
+                                // Finalize message
+                                setMessages((prev) =>
+                                    prev.map((msg) =>
+                                        msg.id === pendingId
+                                            ? {
+                                                  ...msg,
+                                                  content: accumulatedContent,
+                                                  pending: false,
+                                                  meta: streamMeta
+                                                      ? { ...streamMeta, answer: accumulatedContent }
+                                                      : undefined,
+                                              }
+                                            : msg
+                                    )
+                                );
+                            } else if (currentEvent === "error") {
+                                throw new Error(parsed.error || "Lỗi không xác định từ server");
+                            }
+                        } catch (parseErr) {
+                            // If JSON parse fails for a delta, treat data as raw text
+                            if (currentEvent === "delta") {
+                                accumulatedContent += currentData;
+                                setMessages((prev) =>
+                                    prev.map((msg) =>
+                                        msg.id === pendingId
+                                            ? { ...msg, content: accumulatedContent, pending: true }
+                                            : msg
+                                    )
+                                );
+                            } else if (currentEvent === "error") {
+                                throw new Error(currentData || "Lỗi không xác định");
+                            }
+                        }
+                        currentEvent = "";
+                        currentData = "";
+                    }
+                }
+            }
+
+            // If stream ended without 'done' event, finalize anyway
+            setMessages((prev) =>
+                prev.map((msg) =>
+                    msg.id === pendingId && msg.pending
+                        ? {
+                              ...msg,
+                              content: accumulatedContent || "Không có phản hồi từ AI.",
+                              pending: false,
+                              meta: streamMeta
+                                  ? { ...streamMeta, answer: accumulatedContent }
+                                  : undefined,
+                          }
+                        : msg
+                )
+            );
         } catch (error) {
             // Nếu bị abort (user bấm Stop) → không hiện lỗi, đã xử lý trong stopGeneration
             if (error instanceof DOMException && error.name === "AbortError") {
@@ -404,6 +555,7 @@ export default function StockPilotPage() {
             abortRef.current = null;
             pendingIdRef.current = null;
             setIsSubmitting(false);
+            fetchSessions();
         }
     };
 
@@ -421,7 +573,14 @@ export default function StockPilotPage() {
 
     return (
         <div className="relative h-[calc(100vh-64px)] w-full overflow-hidden bg-background">
-            <section className="mx-auto flex h-full min-w-0 max-w-5xl flex-col px-4">
+            <div className="flex h-full w-full">
+                <section
+                    style={{ width: activeDetailMessage ? `${100 - sidebarWidth}%` : "100%" }}
+                    className={cn(
+                        "flex h-full min-w-0 flex-col px-4 transition-all duration-300",
+                        activeDetailMessage ? "border-r border-border/50" : "mx-auto w-full max-w-5xl"
+                    )}
+                >
                 <div className="sticky top-0 z-20 border-b border-border/60 bg-background/70 py-3 backdrop-blur-md">
                     <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5">
@@ -431,16 +590,7 @@ export default function StockPilotPage() {
                             <div>
                                 <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold text-foreground">Trợ lý ảo</p>
-                                    <select
-                                        value={selectedModel}
-                                        onChange={(e) => setSelectedModel(e.target.value)}
-                                        className="h-6 rounded-md border border-border/80 bg-muted/50 px-2 text-[10px] font-medium text-muted-foreground outline-none transition hover:bg-muted"
-                                        title="Chuyển đổi model"
-                                    >
-                                        <option value="1">GPT-5.4 (Mặc định)</option>
-                                        <option value="2">Gemini 2.5 Flash</option>
-                                        <option value="3">Gemini 1.5 Pro</option>
-                                    </select>
+                                    <span className="inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">GPT-5.4 (Mặc định)</span>
                                 </div>
                                 <p className="text-xs text-muted-foreground">HELLO WORLD</p>
                             </div>
@@ -613,88 +763,28 @@ export default function StockPilotPage() {
                                             </div>
                                         )}
 
-                                        {msg.meta?.thought_process && (
-                                            <CollapsibleSection title="Suy nghĩ của AI">
-                                                <div className="rounded-lg bg-muted/30 p-3 text-sm text-muted-foreground italic border border-muted">
-                                                    {msg.meta.thought_process}
-                                                </div>
-                                            </CollapsibleSection>
+                                        {msg.role === "assistant" && msg.meta && (msg.meta.thought_process || msg.meta.sql_used.length > 0 || msg.meta.data_tables.length > 0) && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (activeDetailMessage?.id === msg.id) {
+                                                        setActiveDetailMessage(null);
+                                                    } else {
+                                                        setActiveDetailMessage(msg);
+                                                    }
+                                                }}
+                                                className={cn(
+                                                    "mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border/80 bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground",
+                                                    activeDetailMessage?.id === msg.id && "border-primary/50 bg-primary/5 text-primary"
+                                                )}
+                                            >
+                                                <Sparkles className="h-3.5 w-3.5" />
+                                                {activeDetailMessage?.id === msg.id ? "Đóng chi tiết kỹ thuật" : "Chi tiết kỹ thuật & Dữ liệu"}
+                                            </button>
                                         )}
 
                                         {msg.meta && (
                                             <div className="space-y-2">
-                                                {msg.meta.sql_used.length > 0 && (
-                                                    <CollapsibleSection title={`SQL da dung (${msg.meta.sql_used.length})`}>
-                                                        <div className="space-y-3">
-                                                            {msg.meta.sql_used.map((sql, idx) => (
-                                                                <pre
-                                                                    key={`${msg.id}-sql-${idx}`}
-                                                                    className="overflow-x-auto rounded-lg bg-muted/60 p-2 text-[11px] text-muted-foreground"
-                                                                >
-                                                                    {sql}
-                                                                </pre>
-                                                            ))}
-                                                        </div>
-                                                    </CollapsibleSection>
-                                                )}
-
-                                                {msg.meta.data_tables.length > 0 && (
-                                                    <CollapsibleSection title={`Bang du lieu (${msg.meta.data_tables.length})`}>
-                                                        <div className="space-y-4">
-                                                            {msg.meta.data_tables.map((table, tableIdx) => {
-                                                                const columns = Object.keys(table.rows[0] ?? {});
-                                                                return (
-                                                                    <div key={`${msg.id}-table-${tableIdx}`} className="rounded-lg border border-border/70">
-                                                                        <div className="border-b border-border/70 bg-muted/40 px-3 py-2 text-xs font-medium text-foreground">
-                                                                            {table.title}
-                                                                        </div>
-                                                                        <div className="max-h-[240px] overflow-auto p-3">
-                                                                            {table.rows.length === 0 ? (
-                                                                                <p className="text-xs text-muted-foreground">Khong co du lieu.</p>
-                                                                            ) : (
-                                                                                <table className="min-w-full border-collapse text-xs">
-                                                                                    <thead>
-                                                                                        <tr>
-                                                                                            {columns.map((col) => (
-                                                                                                <th key={col} className="border-b border-border/60 pb-2 pr-4 text-left font-medium whitespace-nowrap">
-                                                                                                    {col}
-                                                                                                </th>
-                                                                                            ))}
-                                                                                        </tr>
-                                                                                    </thead>
-                                                                                    <tbody>
-                                                                                        {table.rows.slice(0, 10).map((row, rowIdx) => (
-                                                                                            <tr key={`${msg.id}-${tableIdx}-${rowIdx}`}>
-                                                                                                {columns.map((col) => (
-                                                                                                    <td key={`${msg.id}-${tableIdx}-${rowIdx}-${col}`} className="border-b border-border/40 py-2 pr-4 align-top text-muted-foreground whitespace-nowrap">
-                                                                                                        {toText(row[col])}
-                                                                                                    </td>
-                                                                                                ))}
-                                                                                            </tr>
-                                                                                        ))}
-                                                                                    </tbody>
-                                                                                </table>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </CollapsibleSection>
-                                                )}
-
-                                                {msg.meta.citations.length > 0 && (
-                                                    <CollapsibleSection title={`Nguon tham chieu (${msg.meta.citations.length})`}>
-                                                        <ul className="space-y-1 text-xs text-muted-foreground">
-                                                            {msg.meta.citations.map((item, idx) => (
-                                                                <li key={`${msg.id}-cite-${idx}`} className="rounded bg-muted/50 px-2 py-1">
-                                                                    {toText(item)}
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    </CollapsibleSection>
-                                                )}
-
                                                 <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                                                     {msg.meta.trace_id && <span>trace: {msg.meta.trace_id}</span>}
                                                     {msg.meta.data_freshness && <span>freshness: {msg.meta.data_freshness}</span>}
@@ -825,6 +915,139 @@ export default function StockPilotPage() {
                     </div>
                 )}
             </section>
+
+            {activeDetailMessage && activeDetailMessage.meta && (
+                <aside 
+                    style={{ width: `${sidebarWidth}%` }}
+                    className="h-full bg-card border-l border-border/80 flex flex-col relative"
+                >
+                    {/* Resize Handle */}
+                    <div
+                        onMouseDown={handleMouseDown}
+                        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 active:bg-primary transition-colors z-30"
+                        style={{ transform: "translateX(-50%)" }}
+                    />
+
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-border/80 px-4 py-3 bg-muted/20">
+                        <div>
+                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                                <Sparkles className="h-4 w-4 text-primary" />
+                                Chi tiết kỹ thuật & Dữ liệu
+                            </h3>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Mã truy vết (trace): {activeDetailMessage.meta.trace_id || "N/A"}
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setActiveDetailMessage(null)}
+                            className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+                            title="Đóng chi tiết"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+
+                    {/* Content Body */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-5">
+                        {/* AI Thought Process */}
+                        {activeDetailMessage.meta.thought_process && (
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                    Luồng suy nghĩ của AI (Thought Process)
+                                </h4>
+                                <div className="rounded-xl border border-muted bg-muted/20 p-3.5 text-xs text-muted-foreground italic leading-relaxed whitespace-pre-wrap">
+                                    {activeDetailMessage.meta.thought_process}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SQL queries used */}
+                        {activeDetailMessage.meta.sql_used && activeDetailMessage.meta.sql_used.length > 0 && (
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                    Truy vấn SQL đã thực thi ({activeDetailMessage.meta.sql_used.length})
+                                </h4>
+                                <div className="space-y-3">
+                                    {activeDetailMessage.meta.sql_used.map((sql, idx) => (
+                                        <div key={`side-sql-${idx}`} className="relative rounded-xl border border-border bg-muted/40 p-3">
+                                            <div className="absolute right-2 top-2 text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded border border-border">
+                                                SQL #{idx + 1}
+                                            </div>
+                                            <pre className="overflow-x-auto text-[11px] font-mono text-foreground leading-relaxed pt-4">
+                                                {sql}
+                                            </pre>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Data tables */}
+                        {activeDetailMessage.meta.data_tables && activeDetailMessage.meta.data_tables.length > 0 && (
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                    Bảng dữ liệu kết quả ({activeDetailMessage.meta.data_tables.length})
+                                </h4>
+                                <div className="space-y-5">
+                                    {activeDetailMessage.meta.data_tables.map((table, tableIdx) => {
+                                        const columns = Object.keys(table.rows[0] ?? {});
+                                        return (
+                                            <div key={`side-table-${tableIdx}`} className="rounded-xl border border-border/70 overflow-hidden shadow-sm bg-card">
+                                                <div className="bg-muted/40 border-b border-border/70 px-3 py-2 text-xs font-semibold text-foreground">
+                                                    {table.title}
+                                                </div>
+                                                <div className="overflow-x-auto max-h-[300px]">
+                                                    {table.rows.length === 0 ? (
+                                                        <div className="p-4 text-center text-xs text-muted-foreground">
+                                                            Không có dòng dữ liệu nào.
+                                                        </div>
+                                                    ) : (
+                                                        <table className="w-full border-collapse text-[11px]">
+                                                            <thead>
+                                                                <tr className="bg-muted/10 border-b border-border/50">
+                                                                    {columns.map((col) => (
+                                                                        <th key={col} className="px-3 py-2 text-left font-medium text-muted-foreground whitespace-nowrap">
+                                                                            {col}
+                                                                        </th>
+                                                                    ))}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-border/30">
+                                                                {table.rows.map((row, rowIdx) => (
+                                                                    <tr key={`side-row-${rowIdx}`} className="hover:bg-muted/20">
+                                                                        {columns.map((col) => (
+                                                                            <td key={`side-cell-${col}`} className="px-3 py-2 text-foreground whitespace-nowrap">
+                                                                                {toText(row[col])}
+                                                                            </td>
+                                                                        ))}
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Additional metadata */}
+                        <div className="pt-2 border-t border-border/60 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+                            {activeDetailMessage.meta.data_freshness && (
+                                <span>Độ tươi dữ liệu: {activeDetailMessage.meta.data_freshness}</span>
+                            )}
+                            {activeDetailMessage.meta.confidence != null && (
+                                <span>Độ tin cậy: {activeDetailMessage.meta.confidence}</span>
+                            )}
+                        </div>
+                    </div>
+                </aside>
+            )}
         </div>
-    );
+    </div>
+);
 }

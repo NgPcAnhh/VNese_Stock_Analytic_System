@@ -5,18 +5,35 @@ from app.modules.chatbot.llm.client import chat_completion
 from app.modules.chatbot.llm.prompt_loader import load_prompt
 
 
+import logging
+logger = logging.getLogger(__name__)
+
 def extract_json(text: str) -> dict:
-    match = re.search(r"\{.*\}", text, re.DOTALL)
+    if not text or not text.strip():
+        logger.error("LLM returned empty response text")
+        raise ValueError("LLM không trả JSON hợp lệ (chuỗi rỗng)")
+        
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```[a-zA-Z]*\n", "", cleaned)
+        cleaned = re.sub(r"\n```$", "", cleaned)
+        cleaned = cleaned.strip()
+
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
     if not match:
+        logger.error(f"Không tìm thấy khối JSON trong response. Raw response: {text}")
         raise ValueError("LLM không trả JSON hợp lệ")
+        
     json_str = match.group(0)
     try:
         return json.loads(json_str)
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as exc:
+        logger.warning(f"json.loads thất bại ({exc}). Đang thử giải pháp dự phòng ast...")
         s = json_str.replace("null", "None").replace("true", "True").replace("false", "False")
         try:
             return ast.literal_eval(s)
-        except Exception:
+        except Exception as ast_exc:
+            logger.error(f"Tất cả giải pháp parse JSON thất bại. Raw response: {text}. Lỗi ast: {ast_exc}")
             raise ValueError(f"Không thể parse JSON: {json_str}")
 
 

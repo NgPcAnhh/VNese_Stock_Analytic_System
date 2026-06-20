@@ -88,6 +88,17 @@ async def init_bi_db() -> None:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS bi_hub;"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS system;"))
         
+        # 1.1. Tự động chạy file SQL khởi tạo bảng chat history
+        import os
+        migration_file = os.path.join(os.path.dirname(__file__), "migration_chat_history.sql")
+        if os.path.exists(migration_file):
+            with open(migration_file, "r", encoding="utf-8") as f:
+                sql_content = f.read()
+                # Tách các câu lệnh và thực thi
+                statements = [s.strip() for s in sql_content.split(";") if s.strip()]
+                for stmt in statements:
+                    await conn.execute(text(stmt))
+                    
         # Import toàn bộ model của BI để đăng ký vào Base.metadata
         import app.modules.bi.models.workspace
         import app.modules.bi.models.data_source
