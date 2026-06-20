@@ -317,8 +317,8 @@ def _load_bctc_name_code_mapping() -> Tuple[Dict[str, str], Dict[str, str]]:
     name_to_code: Dict[str, str] = {}
     code_to_label: Dict[str, str] = {}
     try:
-        root_dir = Path(__file__).resolve().parents[4]
-        mapping_file = root_dir / "md" / "bctc.md"
+        repo_root = Path(__file__).resolve().parents[5]
+        mapping_file = repo_root / "data_pipeline" / "etl" / "airflow" / "plugins" / "logic" / "bctc.md"
         if not mapping_file.exists():
             return name_to_code, code_to_label
 

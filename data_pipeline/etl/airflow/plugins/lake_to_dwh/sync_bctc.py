@@ -251,9 +251,9 @@ def sync_bctc_to_db(
     # Step 4: Generate ind_code from bctc.md mapping
     print("\n[4/5] Mapping ind_code from bctc.md...")
 
-    # Load mapping from bctc.md
+    # Load mapping from plugins/logic/bctc.md
     import re
-    _mapping_file = Path(__file__).resolve().parent.parent / "bctc.md"
+    _mapping_file = Path(__file__).resolve().parent.parent / "logic" / "bctc.md"
     _ind_map = {}
     try:
         with open(_mapping_file, "r", encoding="utf-8") as f:

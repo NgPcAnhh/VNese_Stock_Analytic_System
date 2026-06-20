@@ -19,7 +19,7 @@ CALL_INTERVAL = 3.2
 # ---------------------------------------------------------------------------
 # ind_name → ind_code mapping (loaded from bctc.md)
 # ---------------------------------------------------------------------------
-_MAPPING_FILE = Path(__file__).resolve().parent.parent.parent.parent / "web_ptich_ck" / "md" / "bctc.md"
+_MAPPING_FILE = Path(__file__).resolve().parent / "bctc.md"
 
 def _load_ind_code_mapping() -> dict:
     """Load ind_name → ind_code mapping from bctc.md JSON file."""
