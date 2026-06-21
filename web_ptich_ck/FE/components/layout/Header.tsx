@@ -20,7 +20,7 @@ import { useRouter } from "next/navigation";
 import { useTracking } from "@/hooks/useTracking";
 import { useAlerts, type StockAlert } from "@/hooks/useAlerts";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 const ALERT_ACK_KEY = "alerts_ack_ids";
 
 interface StockSearchResult {

@@ -21,6 +21,9 @@ services:
       - PORT=8000
     volumes:
       - ./BE:/app
+    depends_on:
+      dwh-postgres:
+        condition: service_healthy
     networks:
       - etl-network
 
@@ -28,12 +31,17 @@ services:
     build:
       context: ./FE
       dockerfile: Dockerfile
+      args:
+        # ⚠️ Sử dụng đường dẫn tương đối để Next.js tự động gọi vào cùng domain (ngrok/local)
+        # và Next.js rewrites sẽ proxy request tới BACKEND_URL
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
     container_name: nextjs_frontend
     restart: always
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-/api/v1}
+      - BACKEND_URL=http://backend:8000
     networks:
       - etl-network
     depends_on:

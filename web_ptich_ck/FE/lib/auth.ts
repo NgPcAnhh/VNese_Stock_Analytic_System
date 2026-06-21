@@ -1,7 +1,7 @@
 // lib/auth.ts
 import Cookies from 'js-cookie';
 
-const API_BASE_URL = 'http://localhost:8000/api/v1/auth';
+const API_BASE_URL = '/api/v1/auth';
 
 export interface User {
     id: number;

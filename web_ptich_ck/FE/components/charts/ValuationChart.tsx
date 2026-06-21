@@ -10,7 +10,7 @@ interface PEPoint {
     value: number;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 /** Only show the last N periods */
 const VISIBLE_PERIODS = 10;

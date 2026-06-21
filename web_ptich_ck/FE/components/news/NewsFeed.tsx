@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Loader2 } from "lucide-react";
 import { extractNewsImage } from "@/lib/newsImage";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 interface NewsItem {
     id: number;

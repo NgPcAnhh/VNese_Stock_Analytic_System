@@ -13,7 +13,7 @@ import {
 import { TrendingUp, TrendingDown, Minus, ExternalLink } from "lucide-react";
 
 // ── Helpers ──────────────────────────────────────────────────────
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 const fmtNum = (v: number | null | undefined, decimals = 1): string => {
     if (v == null || isNaN(v)) return "—";

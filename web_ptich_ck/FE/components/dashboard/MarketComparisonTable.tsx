@@ -14,7 +14,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface ComparisonItem {
     name: string;

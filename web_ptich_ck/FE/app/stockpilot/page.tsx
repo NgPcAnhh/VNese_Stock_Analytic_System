@@ -24,7 +24,7 @@ import { fetchWithAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { FormattedMessage } from "@/components/ui/FormattedMessage";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 const SESSION_STORAGE_KEY = "stockpro:stockpilot:session-id";
 const HISTORY_STORAGE_KEY = "stockpro:stockpilot:history";
 

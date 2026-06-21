@@ -34,7 +34,7 @@ import {
 import { useTracking } from "@/hooks/useTracking";
 
 // ─── API config ──────────────────────────────────────────
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function mapApiToStockItem(item: any): StockListItem {

@@ -20,7 +20,7 @@ function CallbackContent() {
             setTokens(accessToken, refreshToken);
 
             // Fetch thông tin user để update AuthContext
-            fetch('http://localhost:8000/api/v1/auth/me', {
+            fetch('/api/v1/auth/me', {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
                 }

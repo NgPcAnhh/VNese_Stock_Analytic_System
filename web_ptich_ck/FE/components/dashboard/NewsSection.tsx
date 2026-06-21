@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Clock, ExternalLink, Newspaper } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 interface NewsItemData {
     id: number;

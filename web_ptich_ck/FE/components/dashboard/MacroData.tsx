@@ -25,7 +25,7 @@ interface MacroYearlyResponse {
     indicators: MacroYearlyIndicator[];
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 /** Show last N years only */
 const VISIBLE_YEARS = 4;
