@@ -1,0 +1,100 @@
+BS_CASH | Tiền | 32413074000000.0000
+IS_INT_INC | Thu nhập lãi | 6919631000000.0000
+BS_COMMON_STOCK | Cổ phiếu phổ thông (đồng) | 38236616000000.0000
+IS_ASSOC_JV_PROFIT_SHARE | Phần lợi nhuận hoặc lỗ trong công ty liên kết liên doanh | 163184000000.0000
+BS_ST_PAY_ACCRUED | Chi phí phải trả ngắn hạn | 61507282000000.0000
+BS_NET_ST_INV | Giá trị thuần đầu tư ngắn hạn (đồng) | 8718884000000.0000
+CF_CFI_LOANS_DEBT_PURCHASE | Tiền chi cho vay, mua công cụ nợ của đơn vị khác (đồng) | -14199186000000.0000
+IS_NPAT_PARENT_GROWTH_YOY | Tăng trưởng LNST mẹ YoY | 14.8092
+BS_LT_UNEARNED_REV | Doanh thu chưa thực hiện dài hạn | 4354975000000.0000
+BS_PROV_LT_FIN_INV | Dự phòng giảm giá đầu tư tài chính dài hạn | -1520842000000.0000
+IS_INV_PROFIT | Lãi, lỗ từ hoạt động đầu tư | -11060460000000.0000
+BS_LT_LIABILITIES | Nợ dài hạn | 170853848000000.0000
+BS_ST_REC_LOANS | Phải thu về cho vay ngắn hạn | 1462018000000.0000
+BS_PAY_EMPLOYEES | Phải trả người lao động | 1896419000000.0000
+CF_CFF_LEASE_PRIN_PAY | Tiền trả nợ gốc thuê tài chính | -128800000000.0000
+BS_NONCUR_ASSETS | TÀI SẢN DÀI HẠN (đồng) | 440123992000000.0000
+IS_NET_OTHER_INC | Thu nhập/Chi phí khác | -1235905000000.0000
+BS_TAX_REC | Thuế và các khoản phải thu Nhà nước | 268384000000.0000
+BS_TANGIBLE_FA | Tài sản cố định hữu hình | 144924709000000.0000
+BS_MINORITY_INTEREST | Lợi ích của cổ đông không kiểm soát | 15578855000000.0000
+CF_CFF_EQUITY_ISSUE | Tiền thu từ phát hành cổ phiếu, nhận vốn góp | 0.0000
+IS_OP_REV_TOTAL | Tổng doanh thu hoạt động kinh doanh | 65247947000000.0000
+BS_OTHER_ENT_INV | Đầu tư vào các doanh nghiệp khác | -9633227000000.0000
+IS_REV_DEDUCTION | Các khoản giảm trừ doanh thu | 4113000000.0000
+BS_PROV_CREDIT | Dự phòng RR tín dụng | 6525747000000.0000
+CF_CFF | Lưu chuyển tiền từ hoạt động tài chính | -3692987000000.0000
+CF_CFI_EQUITY_INV_DISPOSAL | Tiền thu từ việc bán các khoản đầu tư vào doanh nghiệp khác | 13255649000000.0000
+BS_PROV_ST_PAY | Dự phòng phải trả ngắn hạn | 5709475000000.0000
+BS_LT_WIP | Tài sản dở dang dài hạn | 114636170000000.0000
+BS_TRADING_SEC | Chứng khoán kinh doanh | 1500000000000.0000
+BS_ST_UNEARNED_REV | Doanh thu chưa thực hiện ngắn hạn | 4360300000000.0000
+CF_NET_CASH | Lưu chuyển tiền thuần trong kỳ | 15628885000000.0000
+CF_CFO_PAY_CHG | Tăng, giảm các khoản phải trả (Không kể lãi vay phải trả, thuế thu nhập doanh nghiệp phải nộp) | 48400153000000.0000
+BS_CAPITAL_FUNDS | Vốn và các quỹ (đồng) | 153834481000000.0000
+BS_DEFERRED_TAX_LIAB | Thuế thu nhập hoãn lại phải trả | 2001574000000.0000
+CF_CFF | Lưu chuyển tiền thuần từ hoạt động tài chính | 10085719000000.0000
+CF_CFO_PRE_WC | Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động | 12289245000000.0000
+BS_LT_REC_CUST | Phải thu dài hạn của khách hàng | 1536269000000.0000
+IS_REVENUE | Doanh thu bán hàng | 62156465000000.0000
+CF_CFI_LOANS_DEBT_PURCHASE | Tiền chi cho vay, mua các công cụ nợ của đơn vị khác | -13688078000000.0000
+CF_CFO_FX_IMPACT | Ảnh hưởng của chênh lệch tỷ giá | -338021000000.0000
+IS_REVENUE | Doanh thu | 62156465000000.0000
+IS_FX_UNREALIZED_PROFIT | Lãi/lỗ chênh lệch tỷ giá chưa thực hiện | 1061496000000.0000
+BS_TREASURY_STOCK | Cổ phiếu quỹ | -1344123000000.0000
+CF_CFO | Lưu chuyển tiền tệ ròng từ các hoạt động SXKD | 50961370000000.0000
+BS_DEDUCTIBLE_VAT | Thuế giá trị gia tăng được khấu trừ | 10319339000000.0000
+BS_LT_REC_LOANS | Phải thu về cho vay dài hạn | 23359127000000.0000
+IS_SELL_EXP | Chi phí bán hàng | 6564549000000.0000
+IS_TAX_CURRENT | Chi phí thuế TNDN hiện hành | 3603654000000.0000
+IS_MINORITY_INTEREST | Lợi nhuận sau thuế của cổ đông không kiểm soát | -842239000000.0000
+CF_CFF_BORROWINGS | Tiền thu từ đi vay | 44866250000000.0000
+BS_DEFERRED_TAX_ASSET | Tài sản Thuế thu nhập hoãn lại | 2303926000000.0000
+BS_INVENTORY | Hàng tồn kho | 124864801000000.0000
+CF_CFI_FA_PURCHASE | Mua sắm TSCĐ | -21617763000000.0000
+BS_LIABILITIES | Nợ phải trả | 685698650000000.0000
+CF_CFF_LEASE_PRIN_PAY | Tiền thanh toán vốn gốc đi thuê tài chính | -128800000000.0000
+CF_CFF_DIV_PAID | Cổ tức đã trả | -60950000000.0000
+BS_PROV_CREDIT_LOSS | Dự phòng tổn thất tín dụng | 6525747000000.0000
+IS_PBT | Lợi nhuận trước thuế | 5432527000000.0000
+IS_INT_DIV_INC | Thu lãi và cổ tức | 0.0000
+IS_OTHER_INC | Thu nhập khác | 5422354000000.0000
+BS_CONVERTIBLE_BONDS | Trái phiếu chuyển đổi | 3688998000000.0000
+IS_REVENUE | Doanh thu (đồng) | 62156465000000.0000
+BS_FA_LT_INV | Tài sản cố định và đầu tư dài hạn | 438841410000000.0000
+BS_OWNER_INV_CAPITAL | Vốn đầu tư của chủ sở hữu | 38785833000000.0000
+BS_WIP_CONSTRUCTION | chi phí xây dựng cơ bản dở dang | 114636170000000.0000
+BS_ST_LIABILITIES | Nợ ngắn hạn | 514844802000000.0000
+CF_CFI_LOANS_DEBT_RECOVERY | Tiền thu hồi cho vay, bán lại các công cụ nợ của đơn vị khác (đồng) | 341218000000.0000
+BS_LT_OTHER_REC | Phải thu dài hạn khác | 56230954000000.0000
+IS_DEPR_EXP | Khấu hao TSCĐ | 5705585000000.0000
+CF_CFO | Lưu chuyển tiền thuần từ hoạt động kinh doanh | 47992085000000.0000
+IS_DEPR_EXP | Khấu hao và hao mòn | 5586927000000.0000
+IS_ASSOC_PROFIT | Net income from associated companies | 0.0000
+BS_FX_RESERVE | Chênh lệch tỷ giá hối đoái | -384316000000.0000
+IS_NPAT_PARENT | LNST của cổ đông công ty mẹ | 2192432000000.0000
+IS_NPAT | Lợi nhuận sau thuế thu nhập doanh nghiệp (15)-(18) | 1182459000000.0000
+CF_CFF_EQUITY_RETURN | Tiền chi trả vốn góp, mua lại cổ phiếu | -10485188000000.0000
+BS_SHARE_CAPITAL_INC | Tăng vốn cổ phần từ góp vốn và/hoặc phát hành cổ phiếu | 0.0000
+BS_ST_PREPAID | Chi phí trả trước ngắn hạn | 4783905000000.0000
+CF_CFO_TAX_PAID | Thuế thu nhập doanh nghiệp đã nộp | -1912485000000.0000
+CF_CFO_OTHER_PAY | Tiền chi khác từ các hoạt động kinh doanh | 0.0000
+CF_CFO_PRE_WC | Lưu chuyển tiền thuần từ HĐKD trước thay đổi VLĐ | 17789934000000.0000
+IS_NET_PROFIT | Lợi nhuận thuần | 1207515000000.0000
+IS_PROFIT_GROWTH_PCT | Tăng trưởng lợi nhuận (%) | 14.8092
+BS_HTM_SEC | Đầu tư nắm giữ đến ngày đáo hạn | 369675000000.0000
+IS_OTHER_EXP | Chi phí khác | 526883000000.0000
+CF_CFO_OTHER_PAY | Other payments on operating activities | 0.0000
+IS_INT_EXP | Chi phí lãi vay | 6831882000000.0000
+CF_CFO_INT_PAID | Chi phí lãi vay (Lưu chuyển tiền tệ) | 6919631000000.0000
+IS_JV_ASSOC_PROFIT | Lãi/lỗ từ công ty liên doanh liên kết | 163184000000.0000
+CF_CASH_BEG | Tiền và tương đương tiền đầu kỳ | 27040242000000.0000
+IS_DEPOSIT_DIV_INC | Lãi tiền gửi và cổ tức | 0.0000
+CF_CFI_LOANS_DEBT_RECOVERY | Tiền thu hồi cho vay, bán lại các công cụ nợ của các đơn vị khác | 832712000000.0000
+BS_TOT_CAPITAL | TỔNG CỘNG NGUỒN VỐN | 839216200000000.0000
+IS_FIN_INC | Doanh thu hoạt động tài chính | 10268342000000.0000
+CF_CFI_LOANS_DEBT_RECOVERY | Tiền thu hồi cho vay, bán công cụ nợ | 341218000000.0000
+BS_EQUITY | Vốn chủ sở hữu | 153517550000000.0000
+IS_REVENUE | Doanh thu bán hàng và cung cấp dịch vụ | 62156465000000.0000
+CF_CFI_EQUITY_INV_DISPOSAL | Tiền thu hồi đầu tư góp vốn vào đơn vị khác | 14992843000000.0000
+BS_PROVISION | Các khoản dự phòng | 3911456000000.0000

@@ -1819,6 +1819,80 @@ async def get_financial_ratios(
 # ────────────────────────────────────────────────────────────────────
 # 4. Financial Reports (IS, BS, CF from BCTC table)
 # ────────────────────────────────────────────────────────────────────
+def _parse_financial_mapping() -> List[Dict[str, Any]]:
+    """Parse the financial mapping markdown file into structured rows."""
+    mapping_file = Path(__file__).resolve().parent / "so_lieu_tai_chinh_mapping.md"
+    if not mapping_file.exists():
+        logger.warning(f"Mapping file not found at {mapping_file}")
+        return []
+    
+    try:
+        content = mapping_file.read_text(encoding="utf-8")
+    except Exception as e:
+        logger.error(f"Failed to read mapping file: {e}")
+        return []
+        
+    rows = []
+    for line in content.splitlines():
+        line = line.strip()
+        if not line.startswith("|") or not line.endswith("|"):
+            continue
+        if "stt hiển thị" in line or ":---" in line:
+            continue
+            
+        parts = [p.strip() for p in line.split("|")[1:-1]]
+        if len(parts) < 8:
+            continue
+            
+        stt_str = re.sub(r"\*\*|\*", "", parts[0]).strip()
+        isparent_str = re.sub(r"\*\*|\*", "", parts[1]).strip().upper()
+        ischild_str = re.sub(r"\*\*|\*", "", parts[2]).strip().upper()
+        parent_str = re.sub(r"\*\*|\*", "", parts[3]).strip().lower()
+        report_name = parts[4].strip().upper()
+        label = re.sub(r"\*\*|\*", "", parts[5]).strip()
+        ind_codes_str = parts[6].replace("`", "").strip()
+        loai_bctc = parts[7].strip()
+        
+        try:
+            stt = int(stt_str)
+        except ValueError:
+            continue
+            
+        isparent = isparent_str == "TRUE"
+        ischild = ischild_str == "TRUE"
+        parent = None if parent_str == "null" or not parent_str else int(parent_str)
+        ind_codes = [c.strip() for c in ind_codes_str.split(",") if c.strip()]
+        
+        rows.append({
+            "stt": stt,
+            "isparent": isparent,
+            "ischild": ischild,
+            "parent": parent,
+            "report_name": report_name,
+            "label": label,
+            "ind_codes": ind_codes,
+            "loai_bctc": loai_bctc
+        })
+        
+    return rows
+
+
+def _is_row_applicable(loai_bctc: str, report_layout: str) -> bool:
+    """Check if a mapping row is applicable to the current report layout."""
+    loai_lower = loai_bctc.lower()
+    if "chung" in loai_lower:
+        return True
+    if report_layout == "bank":
+        return "nh" in loai_lower
+    elif report_layout == "insurance":
+        return "bh" in loai_lower
+    elif report_layout == "financial":
+        return "ck" in loai_lower
+    elif report_layout == "nonFinancial":
+        return "phi tài chính" in loai_lower or "phi tc" in loai_lower
+    return True
+
+
 @cached("stock:reports", ttl=300)
 async def get_financial_reports(
     db: AsyncSession, 
@@ -1851,7 +1925,10 @@ async def get_financial_reports(
     report_layout = _detect_report_layout([industry1, industry2, industry3])
     is_bank = report_layout == "bank"
 
-    # ── Collect all needed ind_codes ──
+    # ── Parse financial mapping configured in so_lieu_tai_chinh_mapping.md ──
+    mapping_rows = _parse_financial_mapping()
+
+    # ── Collect all needed ind_codes (fallback codes + new mapping codes) ──
     all_codes: set = set()
     for mapping in (IS_CODES, BS_CODES, CF_CODES, IS_BANK_FALLBACKS):
         all_codes.update(mapping.values())
@@ -1859,6 +1936,9 @@ async def get_financial_reports(
     if is_bank:
         all_codes.update(IS_BANK_EXTRA_CODES.values())
         all_codes.update(BS_BANK_EXTRA_CODES.values())
+        
+    for r in mapping_rows:
+        all_codes.update(r["ind_codes"])
 
     # ── Single query for all financial data — efficient pivot ──
     where_extra = ""
@@ -1898,10 +1978,15 @@ async def get_financial_reports(
             pivot[key] = {}
         if key not in pivot_ind_name:
             pivot_ind_name[key] = {}
-        pivot[key][r["ind_code"]] = _safe_float(r["value"])
+            
+        code = r["ind_code"]
+        val = _safe_float(r["value"])
+        # Resolve duplicates using old pick rule
+        pivot[key][code] = _pick_value(pivot[key].get(code), val)
+        
         normalized_name = _normalize_ind_name(str(r.get("ind_name") or ""))
         if normalized_name:
-            pivot_ind_name[key][normalized_name] = _safe_float(r["value"])
+            pivot_ind_name[key][normalized_name] = _pick_value(pivot_ind_name[key].get(normalized_name), val)
 
     for key, data in pivot.items():
         nca_val = data.get("BS_NONCUR_ASSETS", 0.0)
@@ -1910,18 +1995,12 @@ async def get_financial_reports(
         data["BS_NONCUR_ASSETS"] = nca_val
 
     # Sort periods descending, take latest N
-    # If year is filtered, we probably want all quarters of that year, not limited by 'periods' 
-    # unless 'periods' is smaller than 4 (unlikely default).
-    # But usually 'periods' defaults to 12.
     if year:
-        # If year specified, take all available quarters for that year (max 4)
         sorted_periods = sorted(pivot.keys(), key=lambda x: (x[0], x[1]), reverse=True)
     else:
-        # Default behavior: limit by periods
         sorted_periods = sorted(pivot.keys(), key=lambda x: (x[0], x[1]), reverse=True)[:periods]
 
     period_labels = [f"Q{quarter}/{year}" for year, quarter in sorted_periods]
-    period_index = {(year, quarter): idx for idx, (year, quarter) in enumerate(sorted_periods)}
 
     def _build_period(year: int, quarter: str) -> Dict:
         return {"period": {"period": f"Q{quarter}/{year}", "year": year, "quarter": int(quarter) if quarter.isdigit() else 0}}
@@ -1935,7 +2014,6 @@ async def get_financial_reports(
 
         for field, code in IS_CODES.items():
             val = data.get(code, 0)
-            # If primary code yields 0, try bank fallback
             if val == 0 and field in IS_BANK_FALLBACKS:
                 val = data.get(IS_BANK_FALLBACKS[field], 0)
             item[field] = val
@@ -1949,10 +2027,8 @@ async def get_financial_reports(
                     item[field] = val
                     break
 
-        # EPS: use basicEps if available, otherwise 0 (ratio endpoint has proper EPS)
         item["eps"] = item.pop("basicEps", 0) or 0
 
-        # Unified aliases for charting in Overview.
         if item.get("currentIncomeTaxExpense", 0) == 0:
             item["currentIncomeTaxExpense"] = item.get("incomeTax", 0)
         item.setdefault("deferredIncomeTaxExpense", 0)
@@ -1960,17 +2036,13 @@ async def get_financial_reports(
         item.setdefault("extraordinaryIncome", 0)
         item.setdefault("otherIncome", 0)
 
-        # Bank-specific extra income statement fields
         if is_bank:
             for field, code in IS_BANK_EXTRA_CODES.items():
                 item[field] = data.get(code, 0)
-            # Ensure totalOperatingIncome is populated — try field or grossProfit fallback
             if item.get("totalOperatingIncome", 0) == 0:
                 item["totalOperatingIncome"] = item.get("grossProfit", 0) or item.get("revenue", 0)
-            # Ensure netInterestIncome is populated
             if item.get("netInterestIncome", 0) == 0:
                 item["netInterestIncome"] = item.get("financialIncome", 0)
-            # Ensure prePpopProfit (PPOP)
             if item.get("prePpopProfit", 0) == 0:
                 item["prePpopProfit"] = item.get("operatingProfit", 0)
 
@@ -1985,20 +2057,9 @@ async def get_financial_reports(
             item[field] = data.get(code, 0)
         item["totalLiabilitiesAndEquity"] = item.get("totalLiabilities", 0) + item.get("totalEquity", 0)
 
-        # Bank-specific extra balance sheet fields
         if is_bank:
             for field, code in BS_BANK_EXTRA_CODES.items():
                 item[field] = data.get(code, 0)
-            # Compute gross loans if net loans are available but gross is not
-            if item.get("loansToCustomers", 0) == 0 and item.get("loansToCustomersGross", 0) != 0:
-                reserves = item.get("loanLossReserves", 0)
-                # reserves typically negative, so Gross = Net - Reserves (if reserves < 0) or Net + Reserves?
-                # Usually: Net = Gross - Reserves. So Gross = Net + Reserves.
-                # If reserves is stored as negative number in DB (e.g. -500), then Gross = Net - (-500).
-                # But here code says: item["loansToCustomers"] = item["loansToCustomersGross"] + reserves
-                # This seems to be setting Net from Gross + Reserves.
-                # If Reserves IS negative, then Net = Gross + (-500) = Gross - 500. Correct.
-                pass
 
         balance_sheet.append(item)
 
@@ -2011,7 +2072,7 @@ async def get_financial_reports(
             item[field] = data.get(code, 0)
         cash_flow.append(item)
 
-    # ── Build dynamic statement tables (alias-aware, full indicators) ──
+    # ── Build dynamic statement tables strictly based on the mapping ──
     report_tables: Dict[str, Dict[str, Any]] = {
         "incomeStatement": {"periods": period_labels, "rows": []},
         "balanceSheet": {"periods": period_labels, "rows": []},
@@ -2019,163 +2080,81 @@ async def get_financial_reports(
     }
 
     if sorted_periods:
-        period_clauses: List[str] = []
-        detail_params: Dict[str, Any] = {"ticker": ticker}
-        for idx, (y, q) in enumerate(sorted_periods):
-            y_key = f"y{idx}"
-            q_key = f"q{idx}"
-            period_clauses.append(f"(year = :{y_key} AND quarter = :{q_key})")
-            detail_params[y_key] = y
-            detail_params[q_key] = str(q)
-
-        detail_sql = text(f"""
-            SELECT year, quarter, report_code, report_name, ind_code, ind_name, value
-            FROM {SCHEMA}.bctc
-            WHERE ticker = :ticker
-              AND ({" OR ".join(period_clauses)})
-            ORDER BY year DESC, quarter DESC, report_code NULLS LAST, ind_code, ind_name
-        """)
-        detail_rows = (await db.execute(detail_sql, detail_params)).mappings().all()
-
-        bucket_rows: Dict[str, Dict[str, Dict[str, Any]]] = {
-            "incomeStatement": {},
-            "balanceSheet": {},
-            "cashFlow": {},
+        # Create map of stt -> row for parent lookup
+        stt_map = {r["stt"]: r for r in mapping_rows}
+        
+        # Helper to map report names to frontend dynamic report types
+        report_type_map = {
+            "IS": "incomeStatement",
+            "BS": "balanceSheet",
+            "CF": "cashFlow"
         }
-
-        for r in detail_rows:
-            y = int(r["year"])
-            q = str(r["quarter"])
-            p_idx = period_index.get((y, q))
-            if p_idx is None:
+        
+        for r in mapping_rows:
+            report_name = r["report_name"]
+            stmt_type = report_type_map.get(report_name)
+            if not stmt_type:
                 continue
-
-            raw_code = str(r.get("ind_code") or "").strip()
-            raw_name = str(r.get("ind_name") or "").strip()
-            normalized_name = _normalize_ind_name(raw_name)
-            canonical_code = _resolve_canonical_code(raw_code, raw_name)
-
-            stmt_type = _classify_statement(
-                str(r.get("report_code") or ""),
-                str(r.get("report_name") or ""),
-                canonical_code,
-            )
-            if stmt_type is None:
-                continue
-
-            display_label = BCTC_CODE_TO_LABEL.get(canonical_code) or raw_name or canonical_code
-            value = _safe_float(r.get("value"), 0.0)
-
-            row_store = bucket_rows[stmt_type].get(canonical_code)
-            if row_store is None:
-                row_store = {
-                    "indCode": canonical_code,
-                    "label": display_label,
-                    "values": [0.0 for _ in period_labels],
-                    "_seen": [False for _ in period_labels],
-                    "_section": "",
-                    "_sectionLabel": "",
-                    "_sectionOrder": 999,
-                }
-                bucket_rows[stmt_type][canonical_code] = row_store
-
-            seen = row_store["_seen"][p_idx]
-            if not seen:
-                row_store["values"][p_idx] = value
-                row_store["_seen"][p_idx] = True
-            else:
-                row_store["values"][p_idx] = _pick_value(row_store["values"][p_idx], value)
-
-            if row_store["label"].startswith("_") and display_label and not display_label.startswith("_"):
-                row_store["label"] = display_label
-
-            section_key, section_label, section_order = _resolve_layout_section(
-                report_layout=report_layout,
-                stmt_type=stmt_type,
-                ind_code=canonical_code,
-                label=row_store["label"],
-            )
-            row_store["_section"] = section_key
-            row_store["_sectionLabel"] = section_label
-            row_store["_sectionOrder"] = section_order
-
-        # Fallback for BS_NONCUR_ASSETS from BS_FA_LT_INV in bucket_rows
-        bs_bucket = bucket_rows.get("balanceSheet", {})
-        nca_row = bs_bucket.get("BS_NONCUR_ASSETS")
-        nca_values_all_zero = nca_row is None or all(v == 0.0 for v in nca_row.get("values", []))
-        if nca_values_all_zero:
-            lt_inv_row = bs_bucket.get("BS_FA_LT_INV")
-            if lt_inv_row:
-                if nca_row is None:
-                    nca_row = {
-                        "indCode": "BS_NONCUR_ASSETS",
-                        "label": "Tài sản dài hạn",
-                        "values": list(lt_inv_row["values"]),
-                        "_seen": [True for _ in period_labels],
-                        "_section": "",
-                        "_sectionLabel": "",
-                        "_sectionOrder": 999,
-                    }
-                    bs_bucket["BS_NONCUR_ASSETS"] = nca_row
-                else:
-                    nca_row["values"] = list(lt_inv_row["values"])
                 
-                # Update section info
-                section_key, section_label, section_order = _resolve_layout_section(
-                    report_layout=report_layout,
-                    stmt_type="balanceSheet",
-                    ind_code="BS_NONCUR_ASSETS",
-                    label=nca_row["label"],
-                )
-                nca_row["_section"] = section_key
-                nca_row["_sectionLabel"] = section_label
-                nca_row["_sectionOrder"] = section_order
+            # Filter by industry applicability
+            if not _is_row_applicable(r["loai_bctc"], report_layout):
+                continue
+                
+            # Compute values for all periods by summing the matched ind_codes
+            row_values = []
+            for y, q in sorted_periods:
+                period_data = pivot.get((y, q), {})
+                # Sum values of all matched codes that are present
+                val_sum = sum(period_data.get(code, 0.0) for code in r["ind_codes"])
+                row_values.append(val_sum)
+                
+            # Determine section hierarchy
+            stt = r["stt"]
+            parent = r["parent"]
+            isparent = r["isparent"]
+            label = r["label"]
+            
+            if parent is not None:
+                parent_row = stt_map.get(parent)
+                if parent_row:
+                    section_key = f"{report_name}_section_{parent}"
+                    section_label = parent_row["label"]
+                    section_order = parent
+                else:
+                    section_key = f"{report_name}_general"
+                    section_label = "Chỉ tiêu khác"
+                    section_order = 999
+            else:
+                if isparent:
+                    section_key = f"{report_name}_section_{stt}"
+                    section_label = label
+                    section_order = stt
+                else:
+                    section_key = f"{report_name}_general"
+                    section_label = "Chỉ tiêu khác"
+                    section_order = 999
+                    
+            row_data = {
+                "indCode": f"STT_{stt}",
+                "label": label,
+                "values": row_values,
+                "section": section_key,
+                "sectionLabel": section_label,
+                "sectionOrder": section_order,
+                "rowOrder": stt
+            }
+            
+            report_tables[stmt_type]["rows"].append(row_data)
 
-        income_order = list(dict.fromkeys(list(IS_CODES.values()) + list(IS_BANK_EXTRA_CODES.values()) + list(IS_BANK_FALLBACKS.values())))
-        balance_order = list(dict.fromkeys(list(BS_CODES.values()) + list(BS_BANK_EXTRA_CODES.values())))
-        cash_order = list(dict.fromkeys(list(CF_CODES.values())))
-        order_map = {
-            "incomeStatement": {code: idx for idx, code in enumerate(income_order)},
-            "balanceSheet": {code: idx for idx, code in enumerate(balance_order)},
-            "cashFlow": {code: idx for idx, code in enumerate(cash_order)},
-        }
-
-        for stmt_type in ("incomeStatement", "balanceSheet", "cashFlow"):
-            # Second-pass dedup by loose label to merge near-identical records
-            # that still slipped through code canonicalization.
-            deduped_by_label: Dict[str, Dict[str, Any]] = {}
-            for row in bucket_rows[stmt_type].values():
-                label_key = _normalize_text_loose(str(row.get("label") or ""))
-                merge_key = label_key or str(row.get("indCode") or "")
-                existing = deduped_by_label.get(merge_key)
-                if existing is None:
-                    deduped_by_label[merge_key] = row
-                    continue
-
-                for i, v in enumerate(row.get("values", [])):
-                    existing["values"][i] = _pick_value(existing["values"][i], v)
-
-                existing_label = str(existing.get("label") or "")
-                incoming_label = str(row.get("label") or "")
-                if existing_label.startswith("_") and incoming_label and not incoming_label.startswith("_"):
-                    existing["label"] = incoming_label
-
-            rows_list = list(deduped_by_label.values())
-            for row in rows_list:
-                row.pop("_seen", None)
-                row["section"] = row.pop("_section", "")
-                row["sectionLabel"] = row.pop("_sectionLabel", "Khoản mục khác")
-                row["sectionOrder"] = row.pop("_sectionOrder", 999)
-                row["rowOrder"] = order_map[stmt_type].get(row["indCode"], 999999)
-
-            rows_list.sort(
+        # Sort the rows inside each report table to make sure layout is ordered
+        for stmt_type in report_tables:
+            report_tables[stmt_type]["rows"].sort(
                 key=lambda row: (
                     int(row.get("sectionOrder", 999)),
                     int(row.get("rowOrder", 999999)),
                     str(row.get("label") or "").lower(),
                 )
             )
-            report_tables[stmt_type]["rows"] = rows_list
 
     return {
         "isBank": is_bank,
