@@ -21,6 +21,9 @@ services:
       - PORT=8000
     volumes:
       - ./BE:/app
+    depends_on:
+      dwh-postgres:
+        condition: service_healthy
     networks:
       - etl-network
 
