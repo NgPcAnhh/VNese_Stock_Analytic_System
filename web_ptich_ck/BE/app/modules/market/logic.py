@@ -83,36 +83,36 @@ async def get_market_heatmap(
     params: Dict[str, Any] = {}
     if exchange != "all":
         if exchange in ("HOSE", "HSX"):
-            exchange_filter = "AND eb.exchange IN ('HOSE', 'HSX')"
+            exchange_filter = "AND cur.exchange IN ('HOSE', 'HSX')"
         else:
-            exchange_filter = "AND eb.exchange = :exchange"
+            exchange_filter = "AND cur.exchange = :exchange"
             params["exchange"] = exchange
 
     sql = text(f"""
+        WITH {_EB_RANKED_DATES_CTE}
         SELECT sector, ticker, price, volume, p_change
         FROM (
-            SELECT DISTINCT ON (eb.ticker)
+            SELECT DISTINCT ON (cur.ticker)
                 co.icb_name2                                      AS sector,
-                eb.ticker,
-                eb.match_price                                    AS price,
-                COALESCE(eb.accumulated_volume, 0)                AS volume,
-                CASE WHEN eb.ref_price > 0
-                     THEN ROUND(((eb.match_price - eb.ref_price)
-                                 / eb.ref_price * 100)::numeric, 2)
+                cur.ticker,
+                cur.match_price                                   AS price,
+                COALESCE(cur.accumulated_volume, 0)               AS volume,
+                CASE WHEN prev.match_price > 0
+                     THEN ROUND(((cur.match_price - prev.match_price)
+                                 / prev.match_price * 100)::numeric, 2)
                      ELSE 0 END                                   AS p_change,
-                eb.match_price * COALESCE(eb.accumulated_volume, 0) AS trade_val
-            FROM {SCHEMA}.electric_board eb
-            JOIN {SCHEMA}.company_overview co ON eb.ticker = co.ticker
-            WHERE eb.trading_date = (
-                    SELECT MAX(trading_date)
-                    FROM {SCHEMA}.electric_board
-                    WHERE match_price IS NOT NULL
-                  )
-              AND eb.match_price IS NOT NULL
-              AND eb.match_price > 0
+                cur.match_price * COALESCE(cur.accumulated_volume, 0) AS trade_val
+            FROM {SCHEMA}.electric_board cur
+            JOIN {SCHEMA}.company_overview co ON cur.ticker = co.ticker
+            LEFT JOIN {SCHEMA}.electric_board prev 
+                   ON cur.ticker = prev.ticker 
+                  AND prev.trading_date = (SELECT td FROM eb_prev)
+            WHERE cur.trading_date = (SELECT td FROM eb_latest)
+              AND cur.match_price IS NOT NULL
+              AND cur.match_price > 0
               AND co.icb_name2 IS NOT NULL
               {exchange_filter}
-            ORDER BY eb.ticker, trade_val DESC
+            ORDER BY cur.ticker, trade_val DESC
         ) sub
         ORDER BY sector, trade_val DESC
     """)

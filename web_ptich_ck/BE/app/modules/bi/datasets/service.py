@@ -185,7 +185,7 @@ async def delete_folder(db: AsyncSession, folder_id: uuid.UUID) -> bool:
     return True
 
 
-async def preview_dataset(db: AsyncSession, dataset_id: uuid.UUID) -> DatasetPreviewResponse:
+async def preview_dataset(db: AsyncSession, dataset_id: uuid.UUID, limit: int = 100000) -> DatasetPreviewResponse:
     dataset = await db.get(Dataset, dataset_id)
     if not dataset or not dataset.query_id:
         return DatasetPreviewResponse(columns=[], rows=[], error="Dataset or associated query not found")
@@ -198,7 +198,8 @@ async def preview_dataset(db: AsyncSession, dataset_id: uuid.UUID) -> DatasetPre
         data_source_id=query_obj.data_source_id, 
         sql_text=query_obj.sql_text,
         database=query_obj.database_name,
-        schema_name=query_obj.schema_name
+        schema_name=query_obj.schema_name,
+        limit=limit
     )
     preview = await execute_preview(db, req)
     

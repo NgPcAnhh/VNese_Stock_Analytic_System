@@ -11,10 +11,12 @@
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/react-tabs": "^1.1.13",
+    "@types/dompurify": "^3.0.5",
     "axios": "^1.16.1",
     "class-variance-authority": "^0.7.1",
     "classnames": "^2.5.1",
     "clsx": "^2.1.1",
+    "dompurify": "^3.4.11",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.6",
     "exceljs": "^4.4.0",

@@ -29,9 +29,10 @@ async def list_datasets(
 @router.post("/{dataset_id}/preview", response_model=schemas.DatasetPreviewResponse)
 async def preview_dataset(
     dataset_id: uuid.UUID,
+    limit: int = 100000,
     db: AsyncSession = Depends(get_db)
 ):
-    return await service.preview_dataset(db, dataset_id)
+    return await service.preview_dataset(db, dataset_id, limit=limit)
 
 @router.post("/{dataset_id}/export", response_model=schemas.DatasetPreviewResponse)
 async def export_dataset(

@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useRef, Component, ErrorInfo, ReactNode } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useSettings } from '@/lib/SettingsContext';
+import DOMPurify from 'dompurify';
 
 interface ErrorBoundaryProps {
   fallback?: ReactNode;
@@ -57,6 +58,8 @@ interface ChartConfig {
   chartType: string;
   encodings: any;
   echartsOption: any;
+  events?: Record<string, Function>;
+  htmlOverlay?: string | ReactNode;
 }
 
 interface Props {
@@ -162,8 +165,31 @@ const EChartRendererImpl = forwardRef<any, Props>(({ config, data }, ref) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const renderHtmlOverlay = () => {
+    if (!config.htmlOverlay) return null;
+
+    if (typeof config.htmlOverlay === 'string') {
+      return (
+        <div 
+          className="echarts-html-overlay"
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(config.htmlOverlay) }}
+        />
+      );
+    }
+
+    return (
+      <div 
+        className="echarts-html-overlay"
+        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+      >
+        {config.htmlOverlay}
+      </div>
+    );
+  };
+
   return (
-    <div ref={containerRef} style={{ height: '100%', width: '100%' }}>
+    <div ref={containerRef} style={{ height: '100%', width: '100%', position: 'relative' }}>
       <ReactECharts
         ref={(r) => {
           // Forward to both our internal ref and the external forwarded ref
@@ -175,10 +201,12 @@ const EChartRendererImpl = forwardRef<any, Props>(({ config, data }, ref) => {
           }
         }}
         option={finalOption}
+        onEvents={config.events}
         style={{ height: '100%', width: '100%' }}
         opts={{ renderer: 'canvas' }}
         notMerge={true}
       />
+      {renderHtmlOverlay()}
     </div>
   );
 });
