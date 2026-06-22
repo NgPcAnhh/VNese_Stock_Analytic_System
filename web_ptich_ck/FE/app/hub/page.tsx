@@ -459,6 +459,15 @@ export default function BIHubPage() {
   const [view, setView] = useState<"list" | "edit-dashboard" | "edit-chart" | "create-chart">("list");
   const [loading, setLoading] = useState(true);
 
+  // List View Pagination & Search state
+  const [listSearchQuery, setListSearchQuery] = useState("");
+  const [listPage, setListPage] = useState(1);
+  const ITEMS_PER_PAGE = 9;
+
+  useEffect(() => {
+    setListPage(1);
+  }, [activeTab, listSearchQuery]);
+
   // Asset lists
   const [dashboards, setDashboards] = useState<any[]>([]);
   const [charts, setCharts] = useState<any[]>([]);
@@ -3430,6 +3439,37 @@ if (element) {
     echartsOption: evaluatedOption
   };
 
+  // ITEMS_PER_PAGE is defined at the component level
+
+  const processedDashboards = (dashboards || []).filter(dashboard => {
+    if ((currentUser as any)?.role !== 'admin' && dashboard.items && dashboard.items.length > 0) {
+      if (!dashboard.items.some((item: any) => hasChartPermission(item.chart_id))) return false;
+    }
+    if (listSearchQuery) {
+      const q = listSearchQuery.toLowerCase();
+      const matchName = dashboard.name ? dashboard.name.toLowerCase().includes(q) : false;
+      const matchDesc = dashboard.description ? dashboard.description.toLowerCase().includes(q) : false;
+      if (!matchName && !matchDesc) return false;
+    }
+    return true;
+  }).sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+
+  const processedCharts = (charts || []).filter(chart => {
+    if (listSearchQuery) {
+      const q = listSearchQuery.toLowerCase();
+      const matchName = chart.name ? chart.name.toLowerCase().includes(q) : false;
+      const matchDesc = chart.description ? chart.description.toLowerCase().includes(q) : false;
+      if (!matchName && !matchDesc) return false;
+    }
+    return true;
+  }).sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+
+  const displayedDashboards = processedDashboards.slice((listPage - 1) * ITEMS_PER_PAGE, listPage * ITEMS_PER_PAGE);
+  const totalDashboardPages = Math.max(1, Math.ceil(processedDashboards.length / ITEMS_PER_PAGE));
+
+  const displayedCharts = processedCharts.slice((listPage - 1) * ITEMS_PER_PAGE, listPage * ITEMS_PER_PAGE);
+  const totalChartPages = Math.max(1, Math.ceil(processedCharts.length / ITEMS_PER_PAGE));
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-50 flex flex-col">
       {view === "list" && (
@@ -3445,7 +3485,19 @@ if (element) {
             </div>
 
             {/* Contextual Action Button based on Tab */}
-            <div>
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              {view === "list" && (
+                <div className="relative w-full md:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm..."
+                    value={listSearchQuery}
+                    onChange={(e) => setListSearchQuery(e.target.value)}
+                    className="w-full bg-neutral-900 border border-neutral-800 rounded-xl py-2 pl-9 pr-4 text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+                  />
+                </div>
+              )}
               {activeTab === "dashboards" && (
                 <button
                   onClick={() => setShowCreateDashModal(true)}
@@ -3519,12 +3571,9 @@ if (element) {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {dashboards.filter(dashboard => {
-                    if ((currentUser as any)?.role === 'admin') return true;
-                    if (!dashboard.items || dashboard.items.length === 0) return true;
-                    return dashboard.items.some((item: any) => hasChartPermission(item.chart_id));
-                  }).map(dashboard => (
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {displayedDashboards.map(dashboard => (
                     <div
                       key={dashboard.id}
                       onClick={() => handleOpenDashboard(dashboard)}
@@ -3561,7 +3610,29 @@ if (element) {
                         </span>
                       </div>
                     </div>
-                  ))}
+                    ))}
+                  </div>
+                  {totalDashboardPages > 1 && (
+                    <div className="flex justify-center items-center gap-4 mt-4">
+                      <button
+                        onClick={() => setListPage(p => Math.max(1, p - 1))}
+                        disabled={listPage === 1}
+                        className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-white hover:border-orange-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <span className="text-neutral-400 text-sm font-medium">
+                        Trang {listPage} / {totalDashboardPages}
+                      </span>
+                      <button
+                        onClick={() => setListPage(p => Math.min(totalDashboardPages, p + 1))}
+                        disabled={listPage === totalDashboardPages}
+                        className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-white hover:border-orange-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             ) : (
@@ -3580,9 +3651,10 @@ if (element) {
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {charts.map(chart => (
-                    <div
+                <div className="flex flex-col gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {displayedCharts.map(chart => (
+                      <div
                       key={chart.id}
                       onClick={() => handleOpenChartForEdit(chart)}
                       className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-6 hover:border-orange-500/50 hover:bg-neutral-900/90 transition-all duration-250 cursor-pointer shadow-lg hover:shadow-2xl group flex flex-col justify-between h-44"
@@ -3620,7 +3692,29 @@ if (element) {
                         </span>
                       </div>
                     </div>
-                  ))}
+                    ))}
+                  </div>
+                  {totalChartPages > 1 && (
+                    <div className="flex justify-center items-center gap-4 mt-4">
+                      <button
+                        onClick={() => setListPage(p => Math.max(1, p - 1))}
+                        disabled={listPage === 1}
+                        className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-white hover:border-orange-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <span className="text-neutral-400 text-sm font-medium">
+                        Trang {listPage} / {totalChartPages}
+                      </span>
+                      <button
+                        onClick={() => setListPage(p => Math.min(totalChartPages, p + 1))}
+                        disabled={listPage === totalChartPages}
+                        className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-400 hover:bg-neutral-800 hover:text-white hover:border-orange-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             )}
