@@ -228,12 +228,14 @@ def get_eps_bvps_vietstock_api(ticker: str, wait_seconds: int = 5, retries: int 
     return f"Cannot fetch Vietstock data after {retries} retries: {last_error}"
 
 
-def get_indicators_24hmoney(ticker: str, timeout: int = 15, retries: int = 2) -> dict[str, float | None] | str:
-    url = f"https://24hmoney.vn/stock/{ticker.upper()}"
+
+def get_indicators_simplize(ticker: str, timeout: int = 15, retries: int = 2) -> dict[str, float | None] | str:
+    url = f"https://simplize.vn/co-phieu/{ticker.upper()}/bao-cao"
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     }
     last_error = None
+    
     for attempt in range(1, retries + 1):
         try:
             resp = requests.get(url, headers=headers, timeout=timeout)
@@ -241,86 +243,126 @@ def get_indicators_24hmoney(ticker: str, timeout: int = 15, retries: int = 2) ->
                 raise RuntimeError(f"HTTP {resp.status_code}")
 
             soup = BeautifulSoup(resp.text, "html.parser")
-            box = soup.find("div", class_="financial-indicators-box")
-            if not box:
-                return "Box financial-indicators-box not found"
+            
+            # Bước 1: Tìm vùng chứa dữ liệu
+            # Ưu tiên tìm thẻ div chứa class simplize-col-14 như bạn yêu cầu.
+            # Nếu class này bị đổi trong tương lai, fallback về việc quét toàn bộ trang.
+            container = soup.find("div", class_=lambda c: c and "simplize-col-14" in c)
+            if not container:
+                container = soup
 
-            table = box.find("table", class_="financial-indicators-table")
-            if not table:
-                return "Table financial-indicators-table not found"
-
-            divs = table.find_all("div")
             market_cap = None
             outstanding_shares = None
-            for div in divs:
-                spans = div.find_all("span")
-                if len(spans) >= 2:
-                    label_text = spans[0].get_text(strip=True)
-                    price_text = spans[1].get_text(strip=True)
-                    if "Vốn hóa (tỷ)" in label_text:
-                        val_str = price_text
-                        if "(" in val_str:
-                            val_str = val_str.split("(")[0].strip()
-                        val_str = val_str.replace(",", "")
-                        val_str = re.sub(r"[^0-9.\-]", "", val_str)
-                        if val_str:
-                            market_cap = float(val_str)
-                    elif "Slg lưu hành" in label_text:
-                        val_str = price_text
-                        val_str = val_str.replace(",", "")
-                        val_str = re.sub(r"[^0-9.\-]", "", val_str)
-                        if val_str:
-                            outstanding_shares = float(val_str)
+
+            # Bước 2 & 3: Quét qua tất cả các thẻ <dt> (Tiêu đề) trong vùng chứa
+            dts = container.find_all("dt")
+            for dt in dts:
+                label_text = dt.get_text(strip=True).lower()
+                
+                # Tìm thẻ <dd> (Giá trị) nằm ngay liền kề sau thẻ <dt>
+                dd = dt.find_next_sibling("dd")
+                if not dd:
+                    continue
+                    
+                val_text = dd.get_text(strip=True)
+                
+                # Xử lý: Vốn hóa
+                if "vốn hóa" in label_text:
+                    # Xóa dấu phẩy phân cách hàng nghìn
+                    clean_val = val_text.replace(",", "")
+                    
+                    # Kiểm tra và xử lý chữ 'T' (Tỷ)
+                    multiplier = 1.0
+                    if "T" in clean_val.upper():
+                        multiplier = 1e9
+                        clean_val = clean_val.upper().replace("T", "")
+                    
+                    # Lấy phần số (giữ lại dấu chấm thập phân nếu có)
+                    match = re.search(r"([0-9\.]+)", clean_val)
+                    if match:
+                        market_cap = float(match.group(1)) * multiplier
+
+                # Xử lý: Số lượng cổ phiếu lưu hành 
+                # (Dùng từ khóa "lưu hành" để bao quát các trường hợp đặt tên của web)
+                elif "lưu hành" in label_text:
+                    # Xóa dấu phẩy phân cách hàng nghìn
+                    clean_val = val_text.replace(",", "")
+                    
+                    # Lấy phần số
+                    match = re.search(r"([0-9\.]+)", clean_val)
+                    if match:
+                        outstanding_shares = float(match.group(1))
 
             if market_cap is None and outstanding_shares is None:
-                return "Indicators 'Vốn hóa (tỷ)' and 'Slg lưu hành' not found in table"
+                return "Indicators 'Vốn hóa' and 'lưu hành' not found in DOM structure"
 
             return {
                 "market_cap": market_cap,
                 "outstanding_shares": outstanding_shares
             }
+            
         except Exception as exc:
             last_error = exc
-            print(f"[24HMONEY RETRY] {ticker}: attempt {attempt}/{retries} failed - {exc}")
-    return f"Cannot fetch 24hmoney data after {retries} retries: {last_error}"
+            
+    return f"Cannot fetch Simplize data after {retries} retries: {last_error}"
 
 
-def crawl_24hmoney_indicators(tickers: Iterable[str], workers: int = 8, timeout: int = 15, retries: int = 2) -> pd.DataFrame:
+
+def crawl_simplize_indicators(tickers: Iterable[str], workers: int = 8, timeout: int = 15, retries: int = 2) -> pd.DataFrame:
     all_rows: list[dict] = []
     errors: list[tuple[str, str]] = []
+    
+    ticker_list = list(tickers)
+    total_tickers = len(ticker_list)
+    batch_size = 10 
 
     def _run_one(symbol: str):
-        return symbol, get_indicators_24hmoney(symbol, timeout=timeout, retries=retries)
+        return symbol, get_indicators_simplize(symbol, timeout=timeout, retries=retries)
 
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
-        futures = {executor.submit(_run_one, t): t for t in tickers}
+    for i in range(0, total_tickers, batch_size):
+        batch = ticker_list[i : i + batch_size]
+        current_batch_num = (i // batch_size) + 1
+        print(f"\n[SIMPLIZE BATCH] Đang xử lý nhóm {current_batch_num} (Gồm {len(batch)} mã): {batch}")
 
-        for future in as_completed(futures):
-            symbol = futures[future]
-            try:
-                ticker, result = future.result()
-                if isinstance(result, dict):
-                    all_rows.append({
-                        "ticker": ticker,
-                        "market_cap": result.get("market_cap"),
-                        "outstanding_shares": result.get("outstanding_shares")
-                    })
-                    print(f"[24HMONEY OK] {ticker}: market_cap={result.get('market_cap')}, outstanding_shares={result.get('outstanding_shares')}")
-                else:
-                    errors.append((ticker, str(result)))
-                    print(f"[24HMONEY SKIP] {ticker}: {result}")
-            except Exception as exc:
-                errors.append((symbol, str(exc)))
-                print(f"[24HMONEY ERR] {symbol}: {exc}")
+        current_workers = min(workers, len(batch))
+        with ThreadPoolExecutor(max_workers=max(1, current_workers)) as executor:
+            futures = {executor.submit(_run_one, t): t for t in batch}
+
+            for future in as_completed(futures):
+                ticker = futures[future]
+                try:
+                    symbol, result = future.result()
+                    if isinstance(result, dict):
+                        all_rows.append({
+                            "ticker": symbol,
+                            "market_cap": result.get("market_cap"),
+                            "outstanding_shares": result.get("outstanding_shares")
+                        })
+                        print(f"  [OK] {symbol}: market_cap={result.get('market_cap')}, outstanding_shares={result.get('outstanding_shares')}")
+                    else:
+                        errors.append((symbol, str(result)))
+                        print(f"  [SKIP] {symbol}: {result}")
+                except Exception as exc:
+                    errors.append((ticker, str(exc)))
+                    print(f"  [ERR] {ticker}: {exc}")
+
+        processed_so_far = i + len(batch)
+
+        if processed_so_far < total_tickers:
+            if processed_so_far % 100 == 0:
+                print(f"--> [SIMPLIZE] Đã cán mốc {processed_so_far} mã. Tạm nghỉ DÀI 3 giây...")
+                time.sleep(3)
+            elif processed_so_far % 10 == 0:
+                print(f"--> [SIMPLIZE] Đã xong nhóm {current_batch_num}. Tạm nghỉ NGẮN 1 giây...")
+                time.sleep(1)
 
     if errors:
-        print(f"[24HMONEY] Total tickers failed/no-data: {len(errors)}")
+        print(f"\n[SIMPLIZE] Tổng số mã thất bại/không có dữ liệu: {len(errors)}")
 
     if not all_rows:
         return pd.DataFrame(columns=["ticker", "market_cap", "outstanding_shares"])
 
     return pd.DataFrame(all_rows)
-
 
 def crawl_vietstock_eps_bvps(tickers: Iterable[str], workers: int = 8, wait_seconds: int = 5, retries: int = 2) -> pd.DataFrame:
     all_frames: list[pd.DataFrame] = []
@@ -366,10 +408,6 @@ def run_pipeline_to_dataframe(
 ) -> pd.DataFrame:
     print(f"[PIPELINE] Total tickers: {len(tickers)}")
 
-    # Log/ignore any old smoney kwargs for backward compatibility if any callers still pass them
-    if kwargs:
-        print(f"[PIPELINE] Ignoring unused arguments: {list(kwargs.keys())}")
-
     print("[PIPELINE] Start flow: VIETSTOCK")
     vietstock_df = crawl_vietstock_eps_bvps(
         tickers=tickers,
@@ -379,17 +417,17 @@ def run_pipeline_to_dataframe(
     )
     print(f"[PIPELINE] VIETSTOCK done: {len(vietstock_df)} rows")
 
-    print("[PIPELINE] Start flow: 24HMONEY")
-    indicators_df = crawl_24hmoney_indicators(
+    print("[PIPELINE] Start flow: SIMPLIZE")
+    indicators_df = crawl_simplize_indicators(
         tickers=tickers,
         workers=vietstock_workers,
         retries=vietstock_retries,
     )
-    print(f"[PIPELINE] 24HMONEY done: {len(indicators_df)} rows")
+    print(f"[PIPELINE] SIMPLIZE done: {len(indicators_df)} rows")
 
     final_df = pd.merge(vietstock_df, indicators_df, on="ticker", how="left")
     return final_df
-
+    
 
 def safe_div(num, denom):
     if num is None or denom is None or denom == 0:
@@ -428,6 +466,9 @@ def calculate_financial_ratios(df: pd.DataFrame, db_url: str, schema: str = "het
     from psycopg2.extras import RealDictCursor
     import numpy as np
     import pandas as pd
+
+    if db_url.startswith("postgresql+psycopg2://"):
+        db_url = db_url.replace("postgresql+psycopg2://", "postgresql://", 1)
 
     # Filter to keep only the latest quarter for each ticker
     df = df.copy()

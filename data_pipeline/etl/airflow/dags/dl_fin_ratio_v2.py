@@ -8,7 +8,8 @@ from airflow.decorators import dag, task
 from airflow.models import Variable
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
-from logic.fin_ratio_v2 import load_tickers, crawl_vietstock_eps_bvps, crawl_24hmoney_indicators
+# Đã thay đổi import: gọi hàm crawl_simplize_indicators thay vì crawl_24hmoney_indicators
+from logic.fin_ratio_v2 import load_tickers, crawl_vietstock_eps_bvps, crawl_simplize_indicators
 
 
 MINIO_BUCKET = Variable.get("minio_bucket", default_var="thongtin-congty-va-bctc")
@@ -43,7 +44,8 @@ def _save_to_minio(df: pd.DataFrame, object_key: str) -> str:
         "retry_delay": timedelta(minutes=3),
     },
     tags=["vnstock", "fin-ratio", "all-in-one", "minio"],
-    description="Financial ratio v2 DAG: scrape Vietstock/24hmoney in parallel, calculate ratios, save MinIO",
+    # Cập nhật mô tả DAG
+    description="Financial ratio v2 DAG: scrape Vietstock/Simplize in parallel, calculate ratios, save MinIO",
 )
 def fin_ratio_v2_dag():
     @task
@@ -77,38 +79,39 @@ def fin_ratio_v2_dag():
 
         return vietstock_df.to_dict(orient="records")
 
-    @task(task_id="scrape_24hmoney")
-    def task_scrape_24hmoney() -> list[dict]:
+    # Đổi tên task_id thành scrape_simplize
+    @task(task_id="scrape_simplize")
+    def task_scrape_simplize() -> list[dict]:
         max_tickers = 0
-        vietstock_workers = 8
-        vietstock_retries = 2
+        simplize_workers = 8
+        simplize_retries = 2
 
         tickers = load_tickers(max_tickers=max_tickers)
 
         print("=" * 80)
-        print("FIN_RATIO_V2 24HMONEY SCRAPE START")
+        print("FIN_RATIO_V2 SIMPLIZE SCRAPE START")
         print(f"tickers={len(tickers)}")
         print("=" * 80)
 
-        indicators_df = crawl_24hmoney_indicators(
+        indicators_df = crawl_simplize_indicators(
             tickers=tickers,
-            workers=vietstock_workers,
-            retries=vietstock_retries,
+            workers=simplize_workers,
+            retries=simplize_retries,
         )
 
         if indicators_df.empty:
-            raise ValueError("No rows scraped from 24hmoney")
+            raise ValueError("No rows scraped from Simplize")
 
         return indicators_df.to_dict(orient="records")
 
     @task(task_id="calculate_financial_ratios")
-    def task_calculate_financial_ratios(vietstock_data: list[dict], money_data: list[dict], partition_folder: str) -> str:
+    def task_calculate_financial_ratios(vietstock_data: list[dict], simplize_data: list[dict], partition_folder: str) -> str:
         # 1. Reconstruct DataFrames from XCom input
         vietstock_df = pd.DataFrame(vietstock_data)
-        money_df = pd.DataFrame(money_data)
+        simplize_df = pd.DataFrame(simplize_data)
 
         # 2. Merge them together on ticker
-        raw_df = pd.merge(vietstock_df, money_df, on="ticker", how="left")
+        raw_df = pd.merge(vietstock_df, simplize_df, on="ticker", how="left")
 
         # 3. Get DB details and calculate ratios
         db_url = Variable.get("dwh_db_url", default_var="postgresql+psycopg2://admin:123456@dwh-postgres:5432/postgres")
@@ -128,10 +131,11 @@ def fin_ratio_v2_dag():
 
         return f"OK | minio_key={final_key} | rows={len(calculated_df)}"
 
+    # Cập nhật luồng thực thi bên dưới
     partition_folder = get_partition_folder()
     vietstock_data = task_scrape_vietstock()
-    money_data = task_scrape_24hmoney()
-    task_calculate_financial_ratios(vietstock_data, money_data, partition_folder)
+    simplize_data = task_scrape_simplize()
+    task_calculate_financial_ratios(vietstock_data, simplize_data, partition_folder)
 
 
 fin_ratio_v2_dag()
