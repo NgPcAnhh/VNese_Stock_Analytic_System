@@ -6,6 +6,7 @@ import { setTokens, AuthResponse } from '@/lib/auth';
 import { X, Mail, Lock, User as UserIcon, ShieldCheck, Loader2 } from 'lucide-react';
 
 type AuthView = 'login' | 'register' | 'forgot-password' | '2fa';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 export function AuthModal() {
     const { isAuthModalOpen, closeAuthModal, login } = useAuth();
@@ -30,7 +31,7 @@ export function AuthModal() {
         setError('');
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/v1/auth/login', {
+            const res = await fetch(`${API}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -63,7 +64,7 @@ export function AuthModal() {
         setError('');
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/v1/auth/login/2fa', {
+            const res = await fetch(`${API}/auth/login/2fa`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ temp_token: tempToken, otp }),
@@ -93,7 +94,7 @@ export function AuthModal() {
             return;
         }
         try {
-            const res = await fetch('http://localhost:8000/api/v1/auth/register', {
+            const res = await fetch(`${API}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password, full_name: fullName }),
@@ -118,7 +119,7 @@ export function AuthModal() {
         setSuccessMsg('');
         setLoading(true);
         try {
-            const res = await fetch('http://localhost:8000/api/v1/auth/forgot-password', {
+            const res = await fetch(`${API}/auth/forgot-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
