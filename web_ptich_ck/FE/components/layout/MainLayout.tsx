@@ -13,6 +13,22 @@ import { useSessionTracking, usePageViewTracking, useErrorTracking } from "@/hoo
 import { PriceBoardPopup } from "@/components/dashboard/PriceBoardPopup";
 import { Menu } from "lucide-react";
 
+if (typeof window !== "undefined") {
+  const originalFetch = window.fetch;
+  window.fetch = function (input, init) {
+    init = init || {};
+    init.headers = init.headers || {};
+    if (init.headers instanceof Headers) {
+      init.headers.set('ngrok-skip-browser-warning', 'any-value');
+    } else if (Array.isArray(init.headers)) {
+      init.headers.push(['ngrok-skip-browser-warning', 'any-value']);
+    } else {
+      (init.headers as Record<string, string>)['ngrok-skip-browser-warning'] = 'any-value';
+    }
+    return originalFetch(input, init);
+  };
+}
+
 const JUST_LOGGED_IN_KEY = "stockpro:auth:just-logged-in";
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
