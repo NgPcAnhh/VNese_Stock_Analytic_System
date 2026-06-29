@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { User, getAccessToken, getRefreshToken, clearTokens, fetchWithAuth } from './auth';
 
 const JUST_LOGGED_IN_KEY = 'stockpro:auth:just-logged-in';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 interface AuthContextType {
     user: User | null;
@@ -37,7 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
 
             try {
-                const res = await fetchWithAuth('http://localhost:8000/api/v1/auth/me');
+                const res = await fetchWithAuth(`${API}/auth/me`);
                 if (res.ok) {
                     const userData = await res.json();
                     setUser(userData);
@@ -107,7 +108,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 // Tự động gọi API đăng xuất và xoá token
                 const currentRefresh = typeof window !== 'undefined' && document.cookie.split('; ').find(row => row.startsWith('refresh_token='))?.split('=')[1];
                 if (currentRefresh) {
-                    fetch('http://localhost:8000/api/v1/auth/logout', {
+                    fetch(`${API}/auth/logout`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ refresh_token: currentRefresh })
@@ -133,7 +134,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         return;
                     }
                 }
-                await fetchWithAuth('http://localhost:8000/api/v1/auth/me');
+                await fetchWithAuth(`${API}/auth/me`);
             } catch (err) {
                 // Ignore background fetch errors
             }
@@ -161,7 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         if (refresh) {
             try {
-                await fetch('http://localhost:8000/api/v1/auth/logout', {
+                await fetch(`${API}/auth/logout`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ refresh_token: refresh })

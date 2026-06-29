@@ -14,6 +14,8 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Đảm bảo header bỏ qua cảnh báo ngrok luôn được gửi đi
+    config.headers['ngrok-skip-browser-warning'] = 'any-value';
     return config;
   },
   (error) => {

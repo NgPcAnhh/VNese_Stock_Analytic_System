@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthContext';
 import { setTokens, AuthResponse } from '@/lib/auth';
 
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+
 function CallbackContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -20,7 +22,7 @@ function CallbackContent() {
             setTokens(accessToken, refreshToken);
 
             // Fetch thông tin user để update AuthContext
-            fetch('http://localhost:8000/api/v1/auth/me', {
+            fetch(`${API}/auth/me`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`
                 }

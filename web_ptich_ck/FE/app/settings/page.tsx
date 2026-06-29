@@ -44,7 +44,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const API = "http://localhost:8000/api/v1/auth";
+const API = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1') + '/auth';
 
 // ─── Plan data ───────────────────────────────────────────────────────────────
 const PLANS = [

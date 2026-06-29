@@ -63,6 +63,7 @@ import { useAuth } from "@/lib/AuthContext";
 
 const EChartRenderer = dynamic(() => import("@/components/charts/EChartRenderer"), { ssr: false });
 const WORKSPACE_ID = "00000000-0000-0000-0000-000000000000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 
 interface GlobalFilter {
@@ -1615,7 +1616,7 @@ export default function BIHubPage() {
   const loadChartDatasetPreview = async (id: string) => {
     try {
       setDatasetPreview(null);
-      const res = await fetch(`http://localhost:8000/api/v1/datasets/${id}/preview`, {
+      const res = await fetch(`${API_BASE}/datasets/${id}/preview`, {
         method: "POST",
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -1775,7 +1776,7 @@ export default function BIHubPage() {
 
   const fetchDatasetPreview = async (datasetId: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, {
+      const res = await fetch(`${API_BASE}/datasets/${datasetId}/preview`, {
         method: "POST",
         headers: {
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -6915,7 +6916,7 @@ if (element) {
                         for (const datasetId of uniqueDatasetIds) {
                            if (!datasetId) continue;
                            try {
-                             const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, {
+                             const res = await fetch(`${API_BASE}/datasets/${datasetId}/preview`, {
                                method: "POST",
                                headers: {
                                  'Cache-Control': 'no-cache, no-store, must-revalidate',
