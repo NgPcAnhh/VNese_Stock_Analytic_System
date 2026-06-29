@@ -1615,7 +1615,14 @@ export default function BIHubPage() {
   const loadChartDatasetPreview = async (id: string) => {
     try {
       setDatasetPreview(null);
-      const res = await fetch(`http://localhost:8000/api/v1/datasets/${id}/preview`, { method: "POST" });
+      const res = await fetch(`http://localhost:8000/api/v1/datasets/${id}/preview`, {
+        method: "POST",
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       const data = await res.json();
       setDatasetPreview(data);
       if (data.columns && data.columns.length > 0) {
@@ -1768,7 +1775,14 @@ export default function BIHubPage() {
 
   const fetchDatasetPreview = async (datasetId: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, { method: "POST" });
+      const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, {
+        method: "POST",
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       const data = await res.json();
       return data.rows || [];
     } catch (err) {
@@ -6901,7 +6915,14 @@ if (element) {
                         for (const datasetId of uniqueDatasetIds) {
                            if (!datasetId) continue;
                            try {
-                             const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, { method: "POST" });
+                             const res = await fetch(`http://localhost:8000/api/v1/datasets/${datasetId}/preview`, {
+                               method: "POST",
+                               headers: {
+                                 'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                 'Pragma': 'no-cache',
+                                 'Expires': '0'
+                               }
+                             });
                              const data = await res.json();
                              setDashboardItems(prev => prev.map(item => {
                                if (item.chart?.dataset_id === datasetId && autoReloadSelectedCharts.includes(item.chart.id)) {

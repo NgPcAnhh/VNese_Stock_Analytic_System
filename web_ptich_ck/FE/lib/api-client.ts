@@ -59,7 +59,13 @@ export const api = {
       return response.data;
     },
     preview: async (data: any) => {
-      const response = await apiClient.post('/queries/preview', data);
+      const response = await apiClient.post('/queries/preview', data, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       return response.data;
     },
     create: async (data: any) => {
@@ -89,7 +95,13 @@ export const api = {
       return response.data;
     },
     preview: async (id: string) => {
-      const response = await apiClient.post(`/datasets/${id}/preview`);
+      const response = await apiClient.post(`/datasets/${id}/preview`, {}, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       return response.data;
     },
     exportData: async (id: string) => {

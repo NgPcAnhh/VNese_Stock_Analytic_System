@@ -58,10 +58,11 @@ async def financial_reports(
     ticker: str,
     periods: int = Query(12, ge=4, le=20),
     year: int | None = Query(None, description="Lọc theo năm cụ thể (VD: 2024)"),
+    quarter: str | None = Query(None, description="Lọc theo quý (VD: 0 cho năm, 1-4 cho quý)"),
     db: AsyncSession = Depends(get_db),
 ):
     """Báo cáo tài chính (IS, BS, CF)."""
-    return await logic.get_financial_reports(db, ticker=ticker, periods=periods, year=year)
+    return await logic.get_financial_reports(db, ticker=ticker, periods=periods, year=year, quarter=quarter)
 
 
 # ── 4.1 Insurance TCDN Dashboard ─────────────────────────────

@@ -39,7 +39,7 @@ async def validate_sql(sql_text: str):
 
     # 2. Block access to sensitive system schemas
     # Using more comprehensive regex to catch variations like "system"., information_schema. etc.
-    restricted_schemas = ['system', 'information_schema', 'pg_catalog']
+    restricted_schemas = ['system', 'information_schema', 'pg_catalog', 'bi_hub']
     for schema in restricted_schemas:
         # Match schema followed by a dot, handling possible quotes
         pattern = rf'\b(["\']?{schema}["\']?)\s*\.'
@@ -81,9 +81,10 @@ async def execute_preview(db: AsyncSession, req: QueryPreviewRequest) -> QueryPr
             
             # Restrict schema access
             if req.schema_name:
-                if req.schema_name.lower().strip('"\' ') == 'system':
+                schema_clean = req.schema_name.lower().strip('"\' ')
+                if schema_clean in ('system', 'bi_hub'):
                     await conn.close()
-                    return QueryPreviewResponse(columns=[], rows=[], error="Access to the 'system' schema is restricted.")
+                    return QueryPreviewResponse(columns=[], rows=[], error=f"Access to the '{schema_clean}' schema is restricted.")
                 safe_schema = req.schema_name.replace('"', '""')
                 await conn.execute(f'SET search_path TO "{safe_schema}"')
             else:
@@ -116,8 +117,9 @@ async def execute_preview(db: AsyncSession, req: QueryPreviewRequest) -> QueryPr
 
 async def create_query(db: AsyncSession, query_in: QueryCreate):
     await validate_sql(query_in.sql_text)
-    if query_in.schema_name and query_in.schema_name.lower().strip('"\' ') == 'system':
-        raise ValueError("Access to the 'system' schema is restricted.")
+    if query_in.schema_name and query_in.schema_name.lower().strip('"\' ') in ('system', 'bi_hub'):
+        schema_clean = query_in.schema_name.lower().strip('"\' ')
+        raise ValueError(f"Access to the '{schema_clean}' schema is restricted.")
         
     db_obj = Query(
         workspace_id=query_in.workspace_id,
@@ -140,8 +142,9 @@ async def update_query(db: AsyncSession, query_id: uuid.UUID, query_in: QueryUpd
         
     if query_in.sql_text:
         await validate_sql(query_in.sql_text)
-    if query_in.schema_name and query_in.schema_name.lower().strip('"\' ') == 'system':
-        raise ValueError("Access to the 'system' schema is restricted.")
+    if query_in.schema_name and query_in.schema_name.lower().strip('"\' ') in ('system', 'bi_hub'):
+        schema_clean = query_in.schema_name.lower().strip('"\' ')
+        raise ValueError(f"Access to the '{schema_clean}' schema is restricted.")
         
     update_data = query_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():

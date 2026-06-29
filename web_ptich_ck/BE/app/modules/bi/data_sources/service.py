@@ -133,7 +133,7 @@ async def get_database_metadata(db: AsyncSession, db_obj: DataSource, target_db:
         query = """
             SELECT table_schema, table_name, column_name, data_type 
             FROM information_schema.columns 
-            WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'system') 
+            WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'system', 'bi_hub') 
             ORDER BY table_schema, table_name, ordinal_position;
         """
         rows = await conn.fetch(query)

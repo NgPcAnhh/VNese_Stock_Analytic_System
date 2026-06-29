@@ -177,31 +177,100 @@ IS_BANK_FALLBACKS: Dict[str, str] = {
 
 # Chỉ tiêu thu nhập bổ sung đặc thù cho Ngân hàng
 IS_BANK_EXTRA_CODES: Dict[str, str] = {
-    "interestIncome":             "IS_INT_INC",               # Thu nhập lãi và các khoản tương tự
-    "interestExpenseBank":        "IS_INT_EXP",               # Chi phí lãi và các chi phí tương tự
     "netInterestIncome":          "IS_NET_INT_INC",           # Thu nhập lãi thuần
-    "netServiceFeeIncome":        "IS_NET_SVC_PROFIT",        # Lãi thuần từ hoạt động dịch vụ
-    "tradingFxIncome":            "IS_FX_GOLD_TRADING",       # Kinh doanh ngoại hối và vàng
-    "tradingSecuritiesIncome":    "IS_NET_TRADING_SEC_PROFIT",# Lãi/Lỗ thuần từ mua bán CK kinh doanh
-    "investmentSecuritiesIncome": "IS_NET_INV_SEC_PROFIT",    # Lãi/Lỗ thuần từ mua bán CK đầu tư
-    "otherOperatingIncome":       "IS_OTHER_ACTIVITIES",      # Hoạt động khác
-    "totalOperatingIncome":       "IS_OP_INC_TOTAL",          # Tổng thu nhập hoạt động
-    "operatingExpenses":          "IS_OP_EXP_OTHER",          # Chi phí hoạt động khác
-    "prePpopProfit":              "IS_OP_PROFIT_PRE_PROV",    # LN từ HĐKD trước chi phí dự phòng rủi ro tín dụng
+    "interestIncome":             "IS_INT_INC",               # Thu nhập lãi và các khoản tương đương
+    "interestExpenseBank":        "IS_INT_EXP",               # Chi phí lãi và các khoản tương đương
+    "netServiceFeeIncome":        "IS_NET_SVC_PROFIT",        # Lãi/lỗ thuần dịch vụ & phí
+    "serviceIncome":              "IS_SVC_INC",               # Thu nhập từ hoạt động dịch vụ
+    "serviceExpense":             "IS_OP_EXP_SVC",            # Chi phí hoạt động dịch vụ
+    "tradingFxIncome":            "IS_NET_FX_PROFIT",         # Lãi/lỗ hoạt động kinh doanh ngoại tệ
+    "tradingSecuritiesIncome":    "IS_NET_TRADING_SEC_PROFIT",# Lãi/lỗ mua bán chứng khoán kinh doanh
+    "investmentSecuritiesIncome": "IS_NET_INV_SEC_PROFIT",    # Lãi/lỗ từ chứng khoán đầu tư
+    "otherOperatingIncome":       "IS_NET_OTHER_PROFIT",      # Lãi/lỗ từ hoạt động khác
+    "otherIncome":                "IS_OTHER_INC",             # Thu nhập từ hoạt động khác
+    "otherExpense":               "IS_OP_EXP_OTHER",          # Chi phí hoạt động khác
+    "shareInvestmentIncome":      "IS_SHARE_INV_INC",         # Thu nhập từ hoạt động góp vốn mua cổ phần
+    "operatingExpenses":          "IS_OP_EXP",                # Chi phí hoạt động
+    "prePpopProfit":              "IS_OP_PROFIT_PRE_PROV",    # Lợi nhuận trước dự phòng (PPOP)
     "provisionExpenses":          "IS_CREDIT_PROV_EXP",       # Chi phí dự phòng rủi ro tín dụng
+    "profitBeforeTax":            "IS_PBT",                   # Lợi nhuận trước thuế
+    "incomeTax":                  "IS_TAX_EXP",               # Thuế TNDN
+    "currentIncomeTax":           "IS_TAX_CURRENT",           # Chi phí thuế thu nhập hiện hành
+    "retainedIncomeTax":          "IS_TAX_EXP_RETAINED",      # Chi phí thuế TNDN giữ lại
+    "netProfit":                  "IS_NPAT",                  # Lợi nhuận sau thuế (LNST)
+    "minorityInterestPref":       "BS_MINORITY_INTEREST_PREF",# Lợi ích của cổ đông thiểu số và cổ tức ưu đãi
+    "netProfitParentAdj":         "IS_NPAT_PARENT_ADJ",       # LNST sau khi điều chỉnh Lợi ích của CĐTS và Cổ tức ưu đãi
 }
 
 # Chỉ tiêu bảng cân đối kế toán bổ sung đặc thù cho Ngân hàng
 BS_BANK_EXTRA_CODES: Dict[str, str] = {
-    "loansToCustomers":      "BS_LOANS_CUST",       # Cho vay khách hàng
-    "loansToCustomersGross": "BS_LOANS_CUST",       # Cho vay khách hàng (Tổng/Nguyên giá)
-    "loanLossReserves":      "BS_PROV_LOANS_CUST",  # Dự phòng rủi ro cho vay khách hàng
-    "customerDeposits":      "BS_DEPOSITS_CUST",    # Tiền gửi của khách hàng
-    "sbvDeposits":           "BS_BAL_SBV",          # Tiền gửi tại Ngân hàng Nhà nước Việt Nam
-    "interBankDeposits":     "BS_DEPOSITS_LOANS_CI",# Tiền gửi tại các TCTD và cho vay các TCTD khác
-    "tradingSecurities":     "BS_TRADING_SEC",      # Chứng khoán kinh doanh
-    "investmentSecurities":  "BS_INV_SEC",          # Chứng khoán đầu tư
-    "debtSecuritiesIssued":  "BS_ISSUED_PAPER",     # Phát hành giấy tờ có giá / Convertible bonds...
+    "totalAssets":                "BS_TOT_ASSET",             # Tổng cộng tài sản
+    "cashValuables":              "BS_CASH_AND_VALUABLES",    # Tiền mặt chứng từ có giá trị ngoại tệ kim loại quý đá quý
+    "sbvDeposits":                "BS_BAL_SBV",               # Tiền gửi tại NHNN
+    "treasuryBills":              "BS_TREASURY_BILLS",        # Tín phiếu kho bạc và các giấy tờ có giá ngắn hạn đủ tiêu chuẩn khác
+    "interBankDepositsLoans":     "BS_DEPOSITS_LOANS_CI",     # Tiền gửi và cho vay các TCTD khác
+    "interBankDeposits":          "BS_DEPOSITS_CI",           # Tiền gửi các tổ chức tín dụng khác
+    "interBankLoans":             "BS_LOANS_CI",              # Cho vay các TCTD khác
+    "interBankLoansProv":         "BS_PROV_LOANS_CI",         # Dự phòng rủi ro cho vay các TCTD khác
+    "tradingSecurities":          "BS_TRADING_SEC",           # Chứng khoán kinh doanh
+    "tradingSecuritiesProv":      "BS_PROV_TRADING_SEC",      # Dự phòng giảm giá chứng khoán kinh doanh
+    "derivativesAsset":           "BS_FVTPL_ASSET",           # Các công cụ tài chính phái sinh và các tài sản tài chính khác
+    "loansToCustomers":           "BS_LOANS_CUST",            # Cho vay khách hàng
+    "loansToCustomersGross":      "BS_LOANS_CUST",            # Cho vay khách hàng (gộp)
+    "loanLossReserves":           "BS_PROV_LOANS_CUST",       # Dự phòng rủi ro cho vay khách hàng
+    "investmentSecurities":       "BS_INV_SEC",               # Chứng khoán đầu tư
+    "investmentSecuritiesAFS":    "BS_AFS_SEC",               # Chứng khoán đầu tư sẵn sàng để bán
+    "investmentSecuritiesHTM":    "BS_HTM_SEC",               # Chứng khoán đầu tư giữ đến ngày đáo hạn
+    "investmentSecuritiesProv":   "BS_PROV_INV_SEC",          # Dự phòng giảm giá chứng khoán đầu tư
+    "longTermInvestments":        "BS_LT_INV_CAP",            # Góp vốn đầu tư dài hạn
+    "subsidiaryInvestments":      "BS_SUB_INV",               # Đầu tư vào công ty con
+    "jvInvestments":              "BS_INV_JV",                # Góp vốn liên doanh
+    "assocInvestments":           "BS_ASSOC_INV",             # Đầu tư vào công ty liên kết
+    "otherLongTermInvestments":   "BS_LT_OTHER_INV",          # Đầu tư dài hạn khác
+    "longTermInvestmentsProv":    "BS_PROV_LT_INV",           # Dự phòng giảm giá đầu tư dài hạn
+    "fixedAssets":                "BS_FA",                    # Tài sản cố định
+    "tangibleFixedAssets":        "BS_TANGIBLE_FA",           # Tài sản cố định hữu hình
+    "historicalCost":             "BS_HISTORICAL_COST",       # Nguyên giá
+    "accumulatedDepreciation":    "BS_ACCUM_DEPR",            # Giá trị hao mòn lũy kế
+    "financeLeaseFixedAssets":    "BS_FIN_LEASE_FA",          # Tài sản cố định thuê tài chính
+    "intangibleFixedAssets":      "BS_INTANGIBLE_FA",         # Tài sản cố định vô hình
+    "wipConstruction":            "BS_WIP_CONSTRUCTION",      # Chi phí XDCB dở dang
+    "investmentProperty":         "BS_INV_PROP",              # Bất động sản đầu tư
+    "otherAssets":                "BS_OTHER_ASSETS",          # Tài sản có khác
+    "receivables":                "BS_REC",                   # Các khoản phải thu
+    "interestFeeReceivables":     "BS_INT_FEE_REC",           # Các khoản lãi phí phải thu
+    "deferredTaxAsset":           "BS_DEFERRED_TAX_ASSET",    # Tài sản thuế TNDN hoãn lại
+    "goodwill":                   "BS_GOODWILL",              # Lợi thế thương mại
+    "otherAssetProvision":        "BS_OTHER_PROVISION",       # Các khoản dự phòng rủi ro cho các tài sản có nội bảng khác
+    "totalCapital":               "BS_TOT_CAPITAL",           # NGUỒN VỐN
+    "govDebt":                    "BS_GOV_DEBT",              # Các khoản nợ chính phủ và NHNN
+    "interBankDepositsLoansLiab": "BS_DEPOSITS_LOANS_CI",     # Tiền gửi và cho vay các TCTD khác
+    "interBankDepositsLiab":      "BS_DEPOSITS_CI",           # Tiền gửi các tổ chức tín dụng khác
+    "interBankLoansLiab":         "BS_LOANS_CI",              # Vay các TCTD khác
+    "customerDeposits":           "BS_DEPOSITS_CUST",         # Tiền gửi khách hàng
+    "derivativesLiab":            "BS_DERIVATIVES_LIAB",      # Các công cụ tài chính phái sinh và các khoản nợ tài chính khác
+    "sponsoredFundsRisk":         "BS_SPONSORED_FUNDS_RISK",  # Vốn tài trợ uỷ thác đầu tư mà ngân hàng chịu rủi ro
+    "debtSecuritiesIssued":       "BS_ISSUED_VALUABLE_PAPER", # Phát hành giấy tờ có giá
+    "otherLiabilities":           "BS_OTHER_LIAB",            # Các khoản nợ khác
+    "interestFeePayables":        "BS_INT_FEE_PAY",           # Các khoản lãi phí phải trả
+    "deferredTaxLiabilities":     "BS_DEFERRED_TAX_LIAB",     # Thuế TNDN hoãn lại phải trả
+    "otherPayables":              "BS_PAY_OTHER",             # Các khoản phải trả và công nợ khác
+    "otherRiskProvisions":        "BS_PROV_OTHER_RISK",       # Dự phòng rủi ro khác
+    "totalEquity":                "BS_EQUITY",                # Vốn chủ sở hữu
+    "ciCapital":                  "BS_CI_CAPITAL",            # Vốn của Tổ chức tín dụng
+    "charterCapital":             "BS_CHARTER_CAPITAL",       # Vốn điều lệ
+    "constructionInvCapital":     "BS_CONSTRUCTION_INV_CAPITAL",# Vốn đầu tư XDCB
+    "sharePremium":               "BS_SHARE_PREMIUM",         # Thặng dư vốn cổ phần
+    "treasuryStock":              "BS_TREASURY_STOCK",        # Cổ phiếu quỹ
+    "prefStock":                  "BS_PREF_STOCK",            # Cổ phiếu ưu đãi
+    "otherCapital":               "BS_OTHER_CAPITAL",         # Vốn khác
+    "ciFunds":                    "BS_CI_FUNDS",              # Quỹ của TCTD
+    "fxReserve":                  "BS_FX_RESERVE",            # Chênh lệch tỷ giá hối đoái
+    "revalReserve":               "BS_REVAL_RESERVE",         # Chênh lệch đánh giá lại tài sản
+    "retainedEarnings":           "BS_RETAINED_EARNINGS_DEFICIT",# Lợi nhuận chưa phân phối/Lỗ lũy kế
+    "fundOtherFunds":             "BS_FUND_OTHER_FUNDS",      # Nguồn kinh phí Quỹ khác
+    "minorityInterest":           "BS_MINORITY_INTEREST",     # Lợi ích của cổ đông không kiểm soát
+    "totalLiabilitiesAndEquity":  "BS_TOT_LIAB_EQUITY",       # TỔNG NỢ PHẢI TRẢ VÀ VỐN CHỦ SỞ HỮU
 }
 
 # Banking industry detection keywords (Vietnamese ICB names)
@@ -1879,17 +1948,17 @@ def _parse_financial_mapping() -> List[Dict[str, Any]]:
 
 def _is_row_applicable(loai_bctc: str, report_layout: str) -> bool:
     """Check if a mapping row is applicable to the current report layout."""
-    loai_lower = loai_bctc.lower()
-    if "chung" in loai_lower:
+    tags = [t.strip().lower() for t in loai_bctc.split(",") if t.strip()]
+    if any("chung" in tag for tag in tags):
         return True
     if report_layout == "bank":
-        return "nh" in loai_lower
+        return any(tag == "nh" for tag in tags)
     elif report_layout == "insurance":
-        return "bh" in loai_lower
+        return any(tag == "bh" for tag in tags)
     elif report_layout == "financial":
-        return "ck" in loai_lower
+        return any(tag == "ck" for tag in tags)
     elif report_layout == "nonFinancial":
-        return "phi tài chính" in loai_lower or "phi tc" in loai_lower
+        return any(tag == "phi tài chính" or tag.startswith("phi tc") or "phi tai chinh" in tag for tag in tags)
     return True
 
 
@@ -1898,7 +1967,8 @@ async def get_financial_reports(
     db: AsyncSession, 
     ticker: str = "VIC", 
     periods: int = 12,
-    year: Optional[int] = None
+    year: Optional[int] = None,
+    quarter: Optional[str] = None
 ) -> Dict[str, Any]:
     """Fetch IS, BS, CF from bctc table, pivoting ind_code rows into columns.
 
@@ -1945,8 +2015,14 @@ async def get_financial_reports(
     params = {"ticker": ticker, "codes": list(all_codes)}
     
     if year:
-        where_extra = "AND year = :year"
+        where_extra += " AND year = :year"
         params["year"] = year
+
+    if quarter is not None:
+        where_extra += " AND quarter = :quarter"
+        params["quarter"] = str(quarter)
+    else:
+        where_extra += " AND quarter != '0'"
         
     extra_ind_names: List[str] = []
     for names in IS_IND_NAME_FALLBACKS.values():
@@ -2000,10 +2076,14 @@ async def get_financial_reports(
     else:
         sorted_periods = sorted(pivot.keys(), key=lambda x: (x[0], x[1]), reverse=True)[:periods]
 
-    period_labels = [f"Q{quarter}/{year}" for year, quarter in sorted_periods]
+    period_labels = [
+        f"{year}" if q == "0" else f"Q{q}/{year}"
+        for year, q in sorted_periods
+    ]
 
-    def _build_period(year: int, quarter: str) -> Dict:
-        return {"period": {"period": f"Q{quarter}/{year}", "year": year, "quarter": int(quarter) if quarter.isdigit() else 0}}
+    def _build_period(year: int, q_val: str) -> Dict:
+        p_label = f"{year}" if q_val == "0" else f"Q{q_val}/{year}"
+        return {"period": {"period": p_label, "year": year, "quarter": int(q_val) if q_val.isdigit() else 0}}
 
     # ── Build IS (with bank fallback logic + extra bank fields) ──
     income_statement = []
@@ -2039,12 +2119,32 @@ async def get_financial_reports(
         if is_bank:
             for field, code in IS_BANK_EXTRA_CODES.items():
                 item[field] = data.get(code, 0)
+            if item.get("netServiceFeeIncome", 0) == 0:
+                item["netServiceFeeIncome"] = data.get("IS_NET_FEE_INC", 0)
+            if item.get("tradingFxIncome", 0) == 0:
+                item["tradingFxIncome"] = data.get("IS_NET_FX_GOLD_PROFIT", 0)
+            if item.get("otherOperatingIncome", 0) == 0:
+                item["otherOperatingIncome"] = data.get("IS_OTHER_PROFIT", 0)
+            if item.get("otherExpense", 0) == 0:
+                item["otherExpense"] = data.get("IS_OTHER_EXP", 0)
+            if item.get("operatingExpenses", 0) == 0:
+                item["operatingExpenses"] = data.get("IS_OP_EXP_TOTAL", 0)
+            if item.get("incomeTax", 0) == 0:
+                item["incomeTax"] = data.get("IS_TAX_CURRENT", 0) + data.get("IS_TAX_DEFERRED", 0)
+            if item.get("minorityInterestPref", 0) == 0:
+                item["minorityInterestPref"] = data.get("IS_MINORITY_INTEREST", 0)
             if item.get("totalOperatingIncome", 0) == 0:
-                item["totalOperatingIncome"] = item.get("grossProfit", 0) or item.get("revenue", 0)
-            if item.get("netInterestIncome", 0) == 0:
-                item["netInterestIncome"] = item.get("financialIncome", 0)
+                item["totalOperatingIncome"] = (
+                    item.get("netInterestIncome", 0) + 
+                    item.get("netServiceFeeIncome", 0) + 
+                    item.get("tradingFxIncome", 0) + 
+                    item.get("tradingSecuritiesIncome", 0) + 
+                    item.get("investmentSecuritiesIncome", 0) + 
+                    item.get("otherOperatingIncome", 0) + 
+                    item.get("shareInvestmentIncome", 0)
+                )
             if item.get("prePpopProfit", 0) == 0:
-                item["prePpopProfit"] = item.get("operatingProfit", 0)
+                item["prePpopProfit"] = item.get("totalOperatingIncome", 0) - item.get("operatingExpenses", 0)
 
         income_statement.append(item)
 
@@ -2060,6 +2160,30 @@ async def get_financial_reports(
         if is_bank:
             for field, code in BS_BANK_EXTRA_CODES.items():
                 item[field] = data.get(code, 0)
+            if item.get("cashValuables", 0) == 0:
+                item["cashValuables"] = data.get("BS_CASH", 0) or data.get("BS_CASH_ON_HAND", 0)
+            if item.get("tradingSecurities", 0) == 0:
+                item["tradingSecurities"] = data.get("BS_NET_TRADING_SEC", 0)
+            if item.get("loansToCustomers", 0) == 0:
+                item["loansToCustomers"] = data.get("BS_NET_LOANS_CUST", 0)
+            if item.get("loanLossReserves", 0) == 0:
+                item["loanLossReserves"] = data.get("BS_PROV_CREDIT_LOSS", 0)
+            if item.get("longTermInvestments", 0) == 0:
+                item["longTermInvestments"] = data.get("BS_LT_INV", 0)
+            if item.get("assocInvestments", 0) == 0:
+                item["assocInvestments"] = data.get("BS_JV_ASSOC_INV", 0)
+            if item.get("otherAssets", 0) == 0:
+                item["otherAssets"] = data.get("BS_ST_OTHER_ASSETS", 0) + data.get("BS_LT_OTHER_ASSETS", 0)
+            if item.get("receivables", 0) == 0:
+                item["receivables"] = data.get("BS_ST_REC", 0) + data.get("BS_LT_REC", 0)
+            if item.get("debtSecuritiesIssued", 0) == 0:
+                item["debtSecuritiesIssued"] = data.get("BS_ISSUED_PAPER", 0)
+            if item.get("otherLiabilities", 0) == 0:
+                item["otherLiabilities"] = data.get("BS_ST_PAY_OTHER", 0) + data.get("BS_LT_PAY_OTHER", 0)
+            if item.get("otherCapital", 0) == 0:
+                item["otherCapital"] = data.get("BS_OTHER_OWNER_CAPITAL", 0)
+            if item.get("retainedEarnings", 0) == 0:
+                item["retainedEarnings"] = data.get("BS_RETAINED_EARNINGS", 0) or data.get("BS_RETAINED_EARNINGS_CUR", 0) or data.get("BS_RETAINED_EARNINGS_ACCUM", 0)
 
         balance_sheet.append(item)
 
@@ -2112,14 +2236,25 @@ async def get_financial_reports(
             stt = r["stt"]
             parent = r["parent"]
             isparent = r["isparent"]
+            ischild = r["ischild"]
             label = r["label"]
             
             if parent is not None:
-                parent_row = stt_map.get(parent)
+                curr_parent = parent
+                while True:
+                    p_row = stt_map.get(curr_parent)
+                    if not p_row:
+                        break
+                    next_parent = p_row.get("parent")
+                    if next_parent is None:
+                        break
+                    curr_parent = next_parent
+                
+                parent_row = stt_map.get(curr_parent)
                 if parent_row:
-                    section_key = f"{report_name}_section_{parent}"
+                    section_key = f"{report_name}_section_{curr_parent}"
                     section_label = parent_row["label"]
-                    section_order = parent
+                    section_order = curr_parent
                 else:
                     section_key = f"{report_name}_general"
                     section_label = "Chỉ tiêu khác"
@@ -2141,7 +2276,10 @@ async def get_financial_reports(
                 "section": section_key,
                 "sectionLabel": section_label,
                 "sectionOrder": section_order,
-                "rowOrder": stt
+                "rowOrder": stt,
+                "isparent": isparent,
+                "ischild": ischild,
+                "parent": parent
             }
             
             report_tables[stmt_type]["rows"].append(row_data)
@@ -2149,11 +2287,7 @@ async def get_financial_reports(
         # Sort the rows inside each report table to make sure layout is ordered
         for stmt_type in report_tables:
             report_tables[stmt_type]["rows"].sort(
-                key=lambda row: (
-                    int(row.get("sectionOrder", 999)),
-                    int(row.get("rowOrder", 999999)),
-                    str(row.get("label") or "").lower(),
-                )
+                key=lambda row: int(row.get("rowOrder", 999999))
             )
 
     return {

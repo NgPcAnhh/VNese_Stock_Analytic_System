@@ -544,7 +544,7 @@ def transform_scraped_tables_to_records(tables: list[dict], year: int, quarter: 
     ].copy()
 
     # Balance sheet values require one extra x1,000,000 multiplier.
-    bl_mask = df_bctc_records["report_code"] == "BL"
+    bl_mask = df_bctc_records["report_code"].isin(["BL", "IS", "CF"])
     if bl_mask.any():
         df_bctc_records.loc[bl_mask, "value"] = (
             pd.to_numeric(df_bctc_records.loc[bl_mask, "value"], errors="coerce") * MULTIPLIER

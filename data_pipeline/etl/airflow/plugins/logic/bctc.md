@@ -3923,5 +3923,1477 @@
     "stt": 785,
     "ind_code": "CF_CFO_FX_IMPACT",
     "ind_name": "Ảnh hưởng của thay đổi tỷ giá hối đoái quy đổi ngoại tệ"
+  },
+  {"stt": 786, "ind_code": "IS_TAX_CURRENT", "ind_name": "10.1. Chi phí thuế TNDN hiện hành"},
+{"stt": 787, "ind_code": "IS_TAX_DEFERRED", "ind_name": "10.2. Chi phí thuế TNDN hoãn lại"},
+{"stt": 788, "ind_code": "IS_REV_DEDUCTION", "ind_name": "10. Các khoản giảm trừ"},
+{"stt": 789, "ind_code": "IS_GA_EXP", "ind_name": "10. Chi phí quản lý doanh nghiệp"},
+{"stt": 790, "ind_code": "BS_ST_UNEARNED_REV", "ind_name": "10. Doanh thu chưa thực hiện ngắn hạn"},
+{"stt": 791, "ind_code": "BS_PROV_LT_PAY", "ind_name": "10. Dự phòng phải trả dài hạn"},
+{"stt": 792, "ind_code": "BS_PROV_ST_PAY", "ind_name": "10. Dự phòng phải trả ngắn hạn"},
+{"stt": 793, "ind_code": "BS_LT_DEPOSIT_REC", "ind_name": "10. Nhận ký quỹ ký cược dài hạn"},
+{"stt": 794, "ind_code": "BS_REC_INTERNAL", "ind_name": "10. Phải thu nội bộ"},
+{"stt": 795, "ind_code": "BS_OTHER_EQUITY_FUNDS", "ind_name": "10. Quỹ khác thuộc vốn chủ sở hữu"},
+{"stt": 796, "ind_code": "BS_TAX_PAYABLES", "ind_name": "10. Thuế và các khoản phải nộp nhà nước"},
+{"stt": 797, "ind_code": "IS_REV_DEPOSITARY", "ind_name": "1.10. Doanh thu lưu ký chứng khoán"},
+{"stt": 798, "ind_code": "IS_NPAT_OWNER", "ind_name": "11.1. Lợi nhuận sau thuế phân bổ cho chủ sở hữu"},
+{"stt": 799, "ind_code": "IS_OTHER_INC", "ind_name": "1.11. Thu nhập hoạt động khác"},
+{"stt": 800, "ind_code": "IS_NPAT_POST_RESERVE", "ind_name": "11.2. Lợi nhuận sau thuế trích các Quỹ dự trữ điều lệ Quỹ Dự phòng tài chính và rủi ro nghề nghiệp theo quy định của Điều lệ Công ty là %)"},
+{"stt": 801, "ind_code": "IS_MINORITY_INTEREST", "ind_name": "11.3. Lợi nhuận thuần phân bổ cho lợi ích của cổ đông không kiểm soát"},
+{"stt": 802, "ind_code": "IS_CLAIM_RETAINED", "ind_name": "11. Bồi thường thuộc phần trách nhiệm giữ lại"},
+{"stt": 803, "ind_code": "BS_LT_PAY_OTHER", "ind_name": "11. Các khoản phải trả phải nộp khác dài hạn"},
+{"stt": 804, "ind_code": "BS_LT_UNEARNED_REV", "ind_name": "11. Doanh thu chưa thực hiện dài hạn"},
+{"stt": 805, "ind_code": "IS_FVTPL_PROFIT", "ind_name": "1.1. Lãi từ các tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL)"},
+{"stt": 806, "ind_code": "BS_RETAINED_EARNINGS", "ind_name": "11. Lợi nhuận sau thuế chưa phân phối"},
+{"stt": 807, "ind_code": "IS_OP_PROFIT", "ind_name": "11. Lợi nhuận thuần từ hoạt động kinh doanh (5)+(6)-(7)+(8)-(9)-(10)"},
+{"stt": 808, "ind_code": "IS_PROFIT_LOSS_OTHER", "ind_name": "11. Phải thu về lỗi giao dịch chứng khoán"},
+{"stt": 809, "ind_code": "BS_ST_OTHER_PAY", "ind_name": "11. Phải trả ngắn hạn khác"},
+{"stt": 810, "ind_code": "BS_PAY_EMPLOYEES", "ind_name": "11. Phải trả người lao động"},
+{"stt": 811, "ind_code": "BS_LT_BORROWINGS", "ind_name": "1.1. Vay dài hạn"},
+{"stt": 812, "ind_code": "BS_ST_BORROWINGS", "ind_name": "1.1. Vay ngắn hạn"},
+{"stt": 813, "ind_code": "BS_OWNER_CAPITAL", "ind_name": "1.1. Vốn góp của chủ sở hữu"},
+{"stt": 814, "ind_code": "IS_HTM_REVAL_PROFIT", "ind_name": "12.1. Lãi/(Lỗ) từ đánh giá lại các các khoản đầu tư giữ đến ngày đáo hạn"},
+{"stt": 815, "ind_code": "IS_AFS_REVAL_PROFIT", "ind_name": "12.2.Lãi/(Lỗ) từ đánh giá lại các tài sản tài chính sẵn sàng để bán"},
+{"stt": 816, "ind_code": "IS_OCI_SUB_JV_ASSOC", "ind_name": "12.3. Lãi (lỗ) toàn diện khác được chia từ hoạt động đầu tư vào công ty con công ty liên kết liên doanh"},
+{"stt": 817, "ind_code": "IS_PROFIT_LOSS_OTHER", "ind_name": "12.4. Lãi/(Lỗ) từ đánh giá lại các công cụ tài chính phái sinh"},
+{"stt": 818, "ind_code": "IS_FX_FOREIGN_OP_PROFIT", "ind_name": "12.5. Lãi/(lỗ) chênh lệch tỷ giá của hoạt động tại nước ngoài"},
+{"stt": 819, "ind_code": "IS_PROFIT_LOSS_OTHER", "ind_name": "12.6. Lãi lỗ từ các khoản đầu tư vào công ty con công ty liên kết liên doanh chưa chia"},
+{"stt": 820, "ind_code": "IS_DERIVATIVES_REVAL_PROFIT", "ind_name": "12.7. Lãi lỗ đánh giá công cụ phái sinh"},
+{"stt": 821, "ind_code": "IS_FA_REVAL_FV_PROFIT", "ind_name": "12.8. Lãi lỗ đánh giá lại tài sản cố định theo mô hình giá trị hợp lý"},
+{"stt": 822, "ind_code": "BS_OTHER_REC", "ind_name": "12. Các khoản phải thu khác"},
+{"stt": 823, "ind_code": "BS_WELFARE_FUND", "ind_name": "12. Các khoản trích nộp phúc lợi nhân viên"},
+{"stt": 824, "ind_code": "IS_CLAIM_LARGE_FLUCT", "ind_name": "12. Chi bồi thường từ dự phòng dao động lớn"},
+{"stt": 825, "ind_code": "BS_PROV_LT_PAY", "ind_name": "12. Dự phòng phải trả dài hạn"},
+{"stt": 826, "ind_code": "BS_PROV_ST_PAY", "ind_name": "12. Dự phòng phải trả ngắn hạn"},
+{"stt": 827, "ind_code": "IS_HTM_INT_INC", "ind_name": "1.2. Lãi từ các khoản đầu tư nắm giữ đến ngày đáo hạn (HTM)"},
+{"stt": 828, "ind_code": "BS_CAPITAL_CONSTRUCTION", "ind_name": "12. Nguồn vốn đầu tư xây dựng cơ bản"},
+{"stt": 829, "ind_code": "BS_LT_FIN_LEASE_LIAB", "ind_name": "1.2. Nợ thuê tài sản tài chính dài hạn"},
+{"stt": 830, "ind_code": "BS_ST_FIN_LEASE_LIAB", "ind_name": "1.2. Nợ thuê tài sản tài chính ngắn hạn"},
+{"stt": 831, "ind_code": "BS_BONUS_WELFARE_FUND", "ind_name": "12. Quỹ khen thưởng phúc lợi"},
+{"stt": 832, "ind_code": "BS_SCIENCE_TECH_FUND", "ind_name": "12. Quỹ phát triển khoa học và công nghệ"},
+{"stt": 833, "ind_code": "BS_SHARE_PREMIUM", "ind_name": "1.2. Thặng dư vốn cổ phần"},
+{"stt": 834, "ind_code": "IS_OTHER_INC", "ind_name": "12. Thu nhập khác"},
+{"stt": 835, "ind_code": "IS_EPS_BASIC", "ind_name": "13.1. Lãi cơ bản trên cổ phiếu (Đồng/1 cổ phiếu)"},
+{"stt": 836, "ind_code": "IS_EPS_DILUTED", "ind_name": "13.2. Thu nhập pha loãng trên cổ phiếu (Đồng/1 cổ phiếu)"},
+{"stt": 837, "ind_code": "IS_OTHER_EXP", "ind_name": "13. Chi phí khác"},
+{"stt": 838, "ind_code": "BS_ST_PAY_ACCRUED", "ind_name": "13. Chi phí phải trả ngắn hạn"},
+{"stt": 839, "ind_code": "BS_PROV_INV_DAMAGE", "ind_name": "13. Dự phòng bồi thường thiệt hại cho nhà đầu tư"},
+{"stt": 840, "ind_code": "BS_PROV_REC_IMPAIRMENT", "ind_name": "13. Dự phòng suy giảm giá trị các khoản phải thu (*)"},
+{"stt": 841, "ind_code": "IS_LOAN_REC_INT_INC", "ind_name": "1.3. Lãi từ các khoản cho vay và phải thu"},
+{"stt": 842, "ind_code": "BS_CONVERT_BOND_OPTION", "ind_name": "1.3. Quyền chọn chuyển đổi trái phiếu"},
+{"stt": 843, "ind_code": "BS_ENTERPRISE_REORG_FUND", "ind_name": "13. Quỹ hỗ trợ sắp xếp doanh nghiệp"},
+{"stt": 844, "ind_code": "BS_BONUS_WELFARE_FUND", "ind_name": "13. Quỹ khen thưởng phúc lợi"},
+{"stt": 845, "ind_code": "CF_CFO_CLAIM_PROV_CHG", "ind_name": "13. Tăng (giảm) dự phòng bồi thường"},
+{"stt": 846, "ind_code": "IS_AFS_PROFIT", "ind_name": "1.4. Lãi từ các tài sản tài chính sẵn sàng để bán (AFS)"},
+{"stt": 847, "ind_code": "BS_MINORITY_INTEREST", "ind_name": "14. Lợi ích của cổ đông không kiểm soát"},
+{"stt": 848, "ind_code": "IS_OTHER_PROFIT", "ind_name": "14. Lợi nhuận khác (12)-(13)"},
+{"stt": 849, "ind_code": "BS_ST_PAY_INTERNAL", "ind_name": "14. Phải trả nội bộ ngắn hạn"},
+{"stt": 850, "ind_code": "BS_PRICE_STABILIZATION_FUND", "ind_name": "14. Quỹ bình ổn giá"},
+{"stt": 851, "ind_code": "IS_PROV_LARGE_FLUCT_CUR", "ind_name": "14. Số trích dự phòng dao động lớn trong năm"},
+{"stt": 852, "ind_code": "BS_DEFERRED_TAX_LIAB", "ind_name": "14. Thuế thu nhập hoãn lại phải trả"},
+{"stt": 853, "ind_code": "BS_OTHER_OWNER_CAPITAL", "ind_name": "1.4. Vốn khác của chủ sở hữu"},
+{"stt": 854, "ind_code": "IS_INS_OTHER_EXP", "ind_name": "15. Chi khác hoạt động kinh doanh bảo hiểm"},
+{"stt": 855, "ind_code": "BS_TREASURY_STOCK", "ind_name": "1.5. Cổ phiếu quỹ"},
+{"stt": 856, "ind_code": "BS_ST_UNEARNED_REV", "ind_name": "15. Doanh thu chưa thực hiện ngắn hạn"},
+{"stt": 857, "ind_code": "BS_REPO_GOV_BOND", "ind_name": "15. Giao dịch mua bán lại trái phiếu chính phủ"},
+{"stt": 858, "ind_code": "IS_PROFIT_LOSS_OTHER", "ind_name": "1.5. Lãi từ các công cụ phái sinh phòng ngừa rủi ro"},
+{"stt": 859, "ind_code": "BS_SCIENCE_TECH_FUND", "ind_name": "15. Quỹ phát triển khoa học và công nghệ"},
+{"stt": 860, "ind_code": "IS_PBT", "ind_name": "15. Tổng lợi nhuận kế toán trước thuế (11)+(14)"},
+{"stt": 861, "ind_code": "IS_TAX_CURRENT", "ind_name": "16. Chi phí thuế TNDN hiện hành"},
+{"stt": 862, "ind_code": "IS_REV_BROKERAGE", "ind_name": "1.6. Doanh thu môi giới chứng khoán"},
+{"stt": 863, "ind_code": "BS_PROV_FCT_TAX", "ind_name": "16. Dự phòng thuế nhà thầu nước ngoài"},
+{"stt": 864, "ind_code": "BS_ST_DEPOSIT_REC", "ind_name": "16. Nhận ký quỹ ký cược ngắn hạn"},
+{"stt": 865, "ind_code": "BS_ST_PAY_OTHER", "ind_name": "17.Các khoản phải trả phải nộp khác ngắn hạn"},
+{"stt": 866, "ind_code": "IS_TAX_DEFERRED", "ind_name": "17. Chi phí thuế TNDN hoãn lại"},
+{"stt": 867, "ind_code": "IS_REV_UWRITING", "ind_name": "1.7. Doanh thu bảo lãnh đại lý phát hành chứng khoán"},
+{"stt": 868, "ind_code": "IS_DIR_INS_EXP_TOTAL", "ind_name": "17. Tổng chi trực tiếp hoạt động kinh doanh bảo hiểm"},
+{"stt": 869, "ind_code": "IS_TAX_EXP", "ind_name": "18. Chi phí thuế TNDN (16)+(17)"},
+{"stt": 870, "ind_code": "IS_REV_ADVISORY", "ind_name": "1.8. Doanh thu tư vấn"},
+{"stt": 871, "ind_code": "BS_PROV_ST_PAY", "ind_name": "18. Dự phòng phải trả ngắn hạn"},
+{"stt": 872, "ind_code": "IS_GROSS_PROFIT", "ind_name": "18. Lợi nhuận gộp hoạt động kinh doanh bảo hiểm"},
+{"stt": 873, "ind_code": "IS_REV_TRUST", "ind_name": "1.9. Doanh thu hoạt động nhận ủy thác đấu giá"},
+{"stt": 874, "ind_code": "IS_NPAT", "ind_name": "19. Lợi nhuận sau thuế thu nhập doanh nghiệp (15)-(18)"},
+{"stt": 875, "ind_code": "CF_CFO_FX_PROFIT_CHG", "ind_name": "19. Tăng (giảm) lợi nhuận do chênh lệch tỉ giá"},
+{"stt": 876, "ind_code": "BS_INT_FEE_PAY", "ind_name": "1. Các khoản lãi phí phải trả"},
+{"stt": 877, "ind_code": "BS_REC", "ind_name": "1. Các khoản phải thu"},
+{"stt": 878, "ind_code": "BS_LT_REC", "ind_name": "1. Các khoản phải thu dài hạn"},
+{"stt": 879, "ind_code": "BS_LT_PLEDGE", "ind_name": "1. Cầm cố thế chấp ký quỹ ký cược dài hạn"},
+{"stt": 880, "ind_code": "BS_PAY_ACCRUED", "ind_name": "1. Chi phí phải trả"},
+{"stt": 881, "ind_code": "BS_LT_WIP", "ind_name": "1. Chi phí sản xuất kinh doanh dở dang dài hạn"},
+{"stt": 882, "ind_code": "BS_LT_PREPAID", "ind_name": "1. Chi phí trả trước dài hạn"},
+{"stt": 883, "ind_code": "BS_ST_PREPAID", "ind_name": "1. Chi phí trả trước ngắn hạn"},
+{"stt": 884, "ind_code": "IS_NPO_EXP_PREV", "ind_name": "1. Chi sự nghiệp năm trước"},
+{"stt": 885, "ind_code": "BS_LOANS_CUST", "ind_name": "1. Cho vay khách hàng"},
+{"stt": 886, "ind_code": "BS_AFS_SEC", "ind_name": "1. Chứng khoán đầu tư sẵn sàng để bán"},
+{"stt": 887, "ind_code": "BS_TRADING_SEC", "ind_name": "1. Chứng khoán kinh doanh"},
+{"stt": 888, "ind_code": "BS_LT_SEC_INV", "ind_name": "1. Đầu tư chứng khoán dài hạn"},
+{"stt": 889, "ind_code": "BS_ST_SEC_INV", "ind_name": "1. Đầu tư chứng khoán ngắn hạn"},
+{"stt": 890, "ind_code": "BS_SUB_INV", "ind_name": "1. Đầu tư vào công ty con"},
+{"stt": 891, "ind_code": "BS_PROV_FEE", "ind_name": "1. Dự phòng phí"},
+{"stt": 892, "ind_code": "BS_INVENTORY", "ind_name": "1. Hàng tồn kho"},
+{"stt": 893, "ind_code": "IS_PROFIT_DISTRIBUTED", "ind_name": "1. Lợi nhuận đã phân phối cho Nhà đầu tư trong năm"},
+{"stt": 894, "ind_code": "BS_FUND_SOURCES", "ind_name": "1. Nguồn kinh phí"},
+{"stt": 895, "ind_code": "BS_REC_CUST", "ind_name": "1. Phải thu của khách hàng"},
+{"stt": 896, "ind_code": "BS_LT_REC_CUST", "ind_name": "1. Phải thu dài hạn của khách hàng"},
+{"stt": 897, "ind_code": "BS_ST_REC_CUST", "ind_name": "1. Phải thu ngắn hạn của khách hàng"},
+{"stt": 898, "ind_code": "BS_LT_PAY_SUPPLIER", "ind_name": "1. Phải trả người bán dài hạn"},
+{"stt": 899, "ind_code": "BS_SEVERANCE_FUND", "ind_name": "1. Quỹ dự phòng trợ cấp mất việc làm"},
+{"stt": 900, "ind_code": "BS_TANGIBLE_FA", "ind_name": "1. Tài sản cố định hữu hình"},
+{"stt": 901, "ind_code": "BS_ADVANCES", "ind_name": "1. Tạm ứng"},
+{"stt": 902, "ind_code": "IS_DIR_INS_PREM_INC", "ind_name": "1- Thu phí bảo hiểm gốc"},
+{"stt": 903, "ind_code": "BS_CASH", "ind_name": "1. Tiền"},
+{"stt": 904, "ind_code": "BS_DEPOSITS_CI", "ind_name": "1. Tiền gửi các tổ chức tín dụng khác"},
+{"stt": 905, "ind_code": "BS_CASH_ON_HAND", "ind_name": "1. Tiền mặt tại quỹ (gồm cả ngân phiếu)"},
+{"stt": 906, "ind_code": "BS_CASH_EQ", "ind_name": "1. Tiền và các khoản tương đương tiền"},
+{"stt": 907, "ind_code": "BS_DEPOSITS_CI", "ind_name": "1. Tiền Vàng gửi tại các TCTD khác"},
+{"stt": 908, "ind_code": "IS_OP_REV_TOTAL", "ind_name": "1. Tổng doanh thu hoạt động kinh doanh"},
+{"stt": 909, "ind_code": "BS_LT_BORROWINGS", "ind_name": "1. Vay dài hạn"},
+{"stt": 910, "ind_code": "BS_ST_DEBT", "ind_name": "1. Vay và nợ ngắn hạn"},
+{"stt": 911, "ind_code": "BS_ST_FIN_LEASE_DEBT", "ind_name": "1. Vay và nợ thuê tài chính ngắn hạn"},
+{"stt": 912, "ind_code": "BS_LT_FIN_LEASE_DEBT", "ind_name": "1. Vay và nợ thuê tài sản tài chính dài hạn"},
+{"stt": 913, "ind_code": "BS_ST_FIN_LEASE_DEBT", "ind_name": "1. Vay và nợ thuê tài sản tài chính ngắn hạn"},
+{"stt": 914, "ind_code": "BS_CI_CAPITAL", "ind_name": "1. Vốn của Tổ chức tín dụng"},
+{"stt": 915, "ind_code": "BS_OWNER_INV_CAPITAL", "ind_name": "1. Vốn đầu tư của chủ sở hữu"},
+{"stt": 916, "ind_code": "IS_SELL_EXP", "ind_name": "20. Chi phí bán hàng"},
+{"stt": 917, "ind_code": "IS_MINORITY_INTEREST", "ind_name": "20. Lợi nhuận sau thuế của cổ đông không kiểm soát"},
+{"stt": 918, "ind_code": "IS_OP_EXP_TRUST", "ind_name": "2.10. Chi phí hoạt động đấu giá ủy thác"},
+{"stt": 919, "ind_code": "IS_OP_EXP_DEPOSITARY", "ind_name": "2.11. Chi phí lưu ký chứng khoán"},
+{"stt": 920, "ind_code": "IS_OTHER_EXP", "ind_name": "2.12. Chi phí khác"},
+{"stt": 921, "ind_code": "IS_GA_EXP", "ind_name": "21. Chi phí quản lý doanh nghiệp"},
+{"stt": 922, "ind_code": "IS_FVTPL_LOSS", "ind_name": "2.1. Lỗ các tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL)"},
+{"stt": 923, "ind_code": "IS_NPAT_PARENT", "ind_name": "21. Lợi nhuận sau thuế của cổ đông của công ty mẹ (19)-(20)"},
+{"stt": 924, "ind_code": "IS_HTM_LOSS", "ind_name": "2.2. Lỗ các khoản đầu tư nắm giữ đến ngày đáo hạn (HTM)"},
+{"stt": 925, "ind_code": "IS_NET_PROFIT", "ind_name": "22. Lợi nhuận thuần hoạt động kinh doanh bảo hiểm"},
+{"stt": 926, "ind_code": "IS_INT_EXP_LOANS", "ind_name": "2.3. Chi phí lãi vay lỗ từ các khoản cho vay và phải thu"},
+{"stt": 927, "ind_code": "IS_FIN_INC", "ind_name": "23. Doanh thu hoạt động tài chính"},
+{"stt": 928, "ind_code": "IS_FIN_EXP", "ind_name": "24. Chi hoạt động tài chính"},
+{"stt": 929, "ind_code": "IS_AFS_SALE_LOSS", "ind_name": "2.4. Lỗ bán các tài sản tài chính sẵn sàng để bán (AFS)"},
+{"stt": 930, "ind_code": "IS_FIN_PROFIT", "ind_name": "25. Lợi nhuận hoạt động tài chính"},
+{"stt": 931, "ind_code": "IS_PROFIT_LOSS_OTHER", "ind_name": "2.5. Lỗ từ các tài sản tài chính phái sinh phòng ngừa rủi ro"},
+{"stt": 932, "ind_code": "IS_OP_EXP_PROP_TRAD", "ind_name": "2.6. Chi phí hoạt động tự doanh"},
+{"stt": 933, "ind_code": "IS_OTHER_INC", "ind_name": "26. Thu nhập hoạt động khác"},
+{"stt": 934, "ind_code": "IS_OP_EXP_OTHER", "ind_name": "27. Chi phí hoạt động khác"},
+{"stt": 935, "ind_code": "IS_OP_EXP_BROKERAGE", "ind_name": "2.7. Chi phí môi giới chứng khoán"},
+{"stt": 936, "ind_code": "IS_OP_EXP_UWRITING", "ind_name": "2.8. Chi phí hoạt động bảo lãnh đại lý phát hành chứng khoán"},
+{"stt": 937, "ind_code": "IS_OTHER_PROFIT", "ind_name": "28. Lợi nhuận hoạt động khác"},
+{"stt": 938, "ind_code": "IS_OP_EXP_ADVISORY", "ind_name": "2.9. Chi phí tư vấn"},
+{"stt": 939, "ind_code": "IS_PBT", "ind_name": "29. Tổng lợi nhuận kế toán"},
+{"stt": 940, "ind_code": "BS_INVESTMENTS", "ind_name": "2. Các khoản đầu tư"},
+{"stt": 941, "ind_code": "IS_REV_DEDUCTION", "ind_name": "2. Các khoản giảm trừ doanh thu"},
+{"stt": 942, "ind_code": "BS_INT_FEE_REC", "ind_name": "2. Các khoản lãi phí phải thu"},
+{"stt": 943, "ind_code": "BS_CASH_EQ", "ind_name": "2. Các khoản tương đương tiền"},
+{"stt": 944, "ind_code": "BS_FVTPL_ASSET", "ind_name": "2. Các tài sản tài chính ghi nhận thông qua lãi lỗ (FVTPL)"},
+{"stt": 945, "ind_code": "BS_FAIR_VALUE_RESERVE", "ind_name": "2. Chênh lệch đánh giá tài sản theo giá trị hợp lý"},
+{"stt": 946, "ind_code": "BS_LT_PAY_ACCRUED", "ind_name": "2. Chi phí phải trả dài hạn"},
+{"stt": 947, "ind_code": "BS_LT_PREPAID", "ind_name": "2. Chi phí trả trước dài hạn"},
+{"stt": 948, "ind_code": "BS_ST_PREPAID", "ind_name": "2. Chi phí trả trước ngắn hạn"},
+{"stt": 949, "ind_code": "BS_WIP_CONSTRUCTION", "ind_name": "2. chi phí xây dựng cơ bản dở dang"},
+{"stt": 950, "ind_code": "IS_NPO_EXP_CUR", "ind_name": "2. Chi sự nghiệp năm nay"},
+{"stt": 951, "ind_code": "BS_LOANS_CI", "ind_name": "2. Cho vay các TCTD khác"},
+{"stt": 952, "ind_code": "BS_HTM_SEC", "ind_name": "2. Chứng khoán đầu tư giữ đến ngày đáo hạn"},
+{"stt": 953, "ind_code": "BS_ST_OTHER_INV", "ind_name": "2. Đầu tư ngắn hạn khác"},
+{"stt": 954, "ind_code": "BS_SUB_INV", "ind_name": "2. Đầu tư vào công ty con"},
+{"stt": 955, "ind_code": "BS_JV_ASSOC_INV", "ind_name": "2. Đầu tư vào công ty liên kết liên doanh"},
+{"stt": 956, "ind_code": "BS_PROV_TRADING_SEC", "ind_name": "2. Dự phòng giảm giá chứng khoán kinh doanh"},
+{"stt": 957, "ind_code": "BS_PROV_INV", "ind_name": "2. Dự phòng giảm giá hàng tồn kho"},
+{"stt": 958, "ind_code": "BS_PROV_INV", "ind_name": "2. Dự phòng giảm giá hàng tồn kho (*)"},
+{"stt": 959, "ind_code": "BS_PROV_LOANS_CUST", "ind_name": "2. Dự phòng rủi ro cho vay khách hàng"},
+{"stt": 960, "ind_code": "BS_PROV_MATH", "ind_name": "2. Dự phòng toán học"},
+{"stt": 961, "ind_code": "BS_INV_JV", "ind_name": "2. Góp vốn liên doanh"},
+{"stt": 962, "ind_code": "BS_FUND_FA", "ind_name": "2. Nguồn kinh phí đã hình thành tài sản cố định"},
+{"stt": 963, "ind_code": "BS_LT_LIABILITIES", "ind_name": "2. Nợ dài hạn"},
+{"stt": 964, "ind_code": "BS_OTHER", "ind_name": "2. Nợ dài hạn đến hạn phải trả"},
+{"stt": 965, "ind_code": "BS_CI_FUNDS", "ind_name": "2. Quỹ của TCTD"},
+{"stt": 966, "ind_code": "BS_BONUS_WELFARE_FUND", "ind_name": "2. Quỹ khen thưởng phúc lợi"},
+{"stt": 967, "ind_code": "BS_FIN_LEASE_FA", "ind_name": "2. Tài sản cố định thuê tài chính"},
+{"stt": 968, "ind_code": "BS_FIN_LEASE_FA", "ind_name": "2.Tài sản cố định thuê tài chính"},
+{"stt": 969, "ind_code": "BS_OTHER", "ind_name": "2. Tài sản thừa chờ xử lý"},
+{"stt": 970, "ind_code": "BS_DEFERRED_TAX_ASSET", "ind_name": "2. Tài sản thuế thu nhập hoãn lãi"},
+{"stt": 971, "ind_code": "BS_DEFERRED_TAX_ASSET", "ind_name": "2. Tài sản Thuế thu nhập hoãn lại"},
+{"stt": 972, "ind_code": "BS_SHARE_PREMIUM", "ind_name": "2. Thặng dư vốn cổ phần"},
+{"stt": 973, "ind_code": "BS_DEDUCTIBLE_VAT", "ind_name": "2. Thuế giá trị gia tăng được khấu trừ"},
+{"stt": 974, "ind_code": "BS_DEFERRED_TAX_LIAB", "ind_name": "2.Thuế TNDN hoãn lại phải trả"},
+{"stt": 975, "ind_code": "IS_REIN_PREM_INC", "ind_name": "2- Thu phí nhận tái bảo hiểm"},
+{"stt": 976, "ind_code": "BS_OTHER", "ind_name": "2. Tiền gửi Ngân hàng"},
+{"stt": 977, "ind_code": "BS_PREPAID_SUPP", "ind_name": "2. Trả trước cho người bán"},
+{"stt": 978, "ind_code": "BS_SUPPLIES_TOOLS", "ind_name": "2. Vật tư văn phòng công cụ dụng cụ"},
+{"stt": 979, "ind_code": "BS_LOANS_CI", "ind_name": "2. Vay các TCTD khác"},
+{"stt": 980, "ind_code": "BS_OTHER", "ind_name": "2. Vay tài sản tài chính dài hạn"},
+{"stt": 981, "ind_code": "BS_OTHER", "ind_name": "2. Vay tài sản tài chính ngắn hạn"},
+{"stt": 982, "ind_code": "BS_LT_DEBT_DUE", "ind_name": "2. Vay và nợ dài hạn đến hạn phải trả"},
+{"stt": 983, "ind_code": "BS_WORKING_CAPITAL_AFFILIATE", "ind_name": "2. Vốn kinh doanh tại các đơn vị trực thuộc"},
+{"stt": 984, "ind_code": "BS_OTHER", "ind_name": "30. Các khoản điều chỉnh tăng (giảm) lợi nhuận để xác định lợi nhuận chịu thuế TNDN"},
+{"stt": 985, "ind_code": "IS_FX_GAIN", "ind_name": "3.1. Chênh lệch lãi tỷ giá hối đoái đã và chưa thực hiện"},
+{"stt": 986, "ind_code": "IS_PBT", "ind_name": "31. Tổng lợi nhuận trước thuế thu nhập doanh nghiệp"},
+{"stt": 987, "ind_code": "IS_REV_DIV_ACCRUED", "ind_name": "3.2. Doanh thu dự thu cổ tức lãi tiền gửi không cố định phát sinh trong kỳ"},
+{"stt": 988, "ind_code": "BS_OTHER", "ind_name": "32. Dự phòng đảm bảo cân đối"},
+{"stt": 989, "ind_code": "IS_SUB_JV_SALE_GAIN", "ind_name": "3.3. Lãi bán thanh lý các khoản đầu tư vào công ty con liên kết liên doanh"},
+{"stt": 990, "ind_code": "IS_TAXABLE_PROFIT", "ind_name": "33. Lợi nhuận chịu thuế thu nhập doanh nghiệp"},
+{"stt": 991, "ind_code": "IS_INV_INC", "ind_name": "3.4. Doanh thu khác về đầu tư"},
+{"stt": 992, "ind_code": "BS_TAX_PAYABLES", "ind_name": "34. Thuế thu nhập doanh nghiệp phải nộp"},
+{"stt": 993, "ind_code": "IS_NPAT", "ind_name": "35. Lợi nhuận sau thuế thu nhập doanh nghiệp"},
+{"stt": 994, "ind_code": "BS_MINORITY_INTEREST", "ind_name": "36. Lợi ích cổ đông thiểu số"},
+{"stt": 995, "ind_code": "IS_NPAT_PARENT", "ind_name": "37. Lợi nhuận sau thuế của cổ đông công ty mẹ"},
+{"stt": 996, "ind_code": "BS_HTM_SEC", "ind_name": "3. Các khoản đầu tư giữ đến ngày đáo hạn (HTM)"},
+{"stt": 997, "ind_code": "IS_REV_DEDUCTION", "ind_name": "3- Các khoản giảm trừ"},
+{"stt": 998, "ind_code": "BS_PAY_OTHER", "ind_name": "3. Các khoản phải trả và công nợ khác"},
+{"stt": 999, "ind_code": "BS_FX_RESERVE", "ind_name": "3. Chênh lệch tỷ giá hối đoái"},
+{"stt": 1000, "ind_code": "BS_ST_PREPAID", "ind_name": "3. Chi phí trả trước ngắn hạn"},
+{"stt": 1001, "ind_code": "BS_OTHER_EQUITY_INST_INV", "ind_name": "3. Đầu tư khác vào công cụ vốn"},
+{"stt": 1002, "ind_code": "BS_HTM_SEC", "ind_name": "3. Đầu tư nắm giữ đến ngày đáo hạn"},
+{"stt": 1003, "ind_code": "BS_ASSOC_INV", "ind_name": "3. Đầu tư vào công ty liên kết"},
+{"stt": 1004, "ind_code": "BS_JV_ASSOC_INV", "ind_name": "3. Đầu tư vào công ty liên kết liên doanh"},
+{"stt": 1005, "ind_code": "IS_NET_REVENUE", "ind_name": "3. Doanh thu thuần (1)-(2)"},
+{"stt": 1006, "ind_code": "BS_PROV_CLAIM", "ind_name": "3. Dự phòng bồi thường"},
+{"stt": 1007, "ind_code": "BS_PROV_INV_SEC", "ind_name": "3. Dự phòng giảm giá chứng khoán đầu tư"},
+{"stt": 1008, "ind_code": "BS_PROV_ST_INV_SEC", "ind_name": "3. Dự phòng giảm giá chứng khoán đầu tư ngắn hạn (*)"},
+{"stt": 1009, "ind_code": "BS_PROV_LOANS_CI", "ind_name": "3. Dự phòng rủi ro cho vay các TCTD khác"},
+{"stt": 1010, "ind_code": "BS_INS_DEPOSIT", "ind_name": "3. Ký quỹ bảo hiểm"},
+{"stt": 1011, "ind_code": "BS_LT_DEPOSIT_REC", "ind_name": "3. Nhận ký quỹ ký cược dài hạn"},
+{"stt": 1012, "ind_code": "BS_LT_REC_INTERNAL", "ind_name": "3. Phải thu dài hạn nội bộ"},
+{"stt": 1013, "ind_code": "BS_REC_INTERNAL", "ind_name": "3. Phải thu nội bộ"},
+{"stt": 1014, "ind_code": "BS_ST_REC_INTERNAL", "ind_name": "3. Phải thu nội bộ ngắn hạn"},
+{"stt": 1015, "ind_code": "BS_PAY_SUPPLIER", "ind_name": "3. Phải trả người bán"},
+{"stt": 1016, "ind_code": "BS_ST_PAY_SUPPLIER", "ind_name": "3. Phải trả người bán ngắn hạn"},
+{"stt": 1017, "ind_code": "BS_PAY_WORKING_CAPITAL_INTERNAL", "ind_name": "3. Phải trả nội bộ về vốn kinh doanh"},
+{"stt": 1018, "ind_code": "BS_OTHER", "ind_name": "3. Phát hành trái phiếu"},
+{"stt": 1019, "ind_code": "BS_SEVERANCE_FUND", "ind_name": "3. Quỹ dự phòng trợ cấp mất việc làm"},
+{"stt": 1020, "ind_code": "BS_CONVERT_BOND_OPTION", "ind_name": "3. Quyền chọn chuyển đổi trái phiếu"},
+{"stt": 1021, "ind_code": "BS_BONUS_WELFARE_FUND_INV", "ind_name": "3. Quỹ khen thưởng phúc lợi đưa đi đầu tư"},
+{"stt": 1022, "ind_code": "BS_INTANGIBLE_FA", "ind_name": "3. Tài sản cố định vô hình"},
+{"stt": 1023, "ind_code": "BS_LT_OTHER_ASSETS", "ind_name": "3. Tài sản dài hạn khác"},
+{"stt": 1024, "ind_code": "BS_OTHER", "ind_name": "3. Tài sản thiếu chờ xử lý"},
+{"stt": 1025, "ind_code": "BS_DEFERRED_TAX_ASSET", "ind_name": "3. Tài sản thuế thu nhập hoãn lại"},
+{"stt": 1026, "ind_code": "BS_DEFERRED_TAX_ASSET", "ind_name": "3. Tài sản thuế TNDN hoãn lại"},
+{"stt": 1027, "ind_code": "BS_TAX_REC", "ind_name": "3. Thuế và các khoản phải thu Nhà nước"},
+{"stt": 1028, "ind_code": "BS_CASH_IN_TRANSIT", "ind_name": "3. Tiền đang chuyển"},
+{"stt": 1029, "ind_code": "BS_OTHER", "ind_name": "3. Trái phiếu chuyển đổi dài hạn"},
+{"stt": 1030, "ind_code": "BS_OTHER", "ind_name": "3. Trái phiếu chuyển đổi ngắn hạn"},
+{"stt": 1031, "ind_code": "BS_OTHER_OWNER_CAPITAL", "ind_name": "3. Vốn khác của chủ sở hữu"},
+{"stt": 1032, "ind_code": "IS_FX_LOSS", "ind_name": "4.1. Chênh lệch lỗ tỷ giá hối đoái đã và chưa thực hiện"},
+{"stt": 1033, "ind_code": "IS_INT_EXP", "ind_name": "4.2. Chi phí lãi vay"},
+{"stt": 1034, "ind_code": "IS_SUB_JV_SALE_LOSS", "ind_name": "4.3. Lỗ bán thanh lý các khoản đầu tư vào công ty con liên kết liên doanh"},
+{"stt": 1035, "ind_code": "IS_INV_OTHER_EXP", "ind_name": "4.4. Chi phí đầu tư khác"},
+{"stt": 1036, "ind_code": "BS_OTHER", "ind_name": "4. Các khoản cầm cố ký cược ký quỹ ngắn hạn"},
+{"stt": 1037, "ind_code": "BS_LOANS", "ind_name": "4. Các khoản cho vay"},
+{"stt": 1038, "ind_code": "BS_CASH_EQ", "ind_name": "4. Các khoản tương đương tiền"},
+{"stt": 1039, "ind_code": "BS_LT_PLEDGE_OTHER", "ind_name": "4. Cầm cố ký quỹ ký cược dài hạn khác"},
+{"stt": 1040, "ind_code": "BS_ST_PLEDGE", "ind_name": "4. Cầm cố thế chấp ký quỹ ký cược ngắn hạn"},
+{"stt": 1041, "ind_code": "BS_REVAL_RESERVE", "ind_name": "4. Chênh lệch đánh giá lại tài sản"},
+{"stt": 1042, "ind_code": "BS_TREASURY_STOCK", "ind_name": "4. Cổ phiếu quỹ"},
+{"stt": 1043, "ind_code": "BS_LT_OTHER_INV", "ind_name": "4. Đầu tư dài hạn khác"},
+{"stt": 1044, "ind_code": "BS_PROV_LARGE_FLUCT", "ind_name": "4. Dự phòng dao động lớn"},
+{"stt": 1045, "ind_code": "BS_PROV_LT_FIN_INV", "ind_name": "4. Dự phòng giảm giá đầu tư tài chính dài hạn"},
+{"stt": 1046, "ind_code": "BS_PROV_OTHER_RISK", "ind_name": "4. Dự phòng rủi ro khác"},
+{"stt": 1047, "ind_code": "BS_REPO_GOV_BOND", "ind_name": "4. Giao dịch mua bán lại trái phiếu chính phủ"},
+{"stt": 1048, "ind_code": "IS_COGS", "ind_name": "4. Giá vốn hàng bán"},
+{"stt": 1049, "ind_code": "BS_ADVANCES_CUST", "ind_name": "4. Người mua trả tiền trước"},
+{"stt": 1050, "ind_code": "BS_LT_OTHER_REC", "ind_name": "4. Phải thu dài hạn khác"},
+{"stt": 1051, "ind_code": "BS_REC_CONSTRUCTION_CONTRACT", "ind_name": "4. Phải thu theo tiến độ hợp đồng xây dựng"},
+{"stt": 1052, "ind_code": "BS_LT_REC_LOANS", "ind_name": "4. Phải thu về cho vay dài hạn"},
+{"stt": 1053, "ind_code": "BS_LT_OTHER_PAY", "ind_name": "4. Phải trả dài hạn khác"},
+{"stt": 1054, "ind_code": "BS_LT_PAY_INTERNAL", "ind_name": "4. Phải trả nội bộ dài hạn"},
+{"stt": 1055, "ind_code": "BS_CHARTER_RESERVE_FUND", "ind_name": "4. Quỹ dự trữ điều lệ"},
+{"stt": 1056, "ind_code": "BS_MGMT_FUND_UPPER", "ind_name": "4. Quỹ quản lý của cấp trên"},
+{"stt": 1057, "ind_code": "BS_OTHER_ASSETS", "ind_name": "4. Tài sản có khác"},
+{"stt": 1058, "ind_code": "CF_CFO_FEE_MATH_PROV_CHG", "ind_name": "4. Tăng (giảm) dự phòng phí dự phòng toán học"},
+{"stt": 1059, "ind_code": "CF_CFO_CLEARING_FUND_PAY", "ind_name": "4. Tiền nộp Quỹ Hỗ trợ thanh toán"},
+{"stt": 1060, "ind_code": "BS_LT_BONDS_ISSUED", "ind_name": "4. Trái phiếu phát hành dài hạn"},
+{"stt": 1061, "ind_code": "BS_ST_BONDS_ISSUED", "ind_name": "4. Trái phiếu phát hành ngắn hạn"},
+{"stt": 1062, "ind_code": "BS_OTHER_OWNER_CAPITAL", "ind_name": "4. Vốn khác của chủ sở hữu"},
+{
+    "stt": 1063,
+    "ind_code": "BS_OTHER_PROVISION",
+    "ind_name": "5. Các khoản dự phòng rủi ro cho các tài sản có nội bảng khác"
+  },
+  {
+    "stt": 1064,
+    "ind_code": "BS_AFS_SEC",
+    "ind_name": "5. Các tài sản tài chính sẵn sàng để bán (AFS)"
+  },
+  {
+    "stt": 1065,
+    "ind_code": "BS_REVAL_RESERVE",
+    "ind_name": "5. Chênh lệch đánh giá lại tài sản"
+  },
+  {
+    "stt": 1066,
+    "ind_code": "BS_WIP_CONSTRUCTION",
+    "ind_name": "5. Chi phí XDCB dở dang"
+  },
+  {
+    "stt": 1067,
+    "ind_code": "BS_TREASURY_STOCK",
+    "ind_name": "5. Cổ phiếu quỹ"
+  },
+  {
+    "stt": 1068,
+    "ind_code": "BS_HTM_SEC",
+    "ind_name": "5. Đầu tư nắm giữ đến ngày đáo hạn"
+  },
+  {
+    "stt": 1069,
+    "ind_code": "BS_PROV_PROFIT_SHARE",
+    "ind_name": "5. Dự phòng chia lãi"
+  },
+  {
+    "stt": 1070,
+    "ind_code": "BS_PROV_LT_INV",
+    "ind_name": "5. Dự phòng giảm giá đầu tư dài hạn"
+  },
+  {
+    "stt": 1071,
+    "ind_code": "BS_PROV_LT_FIN_INV",
+    "ind_name": "5. Dự phòng giảm giá đầu tư tài chính dài hạn"
+  },
+  {
+    "stt": 1072,
+    "ind_code": "BS_PROV_LT_DOUBTFUL_DEBT",
+    "ind_name": "5. Dự phòng phải thu dài hạn khó đòi"
+  },
+  {
+    "stt": 1073,
+    "ind_code": "BS_RETAINED_EARNINGS_DEFICIT",
+    "ind_name": "5. Lợi nhuận chưa phân phối/Lỗ lũy kế"
+  },
+  {
+    "stt": 1074,
+    "ind_code": "IS_GROSS_PROFIT",
+    "ind_name": "5. Lợi nhuận gộp (3)-(4)"
+  },
+  {
+    "stt": 1075,
+    "ind_code": "BS_NPO_FUND",
+    "ind_name": "5. Nguồn kinh phí sự nghiệp"
+  },
+  {
+    "stt": 1076,
+    "ind_code": "BS_LT_OTHER_REC",
+    "ind_name": "5. Phải thu dài hạn khác"
+  },
+  {
+    "stt": 1077,
+    "ind_code": "BS_ST_REC_LOANS",
+    "ind_name": "5. Phải thu về cho vay ngắn hạn"
+  },
+  {
+    "stt": 1078,
+    "ind_code": "BS_LT_OTHER_PAY",
+    "ind_name": "5. Phải trả dài hạn khác"
+  },
+  {
+    "stt": 1079,
+    "ind_code": "BS_LT_PAY_SUPPLIER",
+    "ind_name": "5. Phải trả người bán dài hạn"
+  },
+  {
+    "stt": 1080,
+    "ind_code": "BS_FIN_RESERVE_RISK_FUND",
+    "ind_name": "5. Quỹ dự phòng tài chính và rủi ro nghề nghiệp"
+  },
+  {
+    "stt": 1081,
+    "ind_code": "BS_LT_OTHER_ASSETS",
+    "ind_name": "5. Tài sản dài hạn khác"
+  },
+  {
+    "stt": 1082,
+    "ind_code": "BS_ST_OTHER_ASSETS",
+    "ind_name": "5. Tài sản ngắn hạn khác"
+  },
+  {
+    "stt": 1083,
+    "ind_code": "BS_DEDUCTIBLE_VAT",
+    "ind_name": "5. Thuế giá trị gia tăng được khấu trừ"
+  },
+  {
+    "stt": 1084,
+    "ind_code": "BS_TAX_PAYABLES",
+    "ind_name": "5. Thuế và các khoản phải nộp nhà nước"
+  },
+  {
+    "stt": 1085,
+    "ind_code": "IS_REIN_COMMISSION_INC",
+    "ind_name": "5. Thu hoa hồng nhượng tái bảo hiểm"
+  },
+  {
+    "stt": 1086,
+    "ind_code": "BS_CLEARING_FUND_BORROW",
+    "ind_name": "5. Vay Quỹ Hỗ trợ thanh toán"
+  },
+  {
+    "stt": 1087,
+    "ind_code": "BS_OTHER_REC",
+    "ind_name": "6. Các khoản phải thu khác"
+  },
+  {
+    "stt": 1088,
+    "ind_code": "BS_OTHER_RESERVES",
+    "ind_name": "6. Các Quỹ khác thuộc vốn chủ sở hữu"
+  },
+  {
+    "stt": 1089,
+    "ind_code": "BS_REVAL_RESERVE",
+    "ind_name": "6. Chênh lệch đánh giá lại tài sản"
+  },
+  {
+    "stt": 1090,
+    "ind_code": "BS_FX_RESERVE",
+    "ind_name": "6. Chênh lệch tỷ giá hối đoái"
+  },
+  {
+    "stt": 1091,
+    "ind_code": "IS_FIN_INC",
+    "ind_name": "6. Doanh thu hoạt động tài chính"
+  },
+  {
+    "stt": 1092,
+    "ind_code": "BS_PROV_BALANCING",
+    "ind_name": "6. Dự phòng bảo đảm cân đối"
+  },
+  {
+    "stt": 1093,
+    "ind_code": "BS_PROV_LT_DOUBTFUL_DEBT",
+    "ind_name": "6. Dự phòng phải thu dài hạn khó đòi"
+  },
+  {
+    "stt": 1094,
+    "ind_code": "BS_PROV_FIN_IMPAIRMENT",
+    "ind_name": "6. Dự phòng suy giảm giá trị các tài sản tài chính và tài sản thế chấp"
+  },
+  {
+    "stt": 1095,
+    "ind_code": "BS_PROV_ST_ASSET_IMPAIR",
+    "ind_name": "6. Dự phòng suy giảm giá trị tài sản ngắn hạn khác"
+  },
+  {
+    "stt": 1096,
+    "ind_code": "BS_LT_ADVANCES_CUST",
+    "ind_name": "6. Người mua trả tiền trước dài hạn"
+  },
+  {
+    "stt": 1097,
+    "ind_code": "BS_FUND_OTHER_FUNDS",
+    "ind_name": "6. Nguồn kinh phí Quỹ khác"
+  },
+  {
+    "stt": 1098,
+    "ind_code": "BS_ST_OTHER_REC",
+    "ind_name": "6. Phải thu ngắn hạn khác"
+  },
+  {
+    "stt": 1099,
+    "ind_code": "BS_PAY_SEC_TRADING",
+    "ind_name": "6. Phải trả hoạt động giao dịch chứng khoán"
+  },
+  {
+    "stt": 1100,
+    "ind_code": "BS_PAY_EMPLOYEES",
+    "ind_name": "6. Phải trả người lao động"
+  },
+  {
+    "stt": 1101,
+    "ind_code": "BS_TAX_REC",
+    "ind_name": "6. Thuế và các khoản phải thu Nhà nước"
+  },
+  {
+    "stt": 1102,
+    "ind_code": "IS_INS_OTHER_INC",
+    "ind_name": "6. Thu khác hoạt động kinh doanh bảo hiểm"
+  },
+  {
+    "stt": 1103,
+    "ind_code": "BS_LT_FIN_LEASE_DEBT",
+    "ind_name": "6. Vay và nợ thuê tài chính dài hạn"
+  },
+  {
+    "stt": 1104,
+    "ind_code": "IS_REALIZED_PROFIT",
+    "ind_name": "7.1. Lợi nhuận đã thực hiện"
+  },
+  {
+    "stt": 1105,
+    "ind_code": "BS_UNREALIZED_PROFIT",
+    "ind_name": "7.2. Lợi nhuận chưa thực hiện"
+  },
+  {
+    "stt": 1106,
+    "ind_code": "BS_REC",
+    "ind_name": "7. Các khoản phải thu"
+  },
+  {
+    "stt": 1107,
+    "ind_code": "BS_FX_RESERVE",
+    "ind_name": "7. Chênh lệch tỷ giá hối đoái"
+  },
+  {
+    "stt": 1108,
+    "ind_code": "BS_LT_PAY_ACCRUED",
+    "ind_name": "7. Chi phí phải trả dài hạn"
+  },
+  {
+    "stt": 1109,
+    "ind_code": "BS_ST_PAY_ACCRUED",
+    "ind_name": "7. Chi phí phải trả ngắn hạn"
+  },
+  {
+    "stt": 1110,
+    "ind_code": "IS_FIN_EXP",
+    "ind_name": "7. Chi phí tài chính"
+  },
+  {
+    "stt": 1111,
+    "ind_code": "IS_NET_REVENUE",
+    "ind_name": "7. Doanh thu thuần hoạt động kinh doanh bảo hiểm"
+  },
+  {
+    "stt": 1112,
+    "ind_code": "BS_PROV_DOUBTFUL_DEBT",
+    "ind_name": "7. Dự phòng các khoản phải thu khó đòi (*)"
+  },
+  {
+    "stt": 1113,
+    "ind_code": "BS_PROV_ST_DOUBTFUL_DEBT",
+    "ind_name": "7. Dự phòng phải thu ngắn hạn khó đòi"
+  },
+  {
+    "stt": 1114,
+    "ind_code": "BS_RETAINED_EARNINGS",
+    "ind_name": "7. Lợi nhuận chưa phân phối"
+  },
+  {
+    "stt": 1115,
+    "ind_code": "BS_PAY_INTERNAL",
+    "ind_name": "7. Phải trả nội bộ"
+  },
+  {
+    "stt": 1116,
+    "ind_code": "BS_PAY_FIN_ERRORS",
+    "ind_name": "7. Phải trả về lỗi giao dịch các tài sản tài chính"
+  },
+  {
+    "stt": 1117,
+    "ind_code": "BS_DEV_INV_FUND",
+    "ind_name": "7. Quỹ đầu tư phát triển"
+  },
+  {
+    "stt": 1118,
+    "ind_code": "BS_ST_OTHER_ASSETS",
+    "ind_name": "7. Tài sản ngắn hạn khác"
+  },
+  {
+    "stt": 1119,
+    "ind_code": "BS_CONVERTIBLE_BONDS",
+    "ind_name": "7. Trái phiếu chuyển đổi"
+  },
+  {
+    "stt": 1120,
+    "ind_code": "IS_OTHER_INC",
+    "ind_name": "8.1. Thu nhập khác"
+  },
+  {
+    "stt": 1121,
+    "ind_code": "IS_OTHER_EXP",
+    "ind_name": "8.2. Chi phí khác"
+  },
+  {
+    "stt": 1122,
+    "ind_code": "IS_CLAIM_PAID",
+    "ind_name": "8. Chi bồi thường Bảo hiểm gốc trả tiền bảo hiểm"
+  },
+  {
+    "stt": 1123,
+    "ind_code": "BS_MINORITY_INTEREST",
+    "ind_name": "8. Lợi ích của cổ đông không nắm quyền kiểm soát"
+  },
+  {
+    "stt": 1124,
+    "ind_code": "BS_ST_PAY_SUPPLIER",
+    "ind_name": "8. Phải trả người bán ngắn hạn"
+  },
+  {
+    "stt": 1125,
+    "ind_code": "BS_LT_PAY_INTERNAL",
+    "ind_name": "8. Phải trả nội bộ dài hạn"
+  },
+  {
+    "stt": 1126,
+    "ind_code": "BS_ST_PAY_INTERNAL",
+    "ind_name": "8. Phải trả nội bộ ngắn hạn"
+  },
+  {
+    "stt": 1127,
+    "ind_code": "BS_PAY_CONSTRUCTION_CONTRACT",
+    "ind_name": "8. Phải trả theo tiến độ kế hoạch hợp đồng xây dựng"
+  },
+  {
+    "stt": 1128,
+    "ind_code": "IS_ASSOC_JV_PROFIT_SHARE",
+    "ind_name": "8. Phần lợi nhuận hoặc lỗ trong công ty liên kết liên doanh"
+  },
+  {
+    "stt": 1129,
+    "ind_code": "BS_DEV_INV_FUND",
+    "ind_name": "8. Quỹ đầu tư phát triển"
+  },
+  {
+    "stt": 1130,
+    "ind_code": "BS_FIN_RESERVE_FUND",
+    "ind_name": "8. Quỹ dự phòng tài chính"
+  },
+  {
+    "stt": 1131,
+    "ind_code": "BS_DEDUCTIBLE_VAT",
+    "ind_name": "8. Thuế giá trị gia tăng được khấu trừ"
+  },
+  {
+    "stt": 1132,
+    "ind_code": "BS_DEFERRED_TAX_LIAB",
+    "ind_name": "8. Thuế thu nhập hoãn lại phải trả"
+  },
+  {
+    "stt": 1133,
+    "ind_code": "IS_REALIZED_PROFIT",
+    "ind_name": "9.1. Lợi nhuận đã thực hiện"
+  },
+  {
+    "stt": 1134,
+    "ind_code": "BS_UNREALIZED_PROFIT",
+    "ind_name": "9.2. Lợi nhuận chưa thực hiện"
+  },
+  {
+    "stt": 1135,
+    "ind_code": "BS_ST_PAY_OTHER",
+    "ind_name": "9. Các khoản phải trả phải nộp ngắn hạn khác"
+  },
+  {
+    "stt": 1136,
+    "ind_code": "IS_CLAIM_REIN_PAID",
+    "ind_name": "9. Chi bồi thường nhận tái bảo hiểm trả tiền bảo hiểm"
+  },
+  {
+    "stt": 1137,
+    "ind_code": "IS_SELL_EXP",
+    "ind_name": "9. Chi phí bán hàng"
+  },
+  {
+    "stt": 1138,
+    "ind_code": "BS_LT_UNEARNED_REV",
+    "ind_name": "9. Doanh thu chưa thực hiện dài hạn"
+  },
+  {
+    "stt": 1139,
+    "ind_code": "BS_PROV_SEVERANCE",
+    "ind_name": "9. Dự phòng trợ cấp mất việc làm"
+  },
+  {
+    "stt": 1140,
+    "ind_code": "BS_ADVANCES_CUST",
+    "ind_name": "9. Người mua trả tiền trước"
+  },
+  {
+    "stt": 1141,
+    "ind_code": "BS_REC_SVC",
+    "ind_name": "9. Phải thu các dịch vụ CTCK cung cấp"
+  },
+  {
+    "stt": 1142,
+    "ind_code": "BS_PAY_CONSTRUCTION_CONTRACT",
+    "ind_name": "9. Phải trả theo tiến độ kế hoạch hợp đồng xây dựng"
+  },
+  {
+    "stt": 1143,
+    "ind_code": "BS_FIN_RESERVE_FUND",
+    "ind_name": "9. Quỹ dự phòng tài chính"
+  },
+  {
+    "stt": 1144,
+    "ind_code": "BS_COMPULSORY_RESERVE",
+    "ind_name": "9. Quỹ dự trữ bắt buộc"
+  },
+  {
+    "stt": 1145,
+    "ind_code": "IS_FIN_SALE_GAIN",
+    "ind_name": "a. Lãi bán các tài sản tài chính"
+  },
+  {
+    "stt": 1146,
+    "ind_code": "IS_FIN_SALE_LOSS",
+    "ind_name": "a. Lỗ bán các tài sản tài chính"
+  },
+  {
+    "stt": 1147,
+    "ind_code": "BS_LIABILITIES",
+    "ind_name": "A. Nợ phải trả"
+  },
+  {
+    "stt": 1148,
+    "ind_code": "BS_LIABILITIES",
+    "ind_name": "A. NỢ PHẢI TRẢ"
+  },
+  {
+    "stt": 1149,
+    "ind_code": "BS_CUR_ASSETS_ST_INV",
+    "ind_name": "A. Tài sản lưu động và đầu tư ngắn hạn"
+  },
+  {
+    "stt": 1150,
+    "ind_code": "BS_CUR_ASSETS",
+    "ind_name": "A. TÀI SẢN NGẮN HẠN"
+  },
+  {
+    "stt": 1151,
+    "ind_code": "IS_FVTPL_REVAL_LOSS",
+    "ind_name": "b. Chênh lệch giảm đánh giá lại các TSTC thông qua lãi/lỗ"
+  },
+  {
+    "stt": 1152,
+    "ind_code": "IS_FVTPL_REVAL_GAIN",
+    "ind_name": "b. Chênh lệch tăng đánh giá lại các TSTC thông qua lãi/lỗ"
+  },
+  {
+    "stt": 1153,
+    "ind_code": "BS_EQUITY",
+    "ind_name": "B. Nguồn vốn chủ sở hữu"
+  },
+  {
+    "stt": 1154,
+    "ind_code": "BS_EQUITY",
+    "ind_name": "B. NGUỒN VỐN CHỦ SỞ HỮU"
+  },
+  {
+    "stt": 1155,
+    "ind_code": "BS_FA_LT_INV",
+    "ind_name": "B. Tài sản cố định và đầu tư dài hạn"
+  },
+  {
+    "stt": 1156,
+    "ind_code": "BS_NONCUR_ASSETS",
+    "ind_name": "B.TÀI SẢN DÀI HẠN"
+  },
+  {
+    "stt": 1157,
+    "ind_code": "IS_REV_DEDUCTION_OTHER",
+    "ind_name": "- Các khoản giảm trừ khác"
+  },
+  {
+    "stt": 1158,
+    "ind_code": "IS_FVTPL_PURCHASE_EXP",
+    "ind_name": "c. c.Chi phí giao dịch mua các tài sản tài chính FVTPL"
+  },
+  {
+    "stt": 1159,
+    "ind_code": "IS_FVTPL_DIV",
+    "ind_name": "c. Cổ tức tiền lãi phát sinh từ tài sản tài chính PVTPL"
+  },
+  {
+    "stt": 1160,
+    "ind_code": "IS_INS_RISK_EVAL_EXP",
+    "ind_name": "+ Chi đánh giá rủi ro của đối tượng bảo hiểm"
+  },
+  {
+    "stt": 1161,
+    "ind_code": "IS_INS_RISK_PREV_EXP",
+    "ind_name": "+ Chi đề phòng hạn chế rủi ro tổn thất"
+  },
+  {
+    "stt": 1162,
+    "ind_code": "IS_THIRD_PARTY_RECOVERY_EXP",
+    "ind_name": "+ Chi đòi người thứ 3"
+  },
+  {
+    "stt": 1163,
+    "ind_code": "IS_INS_LOSS_ASSESS_EXP",
+    "ind_name": "+ Chi giám định tổn thất"
+  },
+  {
+    "stt": 1164,
+    "ind_code": "IS_COMMISSION_EXP",
+    "ind_name": "+ Chi hoa hồng"
+  },
+  {
+    "stt": 1165,
+    "ind_code": "IS_REIN_OP_EXP",
+    "ind_name": "- Chi hoạt động nhượng tái bảo hiểm"
+  },
+  {
+    "stt": 1166,
+    "ind_code": "IS_OTHER_EXP",
+    "ind_name": "+ Chi khác"
+  },
+  {
+    "stt": 1167,
+    "ind_code": "IS_INS_OTHER_EXP_DIR",
+    "ind_name": "- Chi khác hoạt động kinh doanh bảo hiểm gốc"
+  },
+  {
+    "stt": 1168,
+    "ind_code": "IS_INS_OTHER_EXP_INDIRECT",
+    "ind_name": "- Chi khác hoạt động kinh doanh nhận tái bảo hiểm"
+  },
+  {
+    "stt": 1169,
+    "ind_code": "IS_CREDIT_PROV_EXP",
+    "ind_name": "Chi phí dự phòng rủi ro tín dụng"
+  },
+  {
+    "stt": 1170,
+    "ind_code": "IS_OP_EXP",
+    "ind_name": "Chi phí hoạt động"
+  },
+  {
+    "stt": 1171,
+    "ind_code": "IS_OP_EXP_SVC",
+    "ind_name": "Chi phí hoạt động dịch vụ"
+  },
+  {
+    "stt": 1172,
+    "ind_code": "IS_OP_EXP_OTHER",
+    "ind_name": "Chi phí hoạt động khác"
+  },
+  {
+    "stt": 1173,
+    "ind_code": "IS_INT_EXP",
+    "ind_name": "Chi phí lãi và các chi phí tương tự"
+  },
+  {
+    "stt": 1174,
+    "ind_code": "IS_TAX_CURRENT",
+    "ind_name": "Chi phí thuế thu nhập hiện hành"
+  },
+  {
+    "stt": 1175,
+    "ind_code": "IS_TAX_EXP",
+    "ind_name": "Chi phí thuế TNDN"
+  },
+  {
+    "stt": 1176,
+    "ind_code": "IS_TAX_EXP_RETAINED",
+    "ind_name": "Chi phí thuế TNDN giữ lại"
+  },
+  {
+    "stt": 1177,
+    "ind_code": "IS_OTHER_DIR_EXP",
+    "ind_name": "- Chi Phí trực tiếp kinh doanh hoạt động khác"
+  },
+  {
+    "stt": 1178,
+    "ind_code": "IS_INS_CLAIM_HANDLING_EXP",
+    "ind_name": "+ Chi xử lý hàng bồi thường 100%"
+  },
+  {
+    "stt": 1179,
+    "ind_code": "BS_MINORITY_INTEREST",
+    "ind_name": "C. LỢI ÍCH CỔ ĐÔNG THIỂU SỐ"
+  },
+  {
+    "stt": 1180,
+    "ind_code": "BS_LIABILITIES",
+    "ind_name": "C. NỢ PHẢI TRẢ"
+  },
+  {
+    "stt": 1181,
+    "ind_code": "IS_OP_EXP_TOTAL",
+    "ind_name": "Cộng chi phí hoạt động"
+  },
+  {
+    "stt": 1182,
+    "ind_code": "IS_FIN_EXP",
+    "ind_name": "Cộng chi phí tài chính"
+  },
+  {
+    "stt": 1183,
+    "ind_code": "IS_OP_REV_TOTAL",
+    "ind_name": "Cộng doanh thu hoạt động"
+  },
+  {
+    "stt": 1184,
+    "ind_code": "IS_FIN_REV_TOTAL",
+    "ind_name": "Cộng doanh thu hoạt động tài chính"
+  },
+  {
+    "stt": 1185,
+    "ind_code": "IS_OTHER_PROFIT",
+    "ind_name": "Cộng kết quả hoạt động khác"
+  },
+  {
+    "stt": 1186,
+    "ind_code": "BS_TREASURY_STOCK",
+    "ind_name": "- Cổ phiếu quỹ"
+  },
+  {
+    "stt": 1187,
+    "ind_code": "BS_PREF_STOCK",
+    "ind_name": "- Cổ phiếu ưu đãi"
+  },
+  {
+    "stt": 1188,
+    "ind_code": "BS_INTANGIBLE_FA_REVAL_FV",
+    "ind_name": "- Đánh giá TSCĐVH theo giá trị hợp lý"
+  },
+  {
+    "stt": 1189,
+    "ind_code": "BS_EQUITY",
+    "ind_name": "D. VỐN CHỦ SỞ HỮU"
+  },
+  {
+    "stt": 1190,
+    "ind_code": "IS_FEE_DEC",
+    "ind_name": "- Giảm phí bảo hiểm"
+  },
+  {
+    "stt": 1191,
+    "ind_code": "BS_ACCUM_DEPR",
+    "ind_name": "- Giá trị hao mòn lũy kế"
+  },
+  {
+    "stt": 1192,
+    "ind_code": "IS_FEE_REFUND",
+    "ind_name": "- Hoàn phí bảo hiểm"
+  },
+  {
+    "stt": 1193,
+    "ind_code": "IS_REIN_FEE_REFUND",
+    "ind_name": "- Hoàn phí nhận tái bảo hiểm"
+  },
+  {
+    "stt": 1194,
+    "ind_code": "BS_GOV_DEBT",
+    "ind_name": "I. Các khoản nợ chính phủ và NHNN"
+  },
+  {
+    "stt": 1195,
+    "ind_code": "BS_LT_REC",
+    "ind_name": "I. Các khoản phải thu dài hạn"
+  },
+  {
+    "stt": 1196,
+    "ind_code": "IS_OP_REV_TOTAL",
+    "ind_name": "I. DOANH THU HOẠT ĐỘNG"
+  },
+  {
+    "stt": 1197,
+    "ind_code": "BS_ST_INV",
+    "ind_name": "II. Các khoản đầu tư tài chính ngắn hạn"
+  },
+  {
+    "stt": 1198,
+    "ind_code": "IS_OP_EXP",
+    "ind_name": "II. CHI PHÍ HOẠT ĐỘNG"
+  },
+  {
+    "stt": 1199,
+    "ind_code": "BS_INV_PROP",
+    "ind_name": "III. Bất động sản đầu tư"
+  },
+  {
+    "stt": 1200,
+    "ind_code": "BS_REC",
+    "ind_name": "III. Các khoản phải thu"
+  },
+  {
+    "stt": 1201,
+    "ind_code": "BS_ST_REC",
+    "ind_name": "III. Các khoản phải thu ngắn hạn"
+  },
+  {
+    "stt": 1202,
+    "ind_code": "BS_WIP_CONSTRUCTION",
+    "ind_name": "III. Chi phí xây dựng cơ bản dở dang"
+  },
+  {
+    "stt": 1203,
+    "ind_code": "IS_FIN_INC",
+    "ind_name": "III. DOANH THU HOẠT ĐỘNG TÀI CHÍNH"
+  },
+  {
+    "stt": 1204,
+    "ind_code": "BS_PROV_TECH",
+    "ind_name": "III. Dự phòng nghiệp vụ"
+  },
+  {
+    "stt": 1205,
+    "ind_code": "BS_DEPOSITS_CUST",
+    "ind_name": "III. Tiền gửi khách hàng"
+  },
+  {
+    "stt": 1206,
+    "ind_code": "BS_TREASURY_BILLS",
+    "ind_name": "III. Tín phiếu kho bạc và các giấy tờ có giá ngắn hạn đủ tiêu chuẩn khác"
+  },
+  {
+    "stt": 1207,
+    "ind_code": "BS_FUND_OTHER_FUNDS",
+    "ind_name": "II. Nguồn kinh phí quỹ khác"
+  },
+  {
+    "stt": 1208,
+    "ind_code": "BS_FUND_OTHER_FUNDS",
+    "ind_name": "II. Nguồn kinh phí và quỹ khác"
+  },
+  {
+    "stt": 1209,
+    "ind_code": "BS_LT_LIABILITIES",
+    "ind_name": "II. Nợ dài hạn"
+  },
+  {
+    "stt": 1210,
+    "ind_code": "BS_LT_LIABILITIES",
+    "ind_name": "II. Nợ phải trả dài hạn"
+  },
+  {
+    "stt": 1211,
+    "ind_code": "BS_FA",
+    "ind_name": "II. Tài sản cố định"
+  },
+  {
+    "stt": 1212,
+    "ind_code": "BS_ST_OTHER_ASSETS",
+    "ind_name": "II.Tài sản ngắn hạn khác"
+  },
+  {
+    "stt": 1213,
+    "ind_code": "BS_BAL_SBV",
+    "ind_name": "II. Tiền gửi tại NHNN"
+  },
+  {
+    "stt": 1214,
+    "ind_code": "BS_DEPOSITS_LOANS_CI",
+    "ind_name": "II. Tiền gửi và cho vay các TCTD khác"
+  },
+  {
+    "stt": 1215,
+    "ind_code": "BS_ST_LIABILITIES",
+    "ind_name": "I. Nợ ngắn hạn"
+  },
+  {
+    "stt": 1216,
+    "ind_code": "BS_ST_LIABILITIES",
+    "ind_name": "I. Nợ phải trả ngắn hạn"
+  },
+  {
+    "stt": 1217,
+    "ind_code": "BS_FIN_ASSETS",
+    "ind_name": "I. Tài sản tài chính"
+  },
+  {
+    "stt": 1218,
+    "ind_code": "BS_LT_FIN_ASSETS",
+    "ind_name": "I. Tài sản tài chính dài hạn"
+  },
+  {
+    "stt": 1219,
+    "ind_code": "BS_CASH",
+    "ind_name": "I. Tiền"
+  },
+  {
+    "stt": 1220,
+    "ind_code": "BS_CASH_AND_VALUABLES",
+    "ind_name": "I. Tiền mặt chứng từ có giá trị ngoại tệ kim loại quý đá quý"
+  },
+  {
+    "stt": 1221,
+    "ind_code": "BS_CASH_EQ",
+    "ind_name": "I. Tiền và các khoản tương đương tiền"
+  },
+  {
+    "stt": 1222,
+    "ind_code": "BS_INV_PROP",
+    "ind_name": "IV. Bất động sản đầu tư"
+  },
+  {
+    "stt": 1223,
+    "ind_code": "BS_DERIVATIVES_LIAB",
+    "ind_name": "IV. Các công cụ tài chính phái sinh và các khoản nợ tài chính khác"
+  },
+  {
+    "stt": 1224,
+    "ind_code": "IS_FIN_EXP",
+    "ind_name": "IV. CHI PHÍ TÀI CHÍNH"
+  },
+  {
+    "stt": 1225,
+    "ind_code": "BS_WIP_CONSTRUCTION",
+    "ind_name": "IV. Chi phí xây dựng cơ bản dở dang"
+  },
+  {
+    "stt": 1226,
+    "ind_code": "BS_INVENTORY",
+    "ind_name": "IV. Hàng tồn kho"
+  },
+  {
+    "stt": 1227,
+    "ind_code": "BS_OTHER_LIABILITIES",
+    "ind_name": "IV. Nợ khác"
+  },
+  {
+    "stt": 1228,
+    "ind_code": "BS_EQUITY",
+    "ind_name": "I. Vốn chủ sở hữu"
+  },
+  {
+    "stt": 1229,
+    "ind_code": "BS_LT_WIP",
+    "ind_name": "IV. Tài sản dở dang dài hạn"
+  },
+  {
+    "stt": 1230,
+    "ind_code": "BS_DEPOSITS_LOANS_CI",
+    "ind_name": "IV. Tiền vàng gửi tại các TCTD khác và cho vay các TCTD khác"
+  },
+  {
+    "stt": 1231,
+    "ind_code": "BS_INVENTORY",
+    "ind_name": "IV. Tổng hàng tồn kho"
+  },
+  {
+    "stt": 1232,
+    "ind_code": "BS_LT_INV_CAP",
+    "ind_name": "IX. Góp vốn đầu tư dài hạn"
+  },
+  {
+    "stt": 1233,
+    "ind_code": "BS_MINORITY_INTEREST",
+    "ind_name": "IX. Lợi ích của cổ đông không kiểm soát"
+  },
+  {
+    "stt": 1234,
+    "ind_code": "IS_PBT",
+    "ind_name": "IX. TỔNG LỢI NHUẬN KẾ TOÁN TRƯỚC THUẾ"
+  },
+  {
+    "stt": 1235,
+    "ind_code": "IS_NET_SVC_PROFIT",
+    "ind_name": "Lãi/Lỗ thuần từ hoạt động dịch vụ"
+  },
+  {
+    "stt": 1236,
+    "ind_code": "IS_NET_OTHER_PROFIT",
+    "ind_name": "Lãi/Lỗ thuần từ hoạt động khác"
+  },
+  {
+    "stt": 1237,
+    "ind_code": "IS_NET_FX_PROFIT",
+    "ind_name": "Lãi/Lỗ thuần từ hoạt động kinh doanh ngoại hối"
+  },
+  {
+    "stt": 1238,
+    "ind_code": "IS_NET_INV_SEC_PROFIT",
+    "ind_name": "Lãi/Lỗ thuần từ mua bán chứng khoán đầu tư"
+  },
+  {
+    "stt": 1239,
+    "ind_code": "IS_NET_TRADING_SEC_PROFIT",
+    "ind_name": "Lãi/Lỗ thuần từ mua bán chứng khoán kinh doanh"
+  },
+  {
+    "stt": 1240,
+    "ind_code": "IS_NPAT_PARENT_ADJ",
+    "ind_name": "LNST sau khi điều chỉnh Lợi ích của CĐTS và Cổ tức ưu đãi"
+  },
+  {
+    "stt": 1241,
+    "ind_code": "BS_MINORITY_INTEREST_PREF",
+    "ind_name": "Lợi ích của cổ đông thiểu số và cổ tức ưu đãi"
+  },
+  {
+    "stt": 1242,
+    "ind_code": "IS_PROFIT_DISTRIBUTED",
+    "ind_name": "LỢI NHUẬN ĐÃ PHÂN PHỐI CHO NHÀ ĐẦU TƯ"
+  },
+  {
+    "stt": 1243,
+    "ind_code": "IS_NPAT",
+    "ind_name": "Lợi nhuận sau thuế thu nhập doanh nghiệp"
+  },
+  {
+    "stt": 1244,
+    "ind_code": "IS_OP_PROFIT_PRE_PROV",
+    "ind_name": "Lợi nhuận từ HDKD trước chi phí dự phòng rủi ro tín dụng"
+  },
+  {
+    "stt": 1245,
+    "ind_code": "BS_TOT_CAPITAL",
+    "ind_name": "NGUỒN VỐN"
+  },
+  {
+    "stt": 1246,
+    "ind_code": "BS_HISTORICAL_COST",
+    "ind_name": "- Nguyên giá"
+  },
+  {
+    "stt": 1247,
+    "ind_code": "IS_REIN_FEE",
+    "ind_name": "- Phí nhượng tái bảo hiểm"
+  },
+  {
+    "stt": 1248,
+    "ind_code": "BS_TOT_ASSET",
+    "ind_name": "TÀI SẢN"
+  },
+  {
+    "stt": 1249,
+    "ind_code": "BS_SHARE_PREMIUM",
+    "ind_name": "- Thặng dư vốn cổ phần"
+  },
+  {
+    "stt": 1250,
+    "ind_code": "IS_REIN_CLAIM_INC",
+    "ind_name": "- Thu bồi thường nhượng tái bảo hiểm"
+  },
+  {
+    "stt": 1251,
+    "ind_code": "IS_THIRD_PARTY_RECOVERY",
+    "ind_name": "- Thu đòi người thứ ba bồi hoàn"
+  },
+  {
+    "stt": 1252,
+    "ind_code": "IS_CLAIM_RECOVERY_100",
+    "ind_name": "- Thu hàng đã xử lý bồi thường 100%"
+  },
+  {
+    "stt": 1253,
+    "ind_code": "IS_OTHER_INC",
+    "ind_name": "- Thu khác (Giám định đại lý...)"
+  },
+  {
+    "stt": 1254,
+    "ind_code": "IS_REIN_INC",
+    "ind_name": "- Thu nhận tái bảo hiểm"
+  },
+  {
+    "stt": 1255,
+    "ind_code": "IS_NET_INT_INC",
+    "ind_name": "Thu nhập lãi thuần"
+  },
+  {
+    "stt": 1256,
+    "ind_code": "IS_COMPREHENSIVE_INCOME_OWNER",
+    "ind_name": "Thu nhập toàn diện phân bổ cho chủ sở hữu"
+  },
+  {
+    "stt": 1257,
+    "ind_code": "IS_COMPREHENSIVE_INCOME_MI",
+    "ind_name": "Thu nhập toàn diện phân bổ cho cổ đông không nắm quyền kiểm soát"
+  },
+  {
+    "stt": 1258,
+    "ind_code": "IS_SVC_INC",
+    "ind_name": "Thu nhập từ hoạt động dịch vụ"
+  },
+  {
+    "stt": 1259,
+    "ind_code": "IS_SHARE_INV_INC",
+    "ind_name": "Thu nhập từ hoạt động góp vốn mua cổ phần"
+  },
+  {
+    "stt": 1260,
+    "ind_code": "IS_OTHER_INC",
+    "ind_name": "Thu nhập từ hoạt động khác"
+  },
+  {
+    "stt": 1261,
+    "ind_code": "IS_INT_INC",
+    "ind_name": "Thu nhập từ lãi và các khoản thu nhập tương tự"
+  },
+  {
+    "stt": 1262,
+    "ind_code": "IS_REIN_CEDED_INC",
+    "ind_name": "- Thu nhượng tái bảo hiểm"
+  },
+  {
+    "stt": 1263,
+    "ind_code": "BS_TOT_CAPITAL",
+    "ind_name": "TỔNG CỘNG NGUỒN VỐN"
+  },
+  {
+    "stt": 1264,
+    "ind_code": "BS_TOT_LIAB_EQUITY",
+    "ind_name": "TỔNG CỘNG NỢ PHẢI TRẢ VÀ VỐN CHỦ SỞ HỮU"
+  },
+  {
+    "stt": 1265,
+    "ind_code": "BS_TOT_ASSET",
+    "ind_name": "TỔNG CỘNG TÀI SẢN"
+  },
+  {
+    "stt": 1266,
+    "ind_code": "IS_PBT",
+    "ind_name": "Tổng lợi nhuận trước thuế"
+  },
+  {
+    "stt": 1267,
+    "ind_code": "BS_TOT_LIAB_EQUITY",
+    "ind_name": "TỔNG NỢ PHẢI TRẢ VÀ VỐN CHỦ SỞ HỮU"
+  },
+  {
+    "stt": 1268,
+    "ind_code": "IS_COMPREHENSIVE_INCOME_TOTAL",
+    "ind_name": "Tổng thu nhập toàn diện"
+  },
+  {
+    "stt": 1269,
+    "ind_code": "IS_INT_EXP",
+    "ind_name": "-Trong đó: Chi phí lãi vay"
+  },
+  {
+    "stt": 1270,
+    "ind_code": "IS_OP_EXP_SEC_ERROR",
+    "ind_name": "Trong đó: Chi phí sửa lỗi giao dịch chứng khoán lỗi khác"
+  },
+  {
+    "stt": 1271,
+    "ind_code": "BS_GOODWILL",
+    "ind_name": "- Trong đó: Lợi thế thương mại"
+  },
+  {
+    "stt": 1272,
+    "ind_code": "BS_LT_INV",
+    "ind_name": "V. Các khoản đầu tư tài chính dài hạn"
+  },
+  {
+    "stt": 1273,
+    "ind_code": "IS_SELL_EXP",
+    "ind_name": "V. CHI BÁN HÀNG"
+  },
+  {
+    "stt": 1274,
+    "ind_code": "BS_TRADING_SEC",
+    "ind_name": "V. Chứng khoán kinh doanh"
+  },
+  {
+    "stt": 1275,
+    "ind_code": "CF_CFO_DERIVATIVES",
+    "ind_name": "VI. Các công cụ tài chính phái sinh và các tài sản tài chính khác"
+  },
+  {
+    "stt": 1276,
+    "ind_code": "BS_LT_DEPOSIT",
+    "ind_name": "VI. Các khoản ký quỹ ký cược dài hạn"
+  },
+  {
+    "stt": 1277,
+    "ind_code": "IS_GA_EXP",
+    "ind_name": "VI. CHI PHÍ QUẢN LÝ CÔNG TY CHỨNG KHOÁN"
+  },
+  {
+    "stt": 1278,
+    "ind_code": "IS_NPO_EXP",
+    "ind_name": "VI. Chi sự nghiệp"
+  },
+  {
+    "stt": 1279,
+    "ind_code": "BS_PROV_LT_ASSET_IMPAIR",
+    "ind_name": "VI. Dự phòng suy giảm giá trị tài sản dài hạn"
+  },
+  {
+    "stt": 1280,
+    "ind_code": "BS_OTHER_LIAB",
+    "ind_name": "VII. Các khoản nợ khác"
+  },
+  {
+    "stt": 1281,
+    "ind_code": "BS_LOANS_CUST",
+    "ind_name": "VII. Cho vay khách hàng"
+  },
+  {
+    "stt": 1282,
+    "ind_code": "BS_INV_SEC",
+    "ind_name": "VIII. Chứng khoán đầu tư"
+  },
+  {
+    "stt": 1283,
+    "ind_code": "IS_NET_OTHER_INC",
+    "ind_name": "VIII. THU NHẬP KHÁC VÀ CHI PHÍ KHÁC"
+  },
+  {
+    "stt": 1284,
+    "ind_code": "BS_EQUITY",
+    "ind_name": "VIII. Vốn chủ sở hữu"
+  },
+  {
+    "stt": 1285,
+    "ind_code": "IS_OP_RESULT",
+    "ind_name": "VII. KẾT QUẢ HOẠT ĐỘNG"
+  },
+  {
+    "stt": 1286,
+    "ind_code": "BS_GOODWILL",
+    "ind_name": "VII. Lợi thế thương mại"
+  },
+  {
+    "stt": 1287,
+    "ind_code": "BS_ISSUED_VALUABLE_PAPER",
+    "ind_name": "VI. Phát hành giấy tờ có giá"
+  },
+  {
+    "stt": 1288,
+    "ind_code": "BS_LT_OTHER_ASSETS_TOTAL",
+    "ind_name": "VI. Tổng tài sản dài hạn khác"
+  },
+  {
+    "stt": 1289,
+    "ind_code": "BS_CONSTRUCTION_INV_CAPITAL",
+    "ind_name": "- Vốn đầu tư XDCB"
+  },
+  {
+    "stt": 1290,
+    "ind_code": "BS_CHARTER_CAPITAL",
+    "ind_name": "- Vốn điều lệ"
+  },
+  {
+    "stt": 1291,
+    "ind_code": "BS_OTHER_CAPITAL",
+    "ind_name": "- Vốn khác"
+  },
+  {
+    "stt": 1292,
+    "ind_code": "BS_LT_OTHER_ASSETS",
+    "ind_name": "V. Tài sản dài hạn khác"
+  },
+  {
+    "stt": 1293,
+    "ind_code": "BS_ST_OTHER_ASSETS",
+    "ind_name": "V. Tài sản ngắn hạn khác"
+  },
+  {
+    "stt": 1294,
+    "ind_code": "BS_SPONSORED_FUNDS_RISK",
+    "ind_name": "V. Vốn tài trợ uỷ thác đầu tư mà ngân hàng chịu rủi ro"
+  },
+  {
+    "stt": 1295,
+    "ind_code": "IS_TAX_EXP",
+    "ind_name": "X. CHI PHÍ THUẾ TNDN"
+  },
+  {
+    "stt": 1296,
+    "ind_code": "BS_INV_PROP",
+    "ind_name": "XI. Bất động sản đầu tư"
+  },
+  {
+    "stt": 1297,
+    "ind_code": "IS_EPS_BASIC",
+    "ind_name": "XIII. THU NHẬP THUẦN TRÊN CỔ PHIẾU PHỔ THÔNG"
+  },
+  {
+    "stt": 1298,
+    "ind_code": "BS_OTHER_ASSETS",
+    "ind_name": "XII. Tài sản có khác"
+  },
+  {
+    "stt": 1299,
+    "ind_code": "IS_COMPREHENSIVE_INCOME_POST_TAX",
+    "ind_name": "XII. THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ TNDN"
+  },
+  {
+    "stt": 1300,
+    "ind_code": "IS_NPAT",
+    "ind_name": "XI. LỢI NHUẬN KẾ TOÁN SAU THUẾ TNDN"
+  },
+  {
+    "stt": 1301,
+    "ind_code": "BS_FA",
+    "ind_name": "X. Tài sản cố định"
   }
 ]

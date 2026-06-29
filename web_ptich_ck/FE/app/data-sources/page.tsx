@@ -348,7 +348,38 @@ export default function DataSourcesPage() {
         return;
       }
 
-      const ws = XLSX.utils.json_to_sheet(res.rows);
+      // Convert numeric values represented as strings to actual numbers
+      // so SheetJS outputs them as numeric cells and Excel formats them correctly.
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const formattedRows = res.rows.map((row: any) => {
+        const newRow: any = {};
+        for (const key in row) {
+          if (Object.prototype.hasOwnProperty.call(row, key)) {
+            const val = row[key];
+            if (val === null || val === undefined) {
+              newRow[key] = val;
+            } else if (typeof val === "string") {
+              const trimmed = val.trim();
+              const numericRegex = /^-?(?:0|[1-9]\d*)(?:\.\d+)?$/;
+              const intPart = trimmed.split(".")[0].replace("-", "");
+              if (numericRegex.test(trimmed) && intPart.length < 16) {
+                const num = parseFloat(trimmed);
+                if (!isNaN(num)) {
+                  newRow[key] = num;
+                  continue;
+                }
+              }
+              newRow[key] = val;
+            } else {
+              newRow[key] = val;
+            }
+          }
+        }
+        return newRow;
+      });
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+
+      const ws = XLSX.utils.json_to_sheet(formattedRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Dữ liệu");
       XLSX.writeFile(wb, `${dataset.name}.xlsx`);
@@ -1385,7 +1416,7 @@ export default function DataSourcesPage() {
           />
           
           {/* SQL Editor & Results Preview */}
-          <div className="flex-1 flex flex-col gap-6 min-w-0 min-h-0">
+          <div className="flex-1 flex flex-col gap-6 min-w-0 min-h-0 select-text">
             {/* SQL Editor */}
             <div className="h-[300px] shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex flex-col">
               <div className="flex justify-between items-center mb-2">
@@ -1511,7 +1542,7 @@ export default function DataSourcesPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex-1 min-h-0 bg-neutral-950 border border-neutral-800 rounded p-4 overflow-x-auto overflow-y-auto">
+              <div className="flex-1 min-h-0 bg-neutral-950 border border-neutral-800 rounded p-4 overflow-x-auto overflow-y-auto select-text">
                 {queryError && <div className="text-red-400 text-sm mb-4">{queryError}</div>}
                 {previewData ? (
                   <div style={{ zoom: previewZoom / 100 }}>
@@ -1694,7 +1725,7 @@ export default function DataSourcesPage() {
               </button>
             </div>
             
-            <div className="p-6 flex-1 overflow-auto bg-neutral-950">
+            <div className="p-6 flex-1 overflow-auto bg-neutral-950 select-text">
                {previewLoading ? (
                 <div className="h-48 flex justify-center items-center">
                   <RefreshCw className="w-8 h-8 animate-spin text-orange-500" />

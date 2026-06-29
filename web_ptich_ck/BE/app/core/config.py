@@ -58,10 +58,6 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-5.4-mini"
     OPENAI_FINETUNED_MODEL: str | None = None
 
-    # Gemini settings
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = "gemini-2.5-flash"
-
     # Encryption key for BI tools data sources
     ENCRYPTION_KEY: str = "FW9yUp0yRl1lVuUv6ZuWbXX4SMWcheXrysMpQ_o8xxM="
 

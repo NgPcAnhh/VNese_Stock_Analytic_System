@@ -251,10 +251,11 @@ function transformFinancialReports(json: unknown): FinancialReportsData {
     };
 }
 
-export function useFinancialReports(ticker: string, periods = 12, year?: number | null) {
+export function useFinancialReports(ticker: string, periods = 12, year?: number | null, quarter?: string | null) {
     const q = year ? `&year=${year}` : "";
+    const qtr = quarter !== undefined && quarter !== null ? `&quarter=${quarter}` : "";
     return useOptimizedFetch<FinancialReportsData>({
-        url: `${API_BASE}/api/v1/stock/${ticker}/financial-reports?periods=${periods}${q}`,
+        url: `${API_BASE}/api/v1/stock/${ticker}/financial-reports?periods=${periods}${q}${qtr}`,
         refreshInterval: 300_000,
         transform: transformFinancialReports,
     });
@@ -599,6 +600,9 @@ export interface FinancialReportTableRow {
     sectionLabel?: string;
     sectionOrder?: number;
     rowOrder?: number;
+    isparent?: boolean;
+    ischild?: boolean;
+    parent?: number | null;
 }
 
 export interface FinancialReportTable {

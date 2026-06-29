@@ -20,7 +20,7 @@ interface NavigationTabsProps {
 
 const NavigationTabs = ({ activeTab, onTabChange, ticker }: NavigationTabsProps) => {
     return (
-        <div className="sticky top-0 z-10 bg-card border border-border rounded-lg shadow-sm py-2 px-4">
+        <div className="sticky top-0 z-30 bg-card border border-border rounded-lg shadow-sm py-2 px-4">
             <nav className="flex items-center justify-center gap-1 overflow-x-auto">
                 {NAVIGATION_TABS.map((tab) => (
                     <button

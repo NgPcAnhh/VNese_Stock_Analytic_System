@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 import uuid
@@ -11,8 +11,12 @@ router = APIRouter()
 @router.post("/preview", response_model=schemas.QueryPreviewResponse)
 async def preview_query(
     req: schemas.QueryPreviewRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db)
 ):
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
     return await service.execute_preview(db, req)
 
 @router.post("/", response_model=schemas.QueryResponse)
