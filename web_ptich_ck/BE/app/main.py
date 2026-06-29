@@ -64,6 +64,16 @@ app = FastAPI(
     default_response_class=SafeJSONResponse,
 )
 
+#  Middleware xử lý trùng lặp và CORS ở Backend
+from fastapi import Request
+@app.middleware("http")
+async def fix_double_api_v1(request: Request, call_next):
+    # Tự động sửa lỗi trùng lặp URL /api/v1/api/v1 từ Frontend gửi về
+    if request.url.path.startswith("/api/v1/api/v1"):
+        request.scope["path"] = request.url.path.replace("/api/v1/api/v1", "/api/v1", 1)
+    response = await call_next(request)
+    return response
+    
 # ── GZip middleware — nén response > 500 bytes (giảm ~70% cho JSON lớn) ──
 app.add_middleware(GZipMiddleware, minimum_size=500)
 

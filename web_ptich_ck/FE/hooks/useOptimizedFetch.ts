@@ -52,7 +52,11 @@ export function useOptimizedFetch<T>({
         // Dedup: nếu cùng URL đang fetch → chờ kết quả
         let promise = _inflight.get(url) as Promise<unknown> | undefined;
         if (!promise) {
-            promise = fetch(url).then((res) => {
+            promise = fetch(url, {
+                headers: {
+                    'ngrok-skip-browser-warning': 'any-value',
+                },
+            }).then((res) => {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return res.json();
             });

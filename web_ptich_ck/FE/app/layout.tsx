@@ -7,6 +7,22 @@ import { AuthModal } from "@/components/auth/AuthModal";
 import { SettingsProvider } from "@/lib/SettingsContext";
 import { StockWebSocketProvider } from "@/lib/StockWebSocketContext";
 
+if (typeof window !== "undefined") {
+  const originalFetch = window.fetch;
+  window.fetch = function (input, init) {
+    init = init || {};
+    init.headers = init.headers || {};
+    if (init.headers instanceof Headers) {
+      init.headers.set('ngrok-skip-browser-warning', 'any-value');
+    } else if (Array.isArray(init.headers)) {
+      init.headers.push(['ngrok-skip-browser-warning', 'any-value']);
+    } else {
+      (init.headers as Record<string, string>)['ngrok-skip-browser-warning'] = 'any-value';
+    }
+    return originalFetch(input, init);
+  };
+}
+
 export const metadata: Metadata = {
   title: "StockPro - Nền tảng phân tích chứng khoán chuyên nghiệp",
   description: "Cập nhật dữ liệu thị trường, tin tức tài chính và công cụ phân tích chứng khoán hàng đầu Việt Nam.",
