@@ -55,7 +55,7 @@ def sync_news_to_db(
         df = df[required_cols].copy()
         df["published"] = pd.to_datetime(df["published"], errors="coerce")
         df = df.dropna(subset=["source", "title", "link", "published"])
-        df = df.drop_duplicates(subset=["source", "title", "link"])
+        df = df.drop_duplicates(subset=["link"])
         df = clean_dataframe(df, required_columns=["source", "title", "link", "published"])
 
         logger.info(f"Rows after cleaning: {len(df)}")
