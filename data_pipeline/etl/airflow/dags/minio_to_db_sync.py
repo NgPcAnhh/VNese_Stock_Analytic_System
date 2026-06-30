@@ -41,18 +41,6 @@ default_args = {
     description="Synchronize all data from MinIO to PostgreSQL database",
 )
 def minio_to_db_sync():
-    @task(task_id="sync_bctc")
-    def task_sync_bctc():
-        """Sync BCTC from new bctc_luong2 MinIO flow"""
-        from lake_to_dwh.sync_bctc import sync_bctc_to_db
-        return sync_bctc_to_db(
-            minio_conn_id=MINIO_CONN_ID,
-            bucket=MINIO_BUCKET,
-            db_url=DB_URL,
-            schema=SCHEMA,
-            folder_prefix="bctc_luong2/"
-        )
-    
     @task(task_id="sync_daily_price")
     def task_sync_daily_price():
         """Sync daily price data - Append"""
@@ -166,14 +154,13 @@ def minio_to_db_sync():
         logger.info("=" * 70)
         
         task_names = [
-            "BCTC",
             "Daily Price",
             "Financial Ratio",
             "Global Index",
             "Index Price",
             "Macro Economy",
             "Company Overview",
-            "Company People",
+            # "Company People",  # Commented out because people_result is commented out
             "Electric Board",
             "VN Macro Yearly"
         ]
@@ -193,7 +180,6 @@ def minio_to_db_sync():
         return f"Completed: {success_count}/{len(results)} successful"
     
     # Execute all sync tasks
-    bctc_result = task_sync_bctc()
     daily_price_result = task_sync_daily_price()
     financial_ratio_result = task_sync_financial_ratio()
     global_index_result = task_sync_global_index()
@@ -207,7 +193,6 @@ def minio_to_db_sync():
     # All sync tasks run in parallel (no dependencies)
     # Then generate summary report
     all_results = [
-        bctc_result,
         daily_price_result,
         financial_ratio_result,
         global_index_result,

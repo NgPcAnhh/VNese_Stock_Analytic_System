@@ -48,7 +48,7 @@ function mapApiToStockItem(item: any): StockListItem {
     priceChangePercent: item.priceChangePercent ?? 0,
     volume: item.volume ?? 0,
     avgVolume10d: item.avgVolume10d ?? 0,
-    marketCap: item.marketCap ?? 0,
+    marketCap: item.marketCap ? (item.marketCap / 100000) : 0,
     pe: item.pe ?? null,
     pb: item.pb ?? 0,
     eps: item.eps ?? 0,
