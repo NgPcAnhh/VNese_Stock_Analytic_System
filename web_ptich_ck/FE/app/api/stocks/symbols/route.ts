@@ -42,6 +42,24 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Try calling Backend proxy first (backend is running in Vietnam and won't be blocked by SSI)
+  const BACKEND_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  try {
+    const backendUrl = `${BACKEND_API}/stock-list/symbols?type=${type}&id=${id}`;
+    const res = await fetch(backendUrl, {
+      headers: {
+        "ngrok-skip-browser-warning": "69420"
+      },
+      next: { revalidate: 300 }
+    });
+    if (res.ok) {
+      const json = await res.json();
+      return NextResponse.json(json);
+    }
+  } catch (err) {
+    console.warn("[symbols route] Failed to fetch from backend proxy, falling back to direct SSI:", err);
+  }
+
   try {
     const res = await fetch(url, {
       headers: SSI_HEADERS,

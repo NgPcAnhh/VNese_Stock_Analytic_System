@@ -126,3 +126,61 @@ async def track_search(
     if ok:
         return TrackResponse(success=True, message="Stock search tracked")
     return TrackResponse(success=False, message="Failed to track stock search")
+
+
+# ── 7. Fetch symbols from SSI (Proxy for FE Vercel) ──────────────
+@router.get("/symbols")
+async def get_symbols(
+    type: str = Query(..., description="exchange | group"),
+    id: str = Query(..., description="hose, HNX30 etc."),
+):
+    """Proxy fetch stock symbols from SSI to bypass Vercel serverless IP blocking."""
+    from fastapi import HTTPException
+    import httpx
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if type not in ("exchange", "group"):
+        raise HTTPException(status_code=400, detail="type must be 'exchange' or 'group'")
+        
+    headers = {
+        "Authority": "iboard-query.ssi.com.vn",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    }
+    
+    if type == "exchange":
+        url = f"https://iboard-query.ssi.com.vn/stock/exchange/{id}?boardId=MAIN"
+    else:
+        url = f"https://iboard-query.ssi.com.vn/stock/group/{id}"
+        
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail=f"SSI returned {resp.status_code}")
+            
+            json_data = resp.json()
+            data = json_data.get("data", [])
+            
+            symbols = []
+            for item in data:
+                sym = item.get("stockSymbol")
+                if not sym:
+                    continue
+                if type == "exchange":
+                    if len(sym) <= 3:
+                        symbols.append(sym)
+                else:
+                    symbols.append(sym)
+                    
+            symbols = sorted(list(set(symbols)))
+            return {"type": type, "id": id, "count": len(symbols), "symbols": symbols}
+    except Exception as e:
+        logger.error(f"Error fetching symbols from SSI: {e}")
+        # Fallback to a hardcoded standard lists for VN30/HNX30 if backend server has temporary network error
+        if id.upper() == "VN30":
+            fallback = ["ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR", "HDB", "HPG", 
+                        "MBB", "MSN", "MWG", "PLX", "POW", "SAB", "SHB", "SSB", "SSI", "STB", 
+                        "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VND", "VNM", "VPB"]
+            return {"type": type, "id": id, "count": len(fallback), "symbols": sorted(fallback)}
+        raise HTTPException(status_code=502, detail=f"Failed to fetch symbols: {str(e)}")
