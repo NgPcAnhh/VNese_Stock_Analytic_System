@@ -43,11 +43,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     const userData = await res.json();
                     setUser(userData);
                 } else {
-                    clearTokens();
+                    // Chỉ xoá token nếu lỗi xác thực (401/403)
+                    if (res.status === 401 || res.status === 403) {
+                        clearTokens();
+                    }
                     setUser(null);
                 }
             } catch (err) {
-                clearTokens();
+                // Không xoá token khi có lỗi kết nối mạng (ví dụ: server đang khởi động)
                 setUser(null);
             } finally {
                 setIsLoading(false);
@@ -110,7 +113,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 if (currentRefresh) {
                     fetch(`${API}/auth/logout`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'ngrok-skip-browser-warning': '69420'
+                        },
                         body: JSON.stringify({ refresh_token: currentRefresh })
                     }).catch(() => {});
                 }
@@ -164,7 +170,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             try {
                 await fetch(`${API}/auth/logout`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'ngrok-skip-browser-warning': '69420'
+                    },
                     body: JSON.stringify({ refresh_token: refresh })
                 });
             } catch (e) {

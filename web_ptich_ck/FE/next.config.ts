@@ -10,7 +10,7 @@
 
 
 import type { NextConfig } from "next";
-const nextConfig: NextConfig = {
+const nextConfig: any = {
   // output: 'standalone', // COMMENT dòng này đi để tương thích với Vercel
   typescript: {
     ignoreBuildErrors: true, // Bỏ qua lỗi TypeScript khi build

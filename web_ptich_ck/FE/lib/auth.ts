@@ -98,7 +98,10 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
             try {
                 const resp = await fetch(`${API_BASE_URL}/refresh`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'ngrok-skip-browser-warning': '69420'
+                    },
                     body: JSON.stringify({ refresh_token: refresh }),
                 });
                 if (resp.ok) {
@@ -106,11 +109,14 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
                     setTokens(data.access_token, data.refresh_token);
                     token = data.access_token;
                 } else {
-                    clearTokens();
+                    // Chỉ xoá token nếu lỗi xác thực rõ ràng (401/403)
+                    if (resp.status === 401 || resp.status === 403) {
+                        clearTokens();
+                    }
                     token = undefined;
                 }
             } catch (e) {
-                clearTokens();
+                // Không xoá token khi gặp lỗi mạng/kết nối server
                 token = undefined;
             }
         } else {
@@ -120,20 +126,24 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     }
 
     const headers = new Headers(options.headers);
+    headers.set('ngrok-skip-browser-warning', '69420');
     if (token) {
         headers.set('Authorization', `Bearer ${token}`);
     }
 
     let response = await fetch(url, { ...options, headers });
 
-    // 2. Passive check: if server returns 401 Unauthorized
-    if (response.status === 401) {
+    // 2. Passive check: if server returns 401/403 Unauthorized
+    if (response.status === 401 || response.status === 403) {
         const refresh = getRefreshToken();
         if (refresh) {
             try {
                 const resp = await fetch(`${API_BASE_URL}/refresh`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'ngrok-skip-browser-warning': '69420'
+                    },
                     body: JSON.stringify({ refresh_token: refresh }),
                 });
                 if (resp.ok) {
@@ -145,10 +155,12 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
                     headers.set('Authorization', `Bearer ${token}`);
                     response = await fetch(url, { ...options, headers });
                 } else {
-                    clearTokens();
+                    if (resp.status === 401 || resp.status === 403) {
+                        clearTokens();
+                    }
                 }
             } catch (e) {
-                clearTokens();
+                // Không xoá token khi gặp lỗi mạng/kết nối server
             }
         }
     }
