@@ -240,7 +240,7 @@ async def get_stock_overview(
                 SELECT SUM(value) as ttm_ni 
                 FROM (
                     SELECT value FROM {SCHEMA}.bctc
-                    WHERE ticker = bs.ticker AND ind_code = 'IS_NPAT_PARENT'
+                    WHERE ticker = bs.ticker AND ind_code = 'IS_NPAT'
                     ORDER BY year DESC, quarter DESC LIMIT 4
                 ) sub
             ) n ON true
@@ -809,7 +809,8 @@ async def _get_screener_base_from_mv(db: AsyncSession) -> Optional[List[Dict[str
             mv.eb_price,
             (mv.high_52w / 1000.0) AS high_52w,
             (mv.low_52w / 1000.0) AS low_52w,
-            mv.sparkline
+            mv.sparkline,
+            mv.beta
         FROM {SCREENER_MV} mv
         ORDER BY mv.market_cap DESC NULLS LAST
     """)
@@ -1048,6 +1049,38 @@ def _compute_macd_signal(closes: List[float]) -> str:
     return "Trung tính"
 
 
+def _compute_beta(stock_closes: List[float], index_closes: List[float]) -> Optional[float]:
+    """Calculate Beta of a stock relative to VNINDEX."""
+    if len(stock_closes) < 15 or len(index_closes) < 15:
+        return None
+    n = min(len(stock_closes), len(index_closes))
+    s_prices = stock_closes[-n:]
+    i_prices = index_closes[-n:]
+    
+    s_returns = []
+    i_returns = []
+    for i in range(1, n):
+        if s_prices[i-1] > 0 and i_prices[i-1] > 0:
+            s_returns.append((s_prices[i] - s_prices[i-1]) / s_prices[i-1])
+            i_returns.append((i_prices[i] - i_prices[i-1]) / i_prices[i-1])
+            
+    if len(s_returns) < 10:
+        return None
+        
+    mean_s = sum(s_returns) / len(s_returns)
+    mean_i = sum(i_returns) / len(i_returns)
+    
+    covariance = 0.0
+    variance_i = 0.0
+    for s_ret, i_ret in zip(s_returns, i_returns):
+        covariance += (s_ret - mean_s) * (i_ret - mean_i)
+        variance_i += (i_ret - mean_i) ** 2
+        
+    if variance_i == 0:
+        return None
+    return round(covariance / variance_i, 2)
+
+
 def _determine_signal(
     rsi: Optional[float], macd: Optional[str], ma_trend: Optional[str]
 ) -> str:
@@ -1150,7 +1183,7 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
                 'BS_COMMON_STOCK',
                 'BS_EQUITY',
                 'BS_LIABILITIES',
-                'IS_NPAT_PARENT',
+                'IS_NPAT',
                 'IS_NET_REVENUE',
                 'CF_CFF_DIV_PAID'
             ) AND value IS NOT NULL AND value != 0
@@ -1191,7 +1224,7 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
             SELECT ticker, value,
                 ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY year DESC, quarter DESC) AS rn
             FROM bctc_data
-            WHERE ind_code = 'IS_NPAT_PARENT'
+            WHERE ind_code = 'IS_NPAT'
         ),
         ttm_ni AS (
             SELECT ticker, SUM(value) AS ttm_ni
@@ -1367,16 +1400,39 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
     if not base_rows:
         return {"data": [], "total": 0}
 
+    # Fetch VNINDEX history for Beta calculation
+    index_sql = text(f"""
+        SELECT trading_date, close
+        FROM {SCHEMA}.market_index
+        WHERE ticker = 'VNINDEX'
+          AND trading_date >= :date_90d_ago AND trading_date <= :latest_date
+        ORDER BY trading_date ASC
+    """)
+    index_price_map = {}
+    try:
+        idx_res = await db.execute(index_sql, {
+            "date_90d_ago": date_90d_ago,
+            "latest_date": latest_date,
+        })
+        index_rows = idx_res.fetchall()
+        index_price_map = {row[0]: float(row[1]) for row in index_rows if row[1]}
+    except Exception as exc:
+        logger.warning("screener index history query error: %s", exc)
+
     # ── Price history for technical indicators ──
     price_series: Dict[str, List[float]] = defaultdict(list)
     vol_series: Dict[str, List[int]] = defaultdict(list)
+    stock_date_closes = defaultdict(dict)
 
+    mv_beta_map = {}
     if mv_base_rows is not None:
         # MV already stores last 20 closes in thousand-VND units.
         for row in base_rows:
             ticker = row.get("ticker")
             if not ticker:
                 continue
+            raw_b = row.get("beta")
+            mv_beta_map[ticker] = float(raw_b) if raw_b is not None else None
             sparkline = row.get("sparkline") or []
             price_series[ticker] = [float(x) / 1000.0 for x in sparkline if x is not None]
             if row.get("volume") is not None:
@@ -1404,10 +1460,12 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
 
         for row in history_rows:
             ticker = row[0]
-            close_val = float(row[2]) if row[2] else 0
+            date_str = row[1]
+            close_val = float(row[2]) if row[2] else 0.0
             vol_val = int(row[3]) if row[3] else 0
             price_series[ticker].append(close_val)
             vol_series[ticker].append(vol_val)
+            stock_date_closes[ticker][date_str] = close_val
 
     # ── Compute technical indicators per ticker ──
     tech_map: Dict[str, Dict[str, Any]] = {}
@@ -1431,12 +1489,34 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
         vols = vol_series.get(ticker, [])
         avg_vol_10d = round(sum(vols[-10:]) / min(len(vols[-10:]), 10)) if vols else None
 
+        # Compute aligned Beta relative to VNINDEX
+        beta = None
+        if mv_base_rows is not None:
+            beta = mv_beta_map.get(ticker)
+        elif index_price_map:
+            stock_map = stock_date_closes.get(ticker, {})
+            if stock_map:
+                aligned_s = []
+                aligned_i = []
+                for date in sorted(index_price_map.keys()):
+                    if date in stock_map:
+                        aligned_s.append(stock_map[date])
+                        aligned_i.append(index_price_map[date])
+                beta = _compute_beta(aligned_s, aligned_i)
+            elif closes:
+                # Positional alignment fallback if no date mapping (for MV)
+                aligned_s = closes
+                sorted_idx_closes = [index_price_map[d] for d in sorted(index_price_map.keys())]
+                aligned_i = sorted_idx_closes[-len(closes):]
+                beta = _compute_beta(aligned_s, aligned_i)
+
         tech_map[ticker] = {
             "rsi14": round(rsi14, 1) if rsi14 is not None else None,
             "ma20_trend": ma20_trend,
             "macd_signal": macd_signal,
             "sparkline": sparkline,
             "avg_vol_10d": avg_vol_10d,
+            "beta": beta,
         }
 
     # ── Build final response items ──
@@ -1622,7 +1702,7 @@ async def get_screener_data(db: AsyncSession) -> Dict[str, Any]:
             "priceChangePercent_n_1_2": price_change_pct_n_1_2,
             "volumeChange_n_1_2": volume_change_n_1_2,
             "volumeChangePercent_n_1_2": volume_change_pct_n_1_2,
-            "beta": None,               # Requires index correlation, not implemented
+            "beta": tech.get("beta"),
             "rsi14": rsi14,
             "macdSignal": macd_sig,
             "ma20Trend": ma20_tr,

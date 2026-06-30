@@ -7,7 +7,9 @@
 
 SET search_path TO hethong_phantich_chungkhoan;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_stock_screener_base AS
+DROP MATERIALIZED VIEW IF EXISTS mv_stock_screener_base CASCADE;
+
+CREATE MATERIALIZED VIEW mv_stock_screener_base AS
 WITH ranked_dates AS (
     SELECT DISTINCT trading_date
     FROM history_price
@@ -26,7 +28,14 @@ dates AS (
                 - INTERVAL '365 days'
             )::date,
             'YYYY-MM-DD'
-        ) AS date_52w_ago
+        ) AS date_52w_ago,
+        TO_CHAR(
+            (
+                TO_DATE(MAX(CASE WHEN rn = 1 THEN trading_date END), 'YYYY-MM-DD')
+                - INTERVAL '90 days'
+            )::date,
+            'YYYY-MM-DD'
+        ) AS date_90d_ago
     FROM (
         SELECT trading_date, ROW_NUMBER() OVER (ORDER BY trading_date DESC) AS rn
         FROM ranked_dates
@@ -58,12 +67,12 @@ bctc_data AS (
     SELECT UPPER(BTRIM(ticker)) AS ticker, year, quarter, ind_code, value
     FROM bctc
     WHERE ind_code IN (
-        'cp_pho_thong',
-        'vcsh',
-        'no_phai_tra',
-        'lnst_cua_co_dong_cong_ty_me',
-        'doanh_thu_thuan',
-        'co_tuc_da_tra'
+        'BS_COMMON_STOCK',
+        'BS_EQUITY',
+        'BS_LIABILITIES',
+        'IS_NPAT',
+        'IS_NET_REVENUE',
+        'CF_CFF_DIV_PAID'
     )
       AND value IS NOT NULL
       AND value <> 0
@@ -73,7 +82,7 @@ shares AS (
         ticker,
         value / 10000.0 AS shares
     FROM bctc_data
-    WHERE ind_code = 'cp_pho_thong' AND value > 0
+    WHERE ind_code = 'BS_COMMON_STOCK' AND value > 0
     ORDER BY ticker, year DESC, quarter DESC
 ),
 equity AS (
@@ -81,7 +90,7 @@ equity AS (
         ticker,
         value AS equity
     FROM bctc_data
-    WHERE ind_code = 'vcsh' AND value > 0
+    WHERE ind_code = 'BS_EQUITY' AND value > 0
     ORDER BY ticker, year DESC, quarter DESC
 ),
 total_liabilities AS (
@@ -89,7 +98,7 @@ total_liabilities AS (
         ticker,
         value AS total_liabilities
     FROM bctc_data
-    WHERE ind_code = 'no_phai_tra'
+    WHERE ind_code = 'BS_LIABILITIES'
     ORDER BY ticker, year DESC, quarter DESC
 ),
 ranked_ni AS (
@@ -98,7 +107,7 @@ ranked_ni AS (
         value,
         ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY year DESC, quarter DESC) AS rn
     FROM bctc_data
-    WHERE ind_code = 'lnst_cua_co_dong_cong_ty_me'
+    WHERE ind_code = 'IS_NPAT'
 ),
 ttm_ni AS (
     SELECT ticker, SUM(value) AS ttm_ni
@@ -120,7 +129,7 @@ ranked_rev AS (
         value,
         ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY year DESC, quarter DESC) AS rn
     FROM bctc_data
-    WHERE ind_code = 'doanh_thu_thuan'
+    WHERE ind_code = 'IS_NET_REVENUE'
 ),
 ttm_rev AS (
     SELECT ticker, SUM(value) AS ttm_rev
@@ -142,7 +151,7 @@ ranked_div AS (
         value,
         ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY year DESC, quarter DESC) AS rn
     FROM bctc_data
-    WHERE ind_code = 'co_tuc_da_tra'
+    WHERE ind_code = 'CF_CFF_DIV_PAID'
 ),
 ttm_div AS (
     SELECT ticker, SUM(ABS(value)) AS ttm_div
@@ -193,7 +202,7 @@ co_dedup AS (
         CASE
             WHEN icb_name3 IS NOT NULL AND BTRIM(icb_name3) NOT IN ('', 'NaN') THEN BTRIM(icb_name3)
             WHEN icb_name2 IS NOT NULL AND BTRIM(icb_name2) NOT IN ('', 'NaN') THEN BTRIM(icb_name2)
-            ELSE 'Chua phan loai'
+            ELSE 'Chưa phân loại'
         END AS sector,
         CASE
             WHEN icb_name2 IS NOT NULL AND BTRIM(icb_name2) NOT IN ('', 'NaN') THEN BTRIM(icb_name2)
@@ -267,6 +276,32 @@ week52 AS (
     FROM history_price hp
     JOIN dates d ON hp.trading_date >= d.date_52w_ago
     GROUP BY UPPER(BTRIM(hp.ticker))
+),
+vnindex_returns AS (
+    SELECT 
+        trading_date,
+        (close - LAG(close) OVER (ORDER BY trading_date ASC)) / NULLIF(LAG(close) OVER (ORDER BY trading_date ASC), 0) AS idx_ret
+    FROM market_index
+    CROSS JOIN dates d
+    WHERE ticker = 'VNINDEX'
+      AND trading_date >= d.date_52w_ago AND trading_date <= d.latest_date
+),
+stock_returns AS (
+    SELECT 
+        UPPER(BTRIM(ticker)) AS ticker,
+        trading_date,
+        (close - LAG(close) OVER (PARTITION BY UPPER(BTRIM(ticker)) ORDER BY trading_date ASC)) / NULLIF(LAG(close) OVER (PARTITION BY UPPER(BTRIM(ticker)) ORDER BY trading_date ASC), 0) AS stock_ret
+    FROM history_price
+    CROSS JOIN dates d
+    WHERE trading_date >= d.date_52w_ago AND trading_date <= d.latest_date
+),
+beta_calc AS (
+    SELECT 
+        sr.ticker,
+        ROUND(regr_slope(sr.stock_ret, vr.idx_ret)::numeric, 2) AS beta
+    FROM stock_returns sr
+    JOIN vnindex_returns vr ON sr.trading_date = vr.trading_date
+    GROUP BY sr.ticker
 )
 SELECT
     bs.ticker,
@@ -298,8 +333,6 @@ SELECT
     eb.foreign_buy,
     eb.foreign_sell,
     eb.eb_price,
-
-
 
     ROUND((hp.close * 1000)::numeric, 0) AS current_price,
     CASE
@@ -400,7 +433,9 @@ SELECT
         WHEN hp.close > 0 AND w52.low_52w > 0
             THEN ROUND((((hp.close - w52.low_52w) / w52.low_52w) * 100)::numeric, 2)
         ELSE NULL
-    END AS week_change_52
+    END AS week_change_52,
+    
+    bt.beta AS beta
 FROM base_stocks bs
 CROSS JOIN dates d
 LEFT JOIN hp_latest hp ON hp.ticker = bs.ticker
@@ -420,7 +455,7 @@ LEFT JOIN latest_eb eb ON eb.ticker = bs.ticker
 LEFT JOIN week52 w52 ON w52.ticker = bs.ticker
 LEFT JOIN avg_vol_10d av ON av.ticker = bs.ticker
 LEFT JOIN sparkline sp ON sp.ticker = bs.ticker
-WITH NO DATA;
+LEFT JOIN beta_calc bt ON bt.ticker = bs.ticker;
 
 -- Required for REFRESH MATERIALIZED VIEW CONCURRENTLY
 CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_stock_screener_base_ticker
@@ -452,8 +487,3 @@ CREATE INDEX IF NOT EXISTS idx_mv_stock_screener_base_company_name
 
 -- Initial load
 REFRESH MATERIALIZED VIEW mv_stock_screener_base;
-
--- For periodic refresh (recommended by scheduler / cron):
--- REFRESH MATERIALIZED VIEW CONCURRENTLY mv_stock_screener_base;
-
-

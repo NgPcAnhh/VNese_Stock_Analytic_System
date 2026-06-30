@@ -89,9 +89,8 @@ const fmtVol = (v: number) => {
   return v.toString();
 };
 const fmtCap = (v: number) => {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}Tr tỷ`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K tỷ`;
-  return `${v.toLocaleString()} tỷ`;
+  const inBillions = v / 1000;
+  return `${inBillions.toLocaleString("vi-VN", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} tỷ`;
 };
 const fmtPct = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
 const fmtPrice = (v: number) => `${fmt(v)}đ`;
@@ -813,7 +812,7 @@ export default function StockScreener() {
                         <SortHeader label="%" field="priceChangePercent" className="text-right" />
                         <SortHeader label="KL" field="volume" className="text-right" />
                         <SortHeader label="Giá n-1" field="price_n_1" className="text-right bg-orange-50/30" />
-                        <SortHeader label="% n-1/n-2" field="priceChangePercent_n_1_2" className="text-right bg-orange-50/30" />
+                        <SortHeader label="% thay đổi" field="priceChangePercent_n_1_2" className="text-right bg-orange-50/30" />
                         <SortHeader label="Vốn hóa" field="marketCap" className="text-right" />
                         <SortHeader label="P/E" field="pe" className="text-right" />
                         <SortHeader label="P/B" field="pb" className="text-right" />
@@ -823,9 +822,10 @@ export default function StockScreener() {
                         <SortHeader label="D/E" field="debtToEquity" className="text-right" />
                         <SortHeader label="DT ↑" field="revenueGrowth" className="text-right" />
                         <SortHeader label="LN ↑" field="profitGrowth" className="text-right" />
-                        <SortHeader label="Cổ tức" field="dividendYield" className="text-right" />
                         <SortHeader label="RSI" field="rsi14" className="text-right" />
                         <SortHeader label="52W" field="weekChange52" className="text-right" />
+                        <SortHeader label="Beta" field="beta" className="text-right" />
+                        <SortHeader label="Khối ngoại" field="foreignNetBuy" className="text-right" />
                         <TableHead className="text-center">MACD</TableHead>
                         <TableHead className="text-center">Tín hiệu</TableHead>
                       </TableRow>
@@ -971,13 +971,6 @@ export default function StockScreener() {
                                 </span>
                               </TableCell>
 
-                              {/* Dividend Yield */}
-                              <TableCell className="text-right">
-                                <span className={stock.dividendYield >= 3 ? "text-green-600 font-medium" : "text-gray-600"}>
-                                  {stock.dividendYield.toFixed(1)}%
-                                </span>
-                              </TableCell>
-
                               {/* RSI */}
                               <TableCell className="text-right">
                                 <RsiBadge value={stock.rsi14} />
@@ -990,6 +983,20 @@ export default function StockScreener() {
                                 <span className={stock.weekChange52 >= 0 ? "text-green-600" : "text-red-600"}>
                                   {fmtPct(stock.weekChange52)}
                                 </span>
+                              </TableCell>
+
+                              {/* Beta */}
+                              <TableCell className="text-right text-gray-600">
+                                {stock.beta !== null ? stock.beta.toFixed(2) : "—"}
+                              </TableCell>
+
+                              {/* Khối ngoại */}
+                              <TableCell className="text-right">
+                                {stock.foreignNetBuy !== null ? (
+                                  <span className={stock.foreignNetBuy > 0 ? "text-green-600 font-medium" : stock.foreignNetBuy < 0 ? "text-red-600 font-medium" : "text-gray-600"}>
+                                    {stock.foreignNetBuy > 0 ? "+" : ""}{stock.foreignNetBuy.toFixed(2)} tỷ
+                                  </span>
+                                ) : "—"}
                               </TableCell>
 
                               {/* MACD */}
@@ -1147,13 +1154,21 @@ export default function StockScreener() {
                               <span className="float-right"><RsiBadge value={stock.rsi14} /></span>
                             </div>
                             <div>
-                              <span className="text-gray-400">Cổ tức</span>
-                              <span className="float-right font-medium text-gray-700">{stock.dividendYield.toFixed(1)}%</span>
-                            </div>
-                            <div>
                               <span className="text-gray-400">52W</span>
                               <span className={`float-right font-medium ${stock.weekChange52 >= 0 ? "text-green-600" : "text-red-600"}`}>
                                 {fmtPct(stock.weekChange52)}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Beta</span>
+                              <span className="float-right font-medium text-gray-700">
+                                {stock.beta !== null ? stock.beta.toFixed(2) : "—"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Khối ngoại</span>
+                              <span className={`float-right font-medium ${stock.foreignNetBuy > 0 ? "text-green-600" : stock.foreignNetBuy < 0 ? "text-red-600" : "text-gray-700"}`}>
+                                {stock.foreignNetBuy !== null ? `${stock.foreignNetBuy > 0 ? "+" : ""}${stock.foreignNetBuy.toFixed(1)} tỷ` : "—"}
                               </span>
                             </div>
                             <div>
