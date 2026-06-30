@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
     Search,
-    Bell,
     User,
     ChevronDown,
     Menu,
@@ -18,10 +17,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { useTracking } from "@/hooks/useTracking";
-import { useAlerts, type StockAlert } from "@/hooks/useAlerts";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-const ALERT_ACK_KEY = "alerts_ack_ids";
 
 interface StockSearchResult {
     ticker: string;
@@ -46,118 +43,16 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
     const { isAuthenticated, user, logout, openAuthModal } = useAuth();
-    const { listAlerts, updateAlert, deleteAlert } = useAlerts();
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [liveStocks, setLiveStocks] = useState<StockSearchResult[]>([]);
     const [liveNews, setLiveNews] = useState<NewsSearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [isBellOpen, setIsBellOpen] = useState(false);
-    const [isAlertLoading, setIsAlertLoading] = useState(false);
-    const [alerts, setAlerts] = useState<StockAlert[]>([]);
-    const [acknowledgedIds, setAcknowledgedIds] = useState<number[]>([]);
-    const [activeAlertCount, setActiveAlertCount] = useState(0);
 
     const searchInputRef = useRef<HTMLInputElement>(null);
-    const bellRef = useRef<HTMLDivElement>(null);
     const searchTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
     const router = useRouter();
     const { trackSearch, trackStockSearch } = useTracking(user?.id);
-
-    const loadAlerts = useCallback(async () => {
-        try {
-            setIsAlertLoading(true);
-            const nextAlerts = await listAlerts();
-            setAlerts(nextAlerts);
-        } catch {
-            setAlerts([]);
-        } finally {
-            setIsAlertLoading(false);
-        }
-    }, [listAlerts]);
-
-    const persistAck = useCallback((ids: number[]) => {
-        try {
-            localStorage.setItem(ALERT_ACK_KEY, JSON.stringify(ids));
-        } catch {
-            // noop
-        }
-    }, []);
-
-    const markAlertAsRead = useCallback(
-        (id: number) => {
-            setAcknowledgedIds((prev) => {
-                if (prev.includes(id)) return prev;
-                const next = [...prev, id];
-                persistAck(next);
-                return next;
-            });
-        },
-        [persistAck],
-    );
-
-    const markAllAsRead = useCallback(() => {
-        const ids = alerts.map((a) => a.id);
-        setAcknowledgedIds(ids);
-        persistAck(ids);
-    }, [alerts, persistAck]);
-
-    const suspendAlert = useCallback(
-        async (id: number) => {
-            try {
-                await updateAlert(id, { status: "DISMISSED" });
-                markAlertAsRead(id);
-                await loadAlerts();
-            } catch {
-                // noop
-            }
-        },
-        [updateAlert, markAlertAsRead, loadAlerts],
-    );
-
-    const removeAlert = useCallback(
-        async (id: number) => {
-            try {
-                await deleteAlert(id);
-                setAcknowledgedIds((prev) => {
-                    const next = prev.filter((n) => n !== id);
-                    persistAck(next);
-                    return next;
-                });
-                await loadAlerts();
-            } catch {
-                // noop
-            }
-        },
-        [deleteAlert, loadAlerts, persistAck],
-    );
-
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(ALERT_ACK_KEY);
-            if (raw) {
-                const ids = JSON.parse(raw) as number[];
-                setAcknowledgedIds(Array.isArray(ids) ? ids : []);
-            }
-        } catch {
-            setAcknowledgedIds([]);
-        }
-        loadAlerts();
-        const timer = setInterval(loadAlerts, 15000);
-        return () => clearInterval(timer);
-    }, [loadAlerts]);
-
-    useEffect(() => {
-        const validAck = acknowledgedIds.filter((id) => alerts.some((a) => a.id === id));
-        if (validAck.length !== acknowledgedIds.length) {
-            setAcknowledgedIds(validAck);
-            persistAck(validAck);
-        }
-        const count = alerts.filter(
-            (a) => (a.status === "ACTIVE" || a.status === "TRIGGERED") && !validAck.includes(a.id),
-        ).length;
-        setActiveAlertCount(count);
-    }, [alerts, acknowledgedIds, persistAck]);
 
     // Handle escape key to close search
     useEffect(() => {
@@ -165,24 +60,10 @@ export function Header({ onMenuClick }: HeaderProps) {
             if (e.key === "Escape" && isSearchActive) {
                 setIsSearchActive(false);
             }
-            if (e.key === "Escape" && isBellOpen) {
-                setIsBellOpen(false);
-            }
         };
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [isSearchActive, isBellOpen]);
-
-    useEffect(() => {
-        const onPointerDown = (e: MouseEvent) => {
-            if (!isBellOpen) return;
-            if (bellRef.current && !bellRef.current.contains(e.target as Node)) {
-                setIsBellOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", onPointerDown);
-        return () => document.removeEventListener("mousedown", onPointerDown);
-    }, [isBellOpen]);
+    }, [isSearchActive]);
 
     // Handle body locking when search is active
     useEffect(() => {
@@ -200,10 +81,6 @@ export function Header({ onMenuClick }: HeaderProps) {
 
     // Format utility
     const formatPrice = (p: number | null) => p != null ? p.toLocaleString("vi-VN") : "—";
-    const formatCondition = (condition: string) => {
-        if (condition === "LESS_THAN") return "<=";
-        return ">=";
-    };
     const timeAgo = (iso: string | null) => {
         if (!iso) return "";
         const diff = Date.now() - new Date(iso).getTime();
@@ -214,24 +91,6 @@ export function Header({ onMenuClick }: HeaderProps) {
         const days = Math.floor(hours / 24);
         return `${days} ngày trước`;
     };
-
-    const sortedAlerts = useMemo(
-        () =>
-            [...alerts].sort(
-                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-            ),
-        [alerts],
-    );
-
-    const unreadIds = useMemo(
-        () =>
-            sortedAlerts
-                .filter(
-                    (a) => (a.status === "ACTIVE" || a.status === "TRIGGERED") && !acknowledgedIds.includes(a.id),
-                )
-                .map((a) => a.id),
-        [sortedAlerts, acknowledgedIds],
-    );
 
     // Live Search Effect
     useEffect(() => {
@@ -469,104 +328,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <div className="relative" ref={bellRef}>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => setIsBellOpen((prev) => !prev)}
-                            className="relative rounded-full text-muted-foreground hover:text-foreground"
-                            title="Thông báo cảnh báo"
-                        >
-                            <Bell className="h-5 w-5" />
-                            {activeAlertCount > 0 && (
-                                <>
-                                    <span className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background" />
-                                    <span className="absolute -top-1 -right-1 text-[10px] leading-none min-w-4 h-4 px-1 rounded-full bg-red-500 text-white flex items-center justify-center">
-                                        {activeAlertCount > 9 ? "9+" : activeAlertCount}
-                                    </span>
-                                </>
-                            )}
-                        </Button>
 
-                        {isBellOpen && (
-                            <div className="absolute right-0 mt-2 w-[360px] max-w-[90vw] rounded-xl border border-border bg-card shadow-xl z-40 overflow-hidden">
-                                <div className="px-4 py-3 border-b border-border/60 flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm font-semibold">Thông báo cảnh báo</p>
-                                        <p className="text-xs text-muted-foreground">{activeAlertCount} chưa đọc</p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={markAllAsRead}
-                                        className="text-xs text-primary hover:underline"
-                                    >
-                                        Đánh dấu đọc tất cả
-                                    </button>
-                                </div>
-
-                                <div className="max-h-[380px] overflow-y-auto">
-                                    {isAlertLoading ? (
-                                        <div className="px-4 py-6 text-sm text-muted-foreground">Đang tải cảnh báo...</div>
-                                    ) : sortedAlerts.length === 0 ? (
-                                        <div className="px-4 py-6 text-sm text-muted-foreground">Chưa có cảnh báo nào.</div>
-                                    ) : (
-                                        sortedAlerts.map((alert) => {
-                                            const isUnread = unreadIds.includes(alert.id);
-                                            return (
-                                                <div key={alert.id} className="px-4 py-3 border-b last:border-b-0 border-border/40">
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                markAlertAsRead(alert.id);
-                                                                setIsBellOpen(false);
-                                                                router.push(`/stock/${alert.ticker}`);
-                                                            }}
-                                                            className="text-left group"
-                                                        >
-                                                            <p className="text-sm font-medium group-hover:text-primary">
-                                                                {alert.ticker} {formatCondition(alert.condition_type)} {Number(alert.target_price).toLocaleString("vi-VN")}
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                {alert.status === "DISMISSED" ? "Đã tắt" : "Đang theo dõi"} • {timeAgo(alert.created_at)}
-                                                            </p>
-                                                        </button>
-                                                        {isUnread && <span className="mt-1 inline-block h-2 w-2 rounded-full bg-red-500" />}
-                                                    </div>
-
-                                                    <div className="mt-2 flex items-center gap-3 text-xs">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => markAlertAsRead(alert.id)}
-                                                            className="text-muted-foreground hover:text-foreground"
-                                                        >
-                                                            Đánh dấu đã đọc
-                                                        </button>
-                                                        {(alert.status === "ACTIVE" || alert.status === "TRIGGERED") && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => suspendAlert(alert.id)}
-                                                                className="text-amber-700 hover:text-amber-800"
-                                                            >
-                                                                Tắt cảnh báo
-                                                            </button>
-                                                        )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => removeAlert(alert.id)}
-                                                            className="text-red-600 hover:text-red-700"
-                                                        >
-                                                            Xóa
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
 
                     <div className="flex items-center gap-2 pl-2 border-l border-border/50">
                         {isAuthenticated && user ? (

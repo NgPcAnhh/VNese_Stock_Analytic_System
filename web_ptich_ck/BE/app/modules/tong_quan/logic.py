@@ -1071,8 +1071,8 @@ async def get_news(
 # ────────────────────────────────────────────────────────────────────
 
 async def get_valuation_pe(db: AsyncSession) -> List[Dict[str, Any]]:
-    """Hardcoded average market P/E to perfectly match the provided 10-year chart trend."""
-    return [
+    """Average market P/E grouped by quarter and filtered for the last 5 years (since 2021)."""
+    raw_data = [
         {"month": "Jan 2017", "value": 11.0}, {"month": "Feb 2017", "value": 10.5}, {"month": "Mar 2017", "value": 12.0}, {"month": "May 2017", "value": 15.0}, {"month": "Jul 2017", "value": 14.8}, {"month": "Sep 2017", "value": 17.5}, {"month": "Nov 2017", "value": 18.2}, {"month": "Dec 2017", "value": 21.0},
         {"month": "Jan 2018", "value": 21.0}, {"month": "Feb 2018", "value": 21.0}, {"month": "Apr 2018", "value": 28.0}, {"month": "May 2018", "value": 24.0}, {"month": "Jul 2018", "value": 23.0}, {"month": "Sep 2018", "value": 23.0}, {"month": "Nov 2018", "value": 20.0}, {"month": "Dec 2018", "value": 18.0},
         {"month": "Jan 2019", "value": 18.0}, {"month": "Mar 2019", "value": 19.5}, {"month": "Jun 2019", "value": 18.0}, {"month": "Sep 2019", "value": 19.8}, {"month": "Dec 2019", "value": 17.8},
@@ -1084,6 +1084,36 @@ async def get_valuation_pe(db: AsyncSession) -> List[Dict[str, Any]]:
         {"month": "Jan 2025", "value": 14.0}, {"month": "Feb 2025", "value": 15.5}, {"month": "Apr 2025", "value": 19.0}, {"month": "May 2025", "value": 18.5}, {"month": "Jun 2025", "value": 20.0}, {"month": "Jul 2025", "value": 20.2}, {"month": "Sep 2025", "value": 17.2}, {"month": "Nov 2025", "value": 17.8}, {"month": "Dec 2025", "value": 15.5},
         {"month": "Jan 2026", "value": 15.2}, {"month": "Feb 2026", "value": 17.0}
     ]
+
+    month_map = {
+        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12
+    }
+
+    # Group by (year, quarter)
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for item in raw_data:
+        parts = item["month"].split()
+        m_name = parts[0]
+        year = int(parts[1])
+        m_num = month_map.get(m_name, 1)
+        quarter = (m_num - 1) // 3 + 1
+        grouped[(year, quarter)].append(item["value"])
+
+    result = []
+    for (year, quarter), vals in grouped.items():
+        if year >= 2021:
+            avg_val = round(sum(vals) / len(vals), 2)
+            result.append({
+                "year": year,
+                "quarter": quarter,
+                "month": f"Q{quarter}/{year}",
+                "value": avg_val
+            })
+
+    result.sort(key=lambda x: (x["year"], x["quarter"]))
+    return [{"month": r["month"], "value": r["value"]} for r in result]
 
 
 # ────────────────────────────────────────────────────────────────────

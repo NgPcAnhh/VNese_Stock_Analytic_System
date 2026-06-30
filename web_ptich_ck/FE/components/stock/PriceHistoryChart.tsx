@@ -1,15 +1,11 @@
-﻿"use client";
-import { AlertPopup } from './AlertPopup';
+"use client";
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import ReactECharts from "echarts-for-react";
 import { useStockDetail } from "@/lib/StockDetailContext";
 import { usePriceHistory, type PriceHistoryPeriod, type PriceHistoryItem } from "@/hooks/useStockData";
-import { useAlerts, type StockAlert } from "@/hooks/useAlerts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-    Star,
-    Bell,
     GitCompare,
     Pencil,
     Settings,
@@ -67,12 +63,8 @@ function computeInterval(count: number): number {
 
 const PriceHistoryChart = () => {
     const { ticker, priceHistory: contextHistory, onTabChange } = useStockDetail();
-    const { listAlerts } = useAlerts();
     const [period, setPeriod] = useState<PriceHistoryPeriod>("1Y");
     const [chartType, setChartType] = useState<"line" | "candle">("line");
-    const [isFavorite, setIsFavorite] = useState(false);
-    const [showAlert, setShowAlert] = useState(false);
-    const [activeAlert, setActiveAlert] = useState<StockAlert | null>(null);
     const [showCompareMa20, setShowCompareMa20] = useState(false);
     const [analysisNote, setAnalysisNote] = useState("");
     const [showGridLines, setShowGridLines] = useState(true);
@@ -103,14 +95,7 @@ const PriceHistoryChart = () => {
     const axisInterval = useMemo(() => computeInterval(dates.length), [dates.length]);
     const latestClosePrice = closePrices.length > 0 ? closePrices[closePrices.length - 1] : null;
 
-    const isAlertTriggered = useMemo(() => {
-        if (!activeAlert || latestClosePrice === null) return false;
-        const target = Number(activeAlert.target_price);
-        if (activeAlert.condition_type === "LESS_THAN") {
-            return latestClosePrice <= target;
-        }
-        return latestClosePrice >= target;
-    }, [activeAlert, latestClosePrice]);
+
 
     const ma20Data = useMemo(() => {
         if (closePrices.length < 20) return closePrices.map(() => null);
@@ -123,45 +108,7 @@ const PriceHistoryChart = () => {
     }, [closePrices]);
 
     useEffect(() => {
-        const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-        document.addEventListener("fullscreenchange", handleFullscreenChange);
-        return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    }, []);
-
-    useEffect(() => {
         const noteKey = "stock_analysis_notes";
-
-        const loadRemoteState = async () => {
-            try {
-                const sessionId = getOrCreateSessionId();
-
-                const [favRes, alertRes] = await Promise.all([
-                    fetch(`${API}/tracking/favorite?session_id=${encodeURIComponent(sessionId)}`),
-                    listAlerts(),
-                ]);
-
-                if (favRes.ok) {
-                    const favorites: string[] = await favRes.json();
-                    setIsFavorite(favorites.includes(ticker));
-                } else {
-                    setIsFavorite(false);
-                }
-
-                const alerts = alertRes as StockAlert[];
-                const tickerAlerts = alerts.filter((a) => a.ticker.toUpperCase() === ticker.toUpperCase());
-                const active =
-                    tickerAlerts.find((a) => a.status === "ACTIVE") ||
-                    tickerAlerts.find((a) => a.status === "TRIGGERED") ||
-                    null;
-                setActiveAlert(active);
-            } catch {
-                setIsFavorite(false);
-                setActiveAlert(null);
-            }
-        };
-
-        loadRemoteState();
-
         try {
             const notesRaw = localStorage.getItem(noteKey);
             const notes = notesRaw ? (JSON.parse(notesRaw) as Record<string, string>) : {};
@@ -169,31 +116,7 @@ const PriceHistoryChart = () => {
         } catch {
             setAnalysisNote("");
         }
-    }, [ticker, listAlerts]);
-
-    const toggleFavorite = useCallback(() => {
-        const run = async () => {
-            try {
-                const res = await fetch(`${API}/tracking/favorite`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        ticker,
-                        session_id: getOrCreateSessionId(),
-                    }),
-                });
-                if (!res.ok) return;
-                setIsFavorite((prev) => !prev);
-            } catch {
-                // noop
-            }
-        };
-        run();
     }, [ticker]);
-
-    const setupPriceAlert = useCallback(() => {
-        setShowAlert(true);
-    }, []);
 
     const editAnalysisNote = useCallback(() => {
         const noteKey = "stock_analysis_notes";
@@ -403,11 +326,6 @@ const PriceHistoryChart = () => {
                         <CardTitle className="text-lg font-bold text-foreground">
                             Biểu đồ giá
                         </CardTitle>
-                        {activeAlert !== null && (
-                            <span className="text-xs px-2 py-1 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-                                Cảnh báo: {activeAlert.condition_type === "LESS_THAN" ? "<=" : ">="} {Number(activeAlert.target_price).toLocaleString()} ({isAlertTriggered ? "Đã chạm" : "Đang theo dõi"})
-                            </span>
-                        )}
                         {analysisNote && (
                             <span className="text-xs px-2 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 max-w-[280px] truncate" title={analysisNote}>
                                 Ghi chú: {analysisNote}
@@ -455,20 +373,6 @@ const PriceHistoryChart = () => {
                             MA20
                         </button>
                         <div className="flex items-center gap-0.5 border-l border-border/50 pl-2">
-                            <ToolbarButton
-                                icon={<Star className="w-3.5 h-3.5" fill={isFavorite ? "currentColor" : "none"} />}
-                                title={isFavorite ? "Bỏ khỏi danh sách theo dõi" : "Thêm vào danh sách theo dõi"}
-                                active={isFavorite}
-                                activeClassName="text-yellow-500 bg-yellow-50 dark:bg-yellow-500/10"
-                                onClick={toggleFavorite}
-                            />
-                            <ToolbarButton
-                                icon={<Bell className="w-3.5 h-3.5" />}
-                                title={activeAlert ? "Quản lý cảnh báo giá" : "Thiết lập cảnh báo giá"}
-                                active={activeAlert !== null || isAlertTriggered}
-                                activeClassName="text-amber-600 bg-amber-50 dark:bg-amber-500/10"
-                                onClick={setupPriceAlert}
-                            />
                             <ToolbarButton
                                 icon={<GitCompare className="w-3.5 h-3.5" />}
                                 title="Mở tab so sánh cổ phiếu"
@@ -525,14 +429,7 @@ const PriceHistoryChart = () => {
                     />
                 )}
             </CardContent>
-            {showAlert && (
-                <AlertPopup
-                    ticker={ticker}
-                    existingAlert={activeAlert}
-                    onClose={() => setShowAlert(false)}
-                    onSaved={(alert) => setActiveAlert(alert)}
-                />
-            )}
+
     </Card>
     );
 };

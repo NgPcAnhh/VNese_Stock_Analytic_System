@@ -127,8 +127,5 @@ class TrackingStatsResponse(BaseModel):
     total_sessions_today: int
     avg_session_duration_today: Optional[float]
 
-class ToggleFavoriteRequest(BaseModel):
-    """Toggle trang thai yeu thich cua 1 ma"""
-    ticker: str = Field(..., max_length=20)
-    session_id: str = Field(default="anonymous", max_length=64)
+
 

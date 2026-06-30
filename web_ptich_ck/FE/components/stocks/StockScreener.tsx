@@ -193,7 +193,6 @@ function countActiveFilters(f: ScreenerFilters): number {
 // ─── main component ──────────────────────────────────
 export default function StockScreener() {
   const [allStocks, setAllStocks] = useState<StockListItem[]>([]);
-  const [favoriteTickers, setFavoriteTickers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ScreenerFilters>({ ...DEFAULT_FILTERS });
@@ -222,28 +221,7 @@ export default function StockScreener() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
-  const [watchlist, setWatchlist] = useState<Set<string>>(new Set());
 
-  const getOrCreateSessionId = useCallback(() => {
-    const key = "session_id";
-    const existing = localStorage.getItem(key);
-    if (existing) return existing;
-    const generated = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem(key, generated);
-    return generated;
-  }, []);
-
-  const loadFavorites = useCallback(async () => {
-    try {
-      const sessionId = getOrCreateSessionId();
-      const res = await fetch(`${API}/tracking/favorite?session_id=${encodeURIComponent(sessionId)}`);
-      if (!res.ok) return;
-      const data = (await res.json()) as string[];
-      setFavoriteTickers(data.map((t) => t.toUpperCase()));
-    } catch {
-      // noop
-    }
-  }, [getOrCreateSessionId]);
 
   // ─── Fetch screener data from API ──────────────────
   useEffect(() => {
@@ -273,19 +251,7 @@ export default function StockScreener() {
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    loadFavorites();
-  }, [loadFavorites]);
 
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        loadFavorites();
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [loadFavorites]);
 
   // ─── Dynamic sector & exchange lists from data ─────
   const dynamicSectors = useMemo(() => {
@@ -360,15 +326,7 @@ export default function StockScreener() {
     []
   );
 
-  // — toggle watchlist
-  const toggleWatchlist = useCallback((ticker: string) => {
-    setWatchlist((prev) => {
-      const next = new Set(prev);
-      if (next.has(ticker)) next.delete(ticker);
-      else next.add(ticker);
-      return next;
-    });
-  }, []);
+
 
   // — sort
   const toggleSort = (key: SortKey) => {
@@ -382,9 +340,6 @@ export default function StockScreener() {
   // ─── FILTER LOGIC ──────────────────────────────────
   const filtered = useMemo(() => {
     let list = [...allStocks];
-    const favoriteOrderMap = new Map(
-      favoriteTickers.map((ticker, index) => [ticker.toUpperCase(), index]),
-    );
 
     // Search
     if (deferredSearch) {
@@ -443,19 +398,6 @@ export default function StockScreener() {
 
     // Sort
     list.sort((a, b) => {
-      const favA = favoriteOrderMap.get(a.ticker.toUpperCase());
-      const favB = favoriteOrderMap.get(b.ticker.toUpperCase());
-      const isFavA = favA !== undefined;
-      const isFavB = favB !== undefined;
-
-      // Favorites always first.
-      if (isFavA !== isFavB) return isFavA ? -1 : 1;
-
-      // Newer favorite first (index 0 is newest from API ORDER BY created_at DESC).
-      if (isFavA && isFavB && favA !== favB) {
-        return (favA as number) - (favB as number);
-      }
-
       const av = a[sortKey] ?? 0;
       const bv = b[sortKey] ?? 0;
       if (typeof av === "number" && typeof bv === "number")
@@ -466,7 +408,7 @@ export default function StockScreener() {
     });
 
     return list;
-  }, [allStocks, deferredSearch, filters, sortKey, sortDir, favoriteTickers]);
+  }, [allStocks, deferredSearch, filters, sortKey, sortDir]);
 
   // — pagination
   const totalPages = Math.ceil(filtered.length / rowsPerPage);
@@ -866,9 +808,6 @@ export default function StockScreener() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-50/80 text-[11px]">
-                        <TableHead className="w-8 text-center">
-                          <Star className="w-3 h-3 text-gray-300 mx-auto" />
-                        </TableHead>
                         <TableHead className="w-[150px] sticky left-0 bg-gray-50/80 z-10">Mã CK</TableHead>
                         <SortHeader label="Giá" field="currentPrice" className="text-right" />
                         <SortHeader label="%" field="priceChangePercent" className="text-right" />
@@ -913,18 +852,7 @@ export default function StockScreener() {
                           const isUp = stock.priceChangePercent >= 0;
                           return (
                             <TableRow key={stock.ticker} className="hover:bg-orange-50/40 transition-colors group text-[11px]">
-                              {/* Watchlist */}
-                              <TableCell className="text-center px-1">
-                                <button onClick={() => toggleWatchlist(stock.ticker)} className="p-0.5">
-                                  <Star
-                                    className={`w-3.5 h-3.5 transition-colors ${
-                                      watchlist.has(stock.ticker)
-                                        ? "fill-amber-400 text-amber-400"
-                                        : "text-gray-300 hover:text-amber-400"
-                                    }`}
-                                  />
-                                </button>
-                              </TableCell>
+
 
                               {/* Ticker */}
                               <TableCell className="sticky left-0 bg-white group-hover:bg-orange-50/40 z-10">
@@ -1170,18 +1098,6 @@ export default function StockScreener() {
                               </div>
                             </div>
                             <div className="flex items-center gap-1">
-                              <button
-                                onClick={(e) => { e.preventDefault(); toggleWatchlist(stock.ticker); }}
-                                className="p-1"
-                              >
-                                <Star
-                                  className={`w-3.5 h-3.5 ${
-                                    watchlist.has(stock.ticker)
-                                      ? "fill-amber-400 text-amber-400"
-                                      : "text-gray-300"
-                                  }`}
-                                />
-                              </button>
                               <span className={`text-[10px] font-semibold rounded border px-1.5 py-0.5 ${signalColor[stock.signal]}`}>
                                 {stock.signal}
                               </span>

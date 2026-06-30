@@ -11,7 +11,6 @@ from app.modules.tracking.schemas import (
     SessionEndRequest,
     SessionHeartbeatRequest,
     SessionStartRequest,
-    ToggleFavoriteRequest,
     TrackResponse,
     TrackSearchRequest,
     TrackSidebarClickRequest,
@@ -54,35 +53,7 @@ async def track_search(
     return TrackResponse(success=True)
 
 
-# ── 9. Favorite stocks ───────────────────────────────────────────
 
-@router.post("/favorite", response_model=TrackResponse)
-async def toggle_favorite(
-    body: ToggleFavoriteRequest,
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """Thêm/xóa mã cổ phiếu khỏi danh sách yêu thích."""
-    user_id = getattr(request.state, "user_id", None)
-    is_favorite = await logic.toggle_favorite(
-        db=db,
-        ticker=body.ticker,
-        user_id=user_id,
-        session_id=body.session_id,
-    )
-    message = "Đã thêm vào yêu thích" if is_favorite else "Đã xóa khỏi yêu thích"
-    return TrackResponse(success=True, message=message)
-
-
-@router.get("/favorite", response_model=list[str])
-async def get_favorites(
-    request: Request,
-    session_id: str = "anonymous",
-    db: AsyncSession = Depends(get_db),
-):
-    """Lấy danh sách mã cổ phiếu yêu thích."""
-    user_id = getattr(request.state, "user_id", None)
-    return await logic.get_favorites(db=db, user_id=user_id, session_id=session_id)
 
 
 # ── 2. Tìm kiếm mã cổ phiếu ──────────────────────────────────────
